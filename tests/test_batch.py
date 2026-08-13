@@ -11,6 +11,7 @@ from aether.batch import (
     sample_dispersions,
 )
 
+
 class TestSampling:
     def test_deterministic_given_seed(self):
         specs = [DispersionSpec("a", 1.0, 0.1), DispersionSpec("b", 5.0, 0.5)]
