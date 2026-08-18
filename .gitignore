@@ -24,7 +24,8 @@ dist/
 results/
 
 # In Progress, Check Back Soon
-manuscript/
+manuscript/references/
+manuscript/legacy/
 
 # LaTeX build artifacts
 manuscript/*.aux
@@ -35,4 +36,3 @@ manuscript/*.fls
 manuscript/*.log
 manuscript/*.out
 manuscript/*.toc
-manuscript/*.pdf

@@ -1,0 +1,147 @@
+%% Certified Analytical Bounds for Multi-Phase Hypersonic Reachability.
+%%
+%% Knox, 2026.
+%%
+%% Sections are split into files so that each can be drafted and compiled
+%% independently; the running text and the body-vs-appendix discipline are
+%% unchanged by that.
+
+\documentclass[english,11pt]{extarticle}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=1in,bmargin=1in,lmargin=1in,rmargin=1in}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{units}
+\usepackage{enumitem}
+\usepackage{microtype}          % typographic polish: char protrusion, expansion
+\usepackage{xcolor}
+\usepackage{tcolorbox}          % highlighted result boxes
+\tcbuselibrary{skins,breakable}
+\usepackage{fancyhdr}           % running header with the short title
+
+\makeatletter
+
+\numberwithin{equation}{section}
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+
+% ---- Theorem environments ----
+\@ifundefined{thm}{%
+  \theoremstyle{plain}%
+  \newtheorem{thm}{Theorem}[section]%
+}{}
+\@ifundefined{prop}{\newtheorem{prop}[thm]{Proposition}}{}
+\@ifundefined{lem}{\newtheorem{lem}[thm]{Lemma}}{}
+\@ifundefined{cor}{\newtheorem{cor}[thm]{Corollary}}{}
+\@ifundefined{conj}{\newtheorem{conj}[thm]{Conjecture}}{}
+\@ifundefined{defn}{%
+  \theoremstyle{definition}%
+  \newtheorem{defn}[thm]{Definition}%
+}{}
+\@ifundefined{assum}{%
+  \theoremstyle{definition}%
+  \newtheorem{assum}[thm]{Assumption}%
+}{}
+\@ifundefined{example}{\newtheorem{example}[thm]{Example}}{}
+\@ifundefined{rmk}{%
+  \theoremstyle{remark}%
+  \newtheorem{rmk}[thm]{Remark}%
+}{}
+
+% ---- Convenient macros ----
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\ip}[2]{\langle #1, #2 \rangle}
+\newcommand{\norm}[1]{\left\| #1 \right\|}
+\newcommand{\abs}[1]{\left| #1 \right|}
+\newcommand{\T}{^{\mathsf{T}}}          % transpose
+\newcommand{\dd}{\,\mathrm{d}}          % upright differential
+\newcommand{\D}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}     % total derivative
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}      % partial derivative
+
+\makeatother
+
+% ---- Highlighted-result box ----
+\newtcolorbox{keybox}[1][]{colback=blue!4,colframe=blue!45!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+
+\usepackage{babel}
+
+% ---- Cross-references and links (load late: hyperref then cleveref) ----
+\usepackage[hidelinks,colorlinks=true,
+  linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
+\usepackage[nameinlink,capitalise]{cleveref}
+
+% ---- Running header with the short title ----
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small Certified Analytical Bounds for Multi-Phase Hypersonic Reachability}
+\rhead{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\begin{document}
+
+\title{\textbf{Certified Analytical Bounds for Multi-Phase Hypersonic Reachability}}
+\author{\textbf{Ethan Knox}\\
+\textit{Independent Researcher, Champaign, IL, USA}}
+\date{2026}
+\maketitle
+
+\begin{abstract}
+
+% \medskip{}
+\bigskip{}
+
+\textbf{Keywords:} 
+
+\medskip{}
+\noindent\textbf{MSC 2020: [to be selected]}
+
+\end{abstract}
+\pagebreak{}
+
+\tableofcontents{}
+\pagebreak{}
+
+\input{sections/introduction}
+\pagebreak{}
+
+\input{sections/the_model_problem}
+\pagebreak{}
+
+\input{sections/infinite-dimensional_embedding_and_measure_theory}
+\pagebreak{}
+
+\input{sections/concentration-compactness_and_moment_closure}
+\pagebreak{}
+
+\input{sections/bounding_limits_and_certificates}
+\pagebreak{}
+
+\input{sections/verification_and_results}
+\pagebreak{}
+
+\input{sections/discussion}
+\pagebreak{}
+
+\bibliographystyle{plain}
+\bibliography{main}
+\pagebreak{}
+
+\appendix
+\input{appendices/point-mass_equations_of_motion}
+\input{appendices/the_extremal_control_law}
+\input{appendices/sos_programming_and_formulation}
+\input{appendices/stochastic_extension}
+
+\end{document}
