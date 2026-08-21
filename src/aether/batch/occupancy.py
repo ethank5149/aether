@@ -1,6 +1,6 @@
-"""CUDA occupancy model for the batch layer (Paper I, §5.2 / V8).
+"""CUDA occupancy model for the batch layer (V8).
 
-Paper I's V8 asks for *achieved* occupancy alongside throughput. Achieved
+V8 asks for *achieved* occupancy alongside throughput. Achieved
 occupancy is a hardware counter and needs a profiler (Nsight Compute),
 which is not available in this environment. What *is* computable, exactly
 and without a profiler, is **theoretical occupancy**: the standard CUDA

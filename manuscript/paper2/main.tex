@@ -1,0 +1,76 @@
+%% Paper 2 of three.
+%%
+%% Certified Contraction of Reachable Sets under Sequential Telemetry.
+%% Knox, 2026.
+%%
+
+\documentclass[english,11pt]{extarticle}
+\input{../preamble}
+\runninghead{Certified Contraction of Reachable Sets under Sequential Telemetry}
+
+\begin{document}
+
+\title{\textbf{Certified Contraction of Reachable Sets under Sequential Telemetry}}
+\author{\textbf{Ethan Knox}\\
+\textit{Independent Researcher, Champaign, IL, USA}}
+\date{2026}
+\maketitle
+
+\begin{abstract}
+
+
+% \medskip{}
+\bigskip{}
+
+\textbf{Keywords:} reachable sets; occupation measures; set-membership
+estimation; data assimilation; Koopman operator; ultraspherical spectral
+methods; hybrid systems; atmospheric entry
+
+\medskip{}
+% Primary first. Trim to five before submission.
+%   93B03 attainable sets / reachability
+%   93E10 estimation and detection
+%   93C65 discrete-event and hybrid systems
+%   47B33 composition (Koopman) operators
+%   90C22 semidefinite programming
+%   65D15 algorithms for approximation of functions
+\noindent\textbf{MSC 2020: [select five from the list in the source]}
+
+\end{abstract}
+\pagebreak{}
+
+\tableofcontents{}
+\pagebreak{}
+
+\input{sections/introduction}
+\pagebreak{}
+
+\input{sections/the_sequential_problem}
+\pagebreak{}
+
+\input{sections/measure_restriction}
+\pagebreak{}
+
+\input{sections/contraction}
+\pagebreak{}
+
+\input{sections/certificate_update}
+\pagebreak{}
+
+\input{sections/verification_and_results}
+\pagebreak{}
+
+\input{sections/discussion}
+\pagebreak{}
+
+\bibliographystyle{plain}
+\bibliography{../shared}
+\pagebreak{}
+
+\appendix
+\input{appendices/observation_models}
+\input{appendices/banded_propagation}
+\input{appendices/wrapping_effect}
+\input{appendices/proof_of_contraction}
+
+\end{document}

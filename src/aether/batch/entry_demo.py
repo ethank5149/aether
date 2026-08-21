@@ -5,7 +5,7 @@ exponential atmosphere over a flat Earth — textbook dynamics with
 generic constants, traceable to no vehicle. It exists to produce
 realistic-looking impact dispersions (downrange-elongated, mildly
 non-Gaussian through the drag nonlinearity) so the dispersion
-statistics of §6 and the throughput scaling of V8 can be exercised
+statistics and the throughput scaling of V8 can be exercised
 end-to-end. Dispersed quantities: ballistic coefficient, entry speed,
 flight-path angle, azimuth, atmospheric density bias, and two constant
 wind components.
@@ -13,8 +13,7 @@ wind components.
 Impact detection runs on the common outer grid: each replicate's ground
 crossing is located by linear interpolation inside the step where its
 altitude changes sign, and the replicate's state is frozen thereafter —
-no per-replicate step adaptation, so the batch stays coherent (Paper I,
-Remark 9).
+no per-replicate step adaptation, so the batch stays coherent.
 """
 
 from __future__ import annotations

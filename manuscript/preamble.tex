@@ -1,12 +1,20 @@
-%% Certified Analytical Bounds for Multi-Phase Hypersonic Reachability.
+%% =====================================================================
+%%  Shared preamble for the three-paper series.
 %%
-%% Knox, 2026.
+%%    Paper 1  Certified Analytical Bounds for Multi-Phase Hypersonic
+%%             Reachability                        (paper1/)
+%%    Paper 2  Certified contraction under sequential telemetry
+%%                                                 (paper2/)
+%%    Paper 3  Probabilistic bounds under process and measurement noise
+%%                                                 (paper3/)
 %%
-%% Sections are split into files so that each can be drafted and compiled
-%% independently; the running text and the body-vs-appendix discipline are
-%% unchanged by that.
+%%  Usage, from a paper directory:
+%%      \documentclass[english,11pt]{extarticle}
+%%      \input{../preamble}
+%%      \runninghead{Short Title}
+%%      ... \bibliography{../shared}
+%% =====================================================================
 
-\documentclass[english,11pt]{extarticle}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{geometry}
@@ -61,6 +69,7 @@
 \newcommand{\C}{\mathbb{C}}
 \newcommand{\N}{\mathbb{N}}
 \newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
 \newcommand{\ip}[2]{\langle #1, #2 \rangle}
 \newcommand{\norm}[1]{\left\| #1 \right\|}
 \newcommand{\abs}[1]{\left| #1 \right|}
@@ -68,6 +77,16 @@
 \newcommand{\dd}{\,\mathrm{d}}          % upright differential
 \newcommand{\D}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}     % total derivative
 \newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}      % partial derivative
+
+% ---- Program-wide notation ----
+\newcommand{\Rset}{\mathcal{R}}          % reachable set
+\newcommand{\Mplus}{\mathcal{M}_+}       % cone of nonnegative Radon measures
+\newcommand{\Xset}{\mathcal{X}}          % state constraint set
+\newcommand{\Uset}{\mathcal{U}}          % control constraint set
+\newcommand{\Lie}{\mathcal{L}}           % Lie derivative / generator
+\newcommand{\modes}{\mathcal{Q}}         % mode alphabet (Paper 1, Section 2.2)
+\newcommand{\guard}{\mathcal{S}}         % guard surface
+\newcommand{\reset}{\mathcal{J}}         % reset map
 
 \makeatother
 
@@ -82,66 +101,11 @@
   linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
 \usepackage[nameinlink,capitalise]{cleveref}
 
-% ---- Running header with the short title ----
-\pagestyle{fancy}
-\fancyhf{}
-\lhead{\small Certified Analytical Bounds for Multi-Phase Hypersonic Reachability}
-\rhead{\small\thepage}
-\renewcommand{\headrulewidth}{0.3pt}
-
-\begin{document}
-
-\title{\textbf{Certified Analytical Bounds for Multi-Phase Hypersonic Reachability}}
-\author{\textbf{Ethan Knox}\\
-\textit{Independent Researcher, Champaign, IL, USA}}
-\date{2026}
-\maketitle
-
-\begin{abstract}
-
-% \medskip{}
-\bigskip{}
-
-\textbf{Keywords:} 
-
-\medskip{}
-\noindent\textbf{MSC 2020: [to be selected]}
-
-\end{abstract}
-\pagebreak{}
-
-\tableofcontents{}
-\pagebreak{}
-
-\input{sections/introduction}
-\pagebreak{}
-
-\input{sections/the_model_problem}
-\pagebreak{}
-
-\input{sections/infinite-dimensional_embedding_and_measure_theory}
-\pagebreak{}
-
-\input{sections/concentration-compactness_and_moment_closure}
-\pagebreak{}
-
-\input{sections/bounding_limits_and_certificates}
-\pagebreak{}
-
-\input{sections/verification_and_results}
-\pagebreak{}
-
-\input{sections/discussion}
-\pagebreak{}
-
-\bibliographystyle{plain}
-\bibliography{main}
-\pagebreak{}
-
-\appendix
-\input{appendices/point-mass_equations_of_motion}
-\input{appendices/the_extremal_control_law}
-\input{appendices/sos_programming_and_formulation}
-\input{appendices/stochastic_extension}
-
-\end{document}
+% ---- Running header: each paper calls \runninghead{Short Title} ----
+\newcommand{\runninghead}[1]{%
+  \pagestyle{fancy}%
+  \fancyhf{}%
+  \lhead{\small #1}%
+  \rhead{\small\thepage}%
+  \renewcommand{\headrulewidth}{0.3pt}%
+}

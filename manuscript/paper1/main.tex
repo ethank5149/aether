@@ -1,0 +1,84 @@
+%% Paper 1 of three.
+%%
+%% Certified Analytical Bounds for Multi-Phase Hypersonic Reachability.
+%% Knox, 2026.
+%%
+
+\documentclass[english,11pt]{extarticle}
+\input{../preamble}
+\runninghead{Certified Analytical Bounds for Multi-Phase Hypersonic Reachable Sets}
+
+\begin{document}
+
+\title{\textbf{Certified Analytical Bounds for Multi-Phase Hypersonic Reachable Sets}}
+\author{\textbf{Ethan Knox}\\
+\textit{Independent Researcher, Champaign, IL, USA}}
+\date{2026}
+\maketitle
+
+\begin{abstract}
+
+% \medskip{}
+\bigskip{}
+
+\textbf{Keywords:} reachable sets; occupation measures; Liouville equation;
+concentration-compactness; profile decomposition; comparison principle;
+barrier certificates; hybrid systems; hypersonic entry; entry corridor;
+boost-glide
+
+\medskip{}
+% Primary first. Candidates, to be trimmed to five:
+%   93B03 attainable sets / reachability
+%   49J45 methods involving semicontinuity and convergence; relaxation
+%   28A33 spaces of measures, weak convergence
+%   34E15 singular perturbations, general theory
+%   34A38 hybrid systems of ordinary differential equations
+%   90C22 semidefinite programming
+\noindent\textbf{MSC 2020: 34A38}
+
+\end{abstract}
+\pagebreak{}
+
+\tableofcontents{}
+\pagebreak{}
+
+\input{sections/introduction}
+\pagebreak{}
+
+\input{sections/the_model_problem}
+\pagebreak{}
+
+\input{sections/infinite-dimensional_embedding_and_measure_theory}
+\pagebreak{}
+
+\input{sections/concentration-compactness_and_profile_decomposition}
+\pagebreak{}
+
+\input{sections/bounding_limits_and_certificates}
+\pagebreak{}
+
+\input{sections/verification_and_results}
+\pagebreak{}
+
+\input{sections/discussion}
+\pagebreak{}
+
+\bibliographystyle{plain}
+\bibliography{../shared}
+\pagebreak{}
+
+\appendix
+
+% Physics and its algebra first
+\input{appendices/rigid_body_equations_of_motion}
+% Then the certificate's own machinery
+\input{appendices/constraint_envelopes}
+\input{appendices/polynomial_embedding}
+\input{appendices/exact_verification}
+\input{appendices/the_extremal_control_law}
+% lastly the material serving only the numerical cross-check of Section 6.3.
+\input{appendices/sos_programming_and_formulation}
+\input{appendices/spectral_machinery}
+\input{appendices/chebyshev_sos}
+
+\end{document}

@@ -25,7 +25,8 @@ boundary:
 
 check: boundary lint typecheck test verify
 
-# ------------------------------------------------------------------ paper
+# ---------------------------------------------------------------- papers
+# Three papers plus the working notes; see manuscript/Makefile.
 manuscript:
 	$(MAKE) -C manuscript
 

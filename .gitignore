@@ -26,13 +26,17 @@ results/
 # In Progress, Check Back Soon
 manuscript/references/
 manuscript/legacy/
+manuscript/notes.md
 
-# LaTeX build artifacts
-manuscript/*.aux
-manuscript/*.bbl
-manuscript/*.blg
-manuscript/*.fdb_latexmk
-manuscript/*.fls
-manuscript/*.log
-manuscript/*.out
-manuscript/*.toc
+# LaTeX build artifacts. Recursive: the manuscript is three papers, each
+# built in its own directory (manuscript/paper{1,2,3}/), so per-file rules
+# at one level no longer suffice.
+manuscript/**/*.aux
+manuscript/**/*.bbl
+manuscript/**/*.blg
+manuscript/**/*.fdb_latexmk
+manuscript/**/*.fls
+manuscript/**/*.log
+manuscript/**/*.out
+manuscript/**/*.toc
+manuscript/**/*.synctex.gz
