@@ -28,6 +28,9 @@ results/
 manuscripts/references/
 manuscripts/legacy/
 manuscripts/notes.md
+# Dependent on the results of previous papers
+manuscripts/paper4/
+manuscripts/paper5/
 
 # LaTeX build artifacts. Each paper's latexmkrc sends every intermediate to
 # its own build/ directory and writes only main.pdf beside the source, so one
