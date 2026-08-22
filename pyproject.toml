@@ -104,5 +104,8 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
-module = ["pymsis.*", "xarray.*"]
+# gmsh and cantera arrived with the aerodynamics and aerothermal packages;
+# each is wrapped behind a typed facade here, so the untyped surface is one
+# call wide in each case.
+module = ["gmsh", "pymsis.*", "cantera.*", "xarray.*"]
 ignore_missing_imports = true
