@@ -189,3 +189,128 @@ class TestLocalIncidence:
         with pytest.raises(ValueError, match="trailing dimension 3"):
             local_incidence([0.0, 1.0], [0.0, 0.0, 1.0])
 
+
+
+class TestTheAttitudeConventionIsPinned:
+    """Which quaternion and rotation convention this kernel uses, stated as a test.
+
+    :func:`dcm_from_quaternion` is correct, and that is exactly why this exists.
+    The convention it implements -- scalar-first ``(w, x, y, z)`` with the
+    *passive* sense, so the matrix maps inertial components to body components --
+    is a choice, and it is currently recorded nowhere an importer would see. The
+    alternatives are equally standard: SciPy takes scalar-last and returns the
+    *active* rotation, which is this matrix transposed.
+
+    A mismatch between the two is silent. Both are orthonormal with unit
+    determinant, both round-trip, and a trajectory flown with the transpose
+    simply goes somewhere else. Nothing about the arithmetic complains. The risk
+    is not in this function but at its boundaries: the moment any external
+    library -- SciPy, Orekit, Basilisk -- is brought alongside it, one side must
+    be transposed, and this test is what says which.
+    """
+
+    @staticmethod
+    def _scipy_rotation(quaternion):
+        from scipy.spatial.transform import Rotation
+
+        w, x, y, z = quaternion
+        return Rotation.from_quat([x, y, z, w])
+
+    def test_it_is_scalar_first_and_passive(self):
+        """The convention itself, against an independent implementation.
+
+        Agreement to machine precision over random attitudes, and specifically
+        with SciPy's *transpose* -- the assertion that would fail first if the
+        convention were ever changed.
+        """
+        rng = np.random.default_rng(0)
+        worst = 0.0
+        for _ in range(500):
+            quaternion = rng.normal(size=4)
+            quaternion /= np.linalg.norm(quaternion)
+            ours = np.asarray(dcm_from_quaternion(quaternion))
+            theirs = self._scipy_rotation(quaternion).as_matrix()
+            worst = max(worst, float(np.max(np.abs(ours - theirs.T))))
+        assert worst < 1e-14
+
+    def test_the_active_reading_is_not_what_this_returns(self):
+        """Stated positively so the failure mode is documented, not merely absent.
+
+        If a future change made this return SciPy's matrix rather than its
+        transpose, the test above would fail and this one would too -- and the
+        pair together say *which* direction the convention moved.
+        """
+        rng = np.random.default_rng(1)
+        quaternion = rng.normal(size=4)
+        quaternion /= np.linalg.norm(quaternion)
+        ours = np.asarray(dcm_from_quaternion(quaternion))
+        theirs = self._scipy_rotation(quaternion).as_matrix()
+        assert np.max(np.abs(ours - theirs)) > 1e-3
+
+    def test_it_maps_inertial_components_into_the_body_frame(self):
+        """What 'passive' means operationally, on a case with an obvious answer.
+
+        A 90 degree rotation about z: a vector along inertial x has body
+        components along -y under the passive reading. Getting +y instead would
+        mean the active convention.
+        """
+        half = np.sqrt(0.5)
+        quaternion = np.array([half, 0.0, 0.0, half])  # w, x, y, z
+        matrix = np.asarray(dcm_from_quaternion(quaternion))
+        body = matrix @ np.array([1.0, 0.0, 0.0])
+        assert np.allclose(body, [0.0, -1.0, 0.0], atol=1e-12)
+
+    def test_it_is_a_proper_rotation(self):
+        """Orthonormal with unit determinant -- true of both conventions.
+
+        Included to make the point that these checks cannot distinguish them,
+        which is why the convention needs pinning separately.
+        """
+        rng = np.random.default_rng(2)
+        for _ in range(100):
+            quaternion = rng.normal(size=4)
+            quaternion /= np.linalg.norm(quaternion)
+            matrix = np.asarray(dcm_from_quaternion(quaternion))
+            assert np.allclose(matrix @ matrix.T, np.eye(3), atol=1e-14)
+            assert np.linalg.det(matrix) == pytest.approx(1.0, abs=1e-14)
+
+
+class TestTheFallbackMatchesTheLibrary:
+    """The closed form is retained only for arithmetics SciPy cannot take.
+
+    It must therefore agree with SciPy exactly on the floats where both work,
+    or the certified layer and the simulator would be using different rotations
+    and nothing would say so.
+    """
+
+    def test_it_agrees_with_the_scipy_path_on_floats(self):
+        from aether.dynamics.attitude import _dcm_expression
+
+        rng = np.random.default_rng(3)
+        worst = 0.0
+        for _ in range(500):
+            quaternion = rng.normal(size=4)
+            quaternion /= np.linalg.norm(quaternion)
+            worst = max(
+                worst,
+                float(
+                    np.max(
+                        np.abs(
+                            _dcm_expression(quaternion)
+                            - np.asarray(dcm_from_quaternion(quaternion))
+                        )
+                    )
+                ),
+            )
+        assert worst < 1e-14
+
+    def test_the_batched_shape_survives_the_swap(self):
+        """SciPy is inherently batched; the reshape around it must preserve shape."""
+        rng = np.random.default_rng(4)
+        quaternions = rng.normal(size=(7, 4))
+        quaternions /= np.linalg.norm(quaternions, axis=-1, keepdims=True)
+        assert np.asarray(dcm_from_quaternion(quaternions)).shape == (7, 3, 3)
+
+    def test_a_zero_quaternion_is_still_refused(self):
+        with pytest.raises(ValueError, match="non-zero"):
+            dcm_from_quaternion([0.0, 0.0, 0.0, 0.0])

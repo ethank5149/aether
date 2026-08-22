@@ -122,21 +122,53 @@ class TestConversions:
 
 
 class TestGreatCircle:
-    def test_quarter_of_the_equator(self):
+    """Now geodesics on the WGS84 ellipsoid, not great circles on a sphere.
+
+    Both assertions below used to read ``0.5 * pi * WGS84_MEAN_RADIUS``. That is
+    the spherical answer, and on an ellipsoid it is wrong for *both* cases in
+    opposite directions -- 5.6 km short of a quarter equator and 5.6 km long
+    against a quarter meridian. The tests were asserting the model rather than
+    the fact, which is invisible while the implementation shares the model.
+    """
+
+    def test_a_quarter_of_the_equator_is_a_quarter_of_the_equatorial_circle(self):
+        r"""Exactly :math:`\pi a / 2`, since the equator is a circle of radius ``a``.
+
+        An identity rather than a reference value, and matched to the last
+        printed digit.
+        """
         origin = GeodeticPosition.from_degrees(0.0, 0.0)
         quarter = GeodeticPosition.from_degrees(0.0, 90.0)
         assert great_circle_range(origin, quarter) == pytest.approx(
-            0.5 * np.pi * WGS84_MEAN_RADIUS, rel=1e-12
+            0.5 * np.pi * WGS84_SEMI_MAJOR_AXIS, rel=1e-12
         )
         assert great_circle_bearing(origin, quarter) == pytest.approx(np.pi / 2.0, abs=1e-12)
 
-    def test_due_north_bearing_and_pole_distance(self):
+    def test_equator_to_pole_is_the_quarter_meridian(self):
+        """10 001 965.7 m, the published WGS84 quarter meridian.
+
+        Shorter than a quarter equator by 16.8 km. That difference *is* the
+        oblateness, and a spherical range cannot express it -- one number cannot
+        be both.
+        """
         origin = GeodeticPosition.from_degrees(0.0, 30.0)
         pole = GeodeticPosition.from_degrees(90.0, 30.0)
         assert great_circle_bearing(origin, pole) == pytest.approx(0.0, abs=1e-12)
         assert great_circle_range(origin, pole) == pytest.approx(
-            0.5 * np.pi * WGS84_MEAN_RADIUS, rel=1e-12
+            10_001_965.7, abs=1.0
         )
+
+    def test_the_equator_is_longer_than_the_meridian(self):
+        """The property the spherical implementation could not have."""
+        equator = great_circle_range(
+            GeodeticPosition.from_degrees(0.0, 0.0),
+            GeodeticPosition.from_degrees(0.0, 90.0),
+        )
+        meridian = great_circle_range(
+            GeodeticPosition.from_degrees(0.0, 30.0),
+            GeodeticPosition.from_degrees(90.0, 30.0),
+        )
+        assert equator - meridian == pytest.approx(16_788.4, abs=1.0)
 
     def test_range_is_symmetric_and_zero_for_a_point(self):
         a = GeodeticPosition.from_degrees(45.0, -75.0)
