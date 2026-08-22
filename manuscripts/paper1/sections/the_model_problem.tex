@@ -9,6 +9,24 @@
 \subsection{Abstract formulation of the multi-phase optimal control problem}
 \label{sub:abstract_formulation}
 
+The vehicle is a rigid body, not a point mass (\cref{apx:eom}). Its state
+\begin{equation}
+\label{eq:model_state}
+x=\bigl(r,\theta,\phi,\,u,v,w,\,q_0,q_1,q_2,q_3,\,p,q,r_{\!b}\bigr)\in\mathcal X\subseteq\mathbb R^{13},
+\end{equation}
+augmented by mass, recession depth $s$ and modal state $(\eta,\dot\eta)$
+where the corresponding mode or coupling is active, carries geocentric
+position, body-frame velocity, attitude quaternion and body rates as
+components.
+The control
+\begin{equation}
+\label{eq:model_control}
+c=\bigl(\vec\delta,\,\vec\tau_{\mathrm{rcs}},\,\varsigma\bigr)\in U,
+\end{equation}
+collects flap deflections $\vec\delta$, reaction-control moments
+$\vec\tau_{\mathrm{rcs}}$ and, in a propulsive mode, throttle $\varsigma$;
+$U\subset\mathbb R^{n_c}$ is compact. \todo{Prove that $U$ is compact.}
+
 \subsection{The mode alphabet}
 \label{sub:mode_alphabet}
 

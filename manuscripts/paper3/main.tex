@@ -70,10 +70,16 @@ concentration of measure; hybrid systems; atmospheric entry
 \pagebreak{}
 
 \bibliographystyle{plain}
-\bibliography{../shared}
+\bibliography{shared}
 \pagebreak{}
 
 \appendix
+% \appendix restyles the section counter but does not create a new one, so
+% cleveref still calls these "Section A". Retype them for the rest of the
+% document; cleveref supplies the Appendix/Appendices names itself.
+\crefalias{section}{appendix}
+\crefalias{subsection}{subappendix}
+\crefalias{subsubsection}{subsubappendix}
 \input{appendices/ito_calculus_across_guards}
 \input{appendices/diffusion_models}
 \input{appendices/supermartingale_inequalities}

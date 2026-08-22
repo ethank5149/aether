@@ -15,6 +15,8 @@ venv/
 build/
 dist/
 
+manuscripts/*/.latexmkrc
+
 # Tooling caches
 .mypy_cache/
 .pytest_cache/
@@ -24,19 +26,22 @@ dist/
 results/
 
 # In Progress, Check Back Soon
-manuscript/references/
-manuscript/legacy/
-manuscript/notes.md
+manuscripts/references/
+manuscripts/legacy/
+manuscripts/notes.md
 
 # LaTeX build artifacts. Recursive: the manuscript is three papers, each
 # built in its own directory (manuscript/paper{1,2,3}/), so per-file rules
 # at one level no longer suffice.
-manuscript/**/*.aux
-manuscript/**/*.bbl
-manuscript/**/*.blg
-manuscript/**/*.fdb_latexmk
-manuscript/**/*.fls
-manuscript/**/*.log
-manuscript/**/*.out
-manuscript/**/*.toc
-manuscript/**/*.synctex.gz
+manuscripts/**/*.aux
+manuscripts/**/*.bbl
+manuscripts/**/*.blg
+manuscripts/**/*.fdb_latexmk
+manuscripts/**/*.fls
+manuscripts/**/*.log
+manuscripts/**/*.out
+manuscripts/**/*.toc
+manuscripts/**/*.synctex.gz
+
+# Editor build button writes here (latex-workshop.latex.outDir = %DIR%/build).
+manuscripts/**/build/

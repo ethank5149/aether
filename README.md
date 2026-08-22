@@ -42,18 +42,18 @@ Three papers, in series:
 
 ### Status
 
-**Early.** The manuscripts are section structure and a working bibliography.
-No derivations are written and no results are computed; nothing in them should
-yet be read as a claim.
+**Early.** The manuscripts are section structure. No derivations are written
+and no results are computed; nothing in them should yet be read as a claim.
 
-[`manuscript/shared.bib`](manuscript/shared.bib) collects ~165 references in
-twenty-one groups with a reading order in its header. Bibliographic details there
-are provisional and flagged for verification against the published record.
+The shared bibliography, [`manuscripts/shared.bib`](manuscripts/shared.bib), is
+empty and is being assembled by hand — entries are added as sources are read and
+their details checked against the published record. The papers therefore build
+with no bibliography at present.
 
 ### Building
 
 ```bash
-cd manuscript && ./build.sh          # all three papers
+cd manuscripts && ./build.sh          # all three papers
 ./build.sh paper1                    # one paper
 ./build.sh watch paper1              # continuous rebuild
 ```
