@@ -12,12 +12,18 @@
 The vehicle is a rigid body, not a point mass (\cref{apx:eom}). Its state
 \begin{equation}
 \label{eq:model_state}
-x=\bigl(r,\theta,\phi,\,u,v,w,\,q_0,q_1,q_2,q_3,\,p,q,r_{\!b}\bigr)\in\mathcal X\subseteq\mathbb R^{13},
+x=\bigl(r,\theta,\phi,\,u,v,w,\,q_0,q_1,q_2,q_3,\,\omega_1,\omega_2,\omega_3\bigr)\in\mathcal X\subseteq\mathbb R^{13},
 \end{equation}
 augmented by mass, recession depth $s$ and modal state $(\eta,\dot\eta)$
 where the corresponding mode or coupling is active, carries geocentric
 position, body-frame velocity, attitude quaternion and body rates as
 components.
+The attitude coordinates are redundant: every admissible state satisfies
+\begin{equation}
+\label{eq:model_quaternion_norm}
+q_0^{2}+q_1^{2}+q_2^{2}+q_3^{2}=1,
+\end{equation}
+so the thirteen coordinates carry twelve degrees of freedom.
 The control
 \begin{equation}
 \label{eq:model_control}
@@ -25,7 +31,14 @@ c=\bigl(\vec\delta,\,\vec\tau_{\mathrm{rcs}},\,\varsigma\bigr)\in U,
 \end{equation}
 collects flap deflections $\vec\delta$, reaction-control moments
 $\vec\tau_{\mathrm{rcs}}$ and, in a propulsive mode, throttle $\varsigma$;
-$U\subset\mathbb R^{n_c}$ is compact. \todo{Prove that $U$ is compact.}
+$U\subset\mathbb R^{n_c}$ is compact. \todo{list deflection, RCS, and throttle limits (one citation each). compactness follows.}
+
+Crucially the incidence angles
+$(\alpha,\beta)$ are \emph{outputs} of the attitude solution
+(\cref{eq:apx_incidence}), not commanded quantities: trim is not assumed
+solvable\todo{elaborate}, and attitudes the vehicle cannot hold are excluded automatically
+rather than by fiat. The reachable set cannot contain a state reached only by an
+unattainable incidence.
 
 \subsection{The mode alphabet}
 \label{sub:mode_alphabet}

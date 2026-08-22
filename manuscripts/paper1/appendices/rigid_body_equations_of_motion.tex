@@ -1,6 +1,15 @@
 % =====================================================================
 %  Paper 1, Appendix: Six-Degree-of-Freedom Equations of Motion
 %  Owns: apx:eom
+%
+%  The vehicle is a rigid body with attitude and body rates as STATES, 
+%  and (alpha, beta) as OUTPUTS of the attitude solution rather than 
+%  commanded quantities. Controls are flap deflections and RCS moments.
+%
+%  Why not 3-DOF: a point-mass model treats (alpha, sigma) as
+%  instantaneously commandable, which assumes an attitude loop that
+%  tracks perfectly and a trim map that is always solvable. Neither is
+%  true of a real vehicle.
 % =====================================================================
 
 \section{Six-Degree-of-Freedom Equations of Motion}
@@ -8,10 +17,51 @@
 
 This appendix records the rigid-body dynamics the body of the paper
 treats as given. Nothing here is a contribution; the derivation is
-standard entry mechanics
+standard entry mechanics\todo{cite sources} assembled once with a fixed set of 
+frames and a fixed parametrization. Frame errors are the classic $6$-DOF defect 
+and are invisible in the assembled algebra, so the transformations are stated 
+explicitly and used without exception.
 
 \subsection{State vector and frames}
 \label{sub:apx_state_and_frames}
+
+\paragraph{Frames.} Four frames are used throughout.
+\begin{itemize}
+  \item $\mathcal I$: Earth-centred inertial (ECI), non-rotating.
+  \item $\mathcal E$: Earth-centred Earth-fixed (ECEF), rotating with the
+        constant planetary rate $\vec\omega_E = \omega_E\,\hat z_{\mathcal I}$.
+  \item $\mathcal L$: local geocentric frame at the vehicle, with unit
+        vectors $(\hat e_r,\hat e_\theta,\hat e_\phi)$ pointing radially
+        outward, east, and north.
+  \item $\mathcal B$: body frame, fixed at the instantaneous centre of
+        mass, axes along the vehicle's principal design directions.
+\end{itemize}
+The attitude quaternion $\vec q$ carries $\mathcal I \to \mathcal B$; the
+geocentric angles $(\theta,\phi)$ carry $\mathcal I \to \mathcal L$.
+
+The
+direction-cosine matrix built from $\vec q$,
+\begin{equation}
+\label{eq:apx_dcm}
+\mathbf R_{B/I}(\vec q)=
+\begin{pmatrix}
+q_0^2+q_1^2-q_2^2-q_3^2 & 2(q_1q_2+q_0q_3) & 2(q_1q_3-q_0q_2)\\
+2(q_1q_2-q_0q_3) & q_0^2-q_1^2+q_2^2-q_3^2 & 2(q_2q_3+q_0q_1)\\
+2(q_1q_3+q_0q_2) & 2(q_2q_3-q_0q_1) & q_0^2-q_1^2-q_2^2+q_3^2
+\end{pmatrix},
+\end{equation}
+is polynomial of degree two in $\vec q$, which is the property
+\cref{apx:embedding} exploits. The geocentric map is
+\begin{equation}
+\label{eq:apx_RLI}
+\mathbf R_{L/I}(\theta,\phi)=
+\begin{pmatrix}
+\cos\phi\cos\theta & \cos\phi\sin\theta & \sin\phi\\
+-\sin\theta & \cos\theta & 0\\
+-\sin\phi\cos\theta & -\sin\phi\sin\theta & \cos\phi
+\end{pmatrix}.
+\end{equation}
+
 
 \subsection{Translational equations}
 \label{sub:apx_translational}
