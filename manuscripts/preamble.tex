@@ -60,9 +60,9 @@
   \newtheorem{assum}[thm]{Assumption}%
 }{}
 \@ifundefined{example}{\newtheorem{example}[thm]{Example}}{}
-\@ifundefined{rmk}{%
+\@ifundefined{remark}{%
   \theoremstyle{remark}%
-  \newtheorem{rmk}[thm]{Remark}%
+  \newtheorem{remark}[thm]{Remark}%
 }{}
 
 % ---- Convenient macros ----
@@ -88,6 +88,15 @@
 \newcommand{\modes}{\mathcal{Q}}         % mode alphabet (Paper 1, Section 2.2)
 \newcommand{\guard}{\mathcal{S}}         % guard surface
 \newcommand{\reset}{\mathcal{J}}         % reset map
+
+% The Henrion-Korda dual pair is conventionally (v, w). Both letters are
+% already body-frame velocity components in the state vector, and the
+% certificate is a function OF that state, so the two would collide inside a
+% single displayed equation. Capital Greek instead: distinct from latitude
+% \phi and heading \psi, which are lowercase. Named here so the choice is
+% changed in one place rather than hunted through the papers.
+\newcommand{\cert}{\Phi}               % Liouville supersolution, cert(t,x)
+\newcommand{\certT}{\Psi}              % terminal majorant, certT(x)
 
 \makeatother
 

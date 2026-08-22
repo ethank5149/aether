@@ -15,7 +15,6 @@ venv/
 build/
 dist/
 
-manuscripts/*/.latexmkrc
 
 # Tooling caches
 .mypy_cache/
@@ -30,18 +29,10 @@ manuscripts/references/
 manuscripts/legacy/
 manuscripts/notes.md
 
-# LaTeX build artifacts. Recursive: the manuscript is three papers, each
-# built in its own directory (manuscript/paper{1,2,3}/), so per-file rules
-# at one level no longer suffice.
-manuscripts/**/*.aux
-manuscripts/**/*.bbl
-manuscripts/**/*.blg
-manuscripts/**/*.fdb_latexmk
-manuscripts/**/*.fls
-manuscripts/**/*.log
-manuscripts/**/*.out
-manuscripts/**/*.toc
-manuscripts/**/*.synctex.gz
-
-# Editor build button writes here (latex-workshop.latex.outDir = %DIR%/build).
+# LaTeX build artifacts. Each paper's latexmkrc sends every intermediate to
+# its own build/ directory and writes only main.pdf beside the source, so one
+# rule covers all three papers.
 manuscripts/**/build/
+# The editor passes -synctex=1, and the .synctex.gz has to sit beside the
+# PDF rather than in build/ for the viewer's inverse search to resolve.
+manuscripts/**/*.synctex.gz

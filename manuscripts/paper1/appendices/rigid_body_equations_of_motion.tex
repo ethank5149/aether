@@ -62,12 +62,89 @@ is polynomial of degree two in $\vec q$, which is the property
 \end{pmatrix}.
 \end{equation}
 
+\paragraph{State vector.} Before augmentation the state carries thirteen
+components,
+\begin{equation}
+\label{eq:apx_state}
+x=\bigl(\underbrace{r,\theta,\phi}_{\text{position}},\;
+        \underbrace{u,v,w}_{\text{body velocity}},\;
+        \underbrace{q_0,q_1,q_2,q_3}_{\text{attitude}},\;
+        \underbrace{p,q,r_{\!b}}_{\text{body rates}}\bigr)\in\mathbb R^{13},
+\end{equation}
+augmented by mass $m$ when a propulsive mode is present
+(\cref{sub:apx_per_mode_forms}), and by the recession depth $s$ and modal
+state $(\eta,\dot\eta)$ once the aerothermoelastic loop is closed
+(\cref{sub:apx_rotational,sub:certified_envelopes}). Here $(r,\theta,\phi)$
+are geocentric radius, longitude and latitude; $(u,v,w)$ are the body-axis
+components of the \emph{planet-relative} velocity
+\begin{equation}
+\label{eq:apx_relvel}
+\vec V \;=\; \vec V_{\mathcal I} - \vec\omega_E\times\vec r - \vec w_{\mathrm{wind}},
+\end{equation}
+with $\vec V_{\mathcal I}$ the inertial velocity and $\vec w_{\mathrm{wind}}$
+the local wind (\cref{sub:apx_atmosphere}); and $(p,q,r_{\!b})$ are the body
+components of the inertial angular velocity $\vec\omega\equiv\vec\omega_{B/I}$.
 
 \subsection{Translational equations}
 \label{sub:apx_translational}
 
+Newton's law holds in $\mathcal I$: $m\,\dot{\vec V}_{\mathcal I}\big|_{\mathcal I}=\vec F$,
+with $\vec F=\vec F_g+\vec F_a+\vec F_t$ (gravity, aerodynamic, thrust).
+We want the rate of the \emph{relative} velocity resolved in $\mathcal B$.
+Writing $\vec V_{\mathcal I}=\vec V+\vec\omega_E\times\vec r$ and
+differentiating in $\mathcal I$,
+\begin{equation}
+\dot{\vec V}_{\mathcal I}\big|_{\mathcal I}
+=\dot{\vec V}\big|_{\mathcal I}+\vec\omega_E\times\vec V_{\mathcal I}
+=\underbrace{\dot{\vec V}\big|_{\mathcal B}+\vec\omega\times\vec V}_{\text{transport of }\vec V}
++\vec\omega_E\times\vec V+\vec\omega_E\times(\vec\omega_E\times\vec r),
+\end{equation}
+where the transport theorem $\tfrac{d}{dt}\big|_{\mathcal I}=\tfrac{d}{dt}\big|_{\mathcal B}+\vec\omega\times$
+was applied to $\vec V$. Solving for the body-frame rate,
+\begin{equation}
+\label{eq:apx_trans_vector}
+\boxed{\;
+\dot{\vec V}\big|_{\mathcal B}
+=\frac{1}{m}\bigl(\vec F_a+\vec F_t\bigr)+\vec g
+-\bigl(\vec\omega+\vec\omega_E\bigr)\times\vec V
+-\vec\omega_E\times(\vec\omega_E\times\vec r)\; }
+\end{equation}
+with $\vec F_g=m\vec g$. The term $(\vec\omega+\vec\omega_E)\times\vec V$
+collects body-rotation transport and Coriolis; expanding
+$\vec\omega=\vec\omega_{B/E}+\vec\omega_E$ recovers the familiar
+$\vec\omega_{B/E}\times\vec V+2\,\vec\omega_E\times\vec V$ split, the second
+being the Coriolis acceleration proper.
+
 \subsection{Rotational equations}
 \label{sub:apx_rotational}
+
+Angular momentum about the center
+of mass is $\vec h=\mathbf I\vec\omega$, and $\dot{\vec h}\big|_{\mathcal I}=\vec M$;
+transporting to $\mathcal B$,
+\begin{equation}
+\label{eq:apx_euler}
+\boxed{\;
+\mathbf I\,\dot{\vec\omega}
+=\vec M-\vec\omega\times(\mathbf I\vec\omega)-\dot{\mathbf I}\,\vec\omega\;}
+\end{equation}
+with $\vec M=\vec M_a+\vec M_{\mathrm{rcs}}$. The gyroscopic term is
+quadratic in $\vec\omega$, hence polynomial once $\mathbf I$ is; the
+inversion $\dot{\vec\omega}=\mathbf I^{-1}(\cdots)$ is carried as the linear
+solve $\mathbf I\dot{\vec\omega}=(\cdots)$ so that no rational function of the
+state enters the embedding.
+
+\begin{remark}[The inertia tensor is not constant]
+Ablation removes mass from the nose and structural deformation
+redistributes it, so $\mathbf I=\mathbf I(s,\eta)$ through the recession depth
+$s$ and modal amplitudes $\eta$ (\cref{sub:certified_envelopes}), and
+Euler's equations acquire the $\dot{\mathbf I}\vec\omega$ term in
+\cref{eq:apx_euler}.
+We carry it rather than drop it: the whole point of
+going to $6$-DOF is to keep the deformation$\to$incidence$\to$moment$\to$attitude
+loop closed, and that loop runs through $\mathbf I(s,\eta)$. Its magnitude is
+bounded by the recession and modal-amplitude envelopes, so carrying it costs
+one Jacobian block, not a new uncertainty.
+\end{remark}
 
 \subsection{Aerodynamic forces and moments}
 \label{sub:apx_aero}

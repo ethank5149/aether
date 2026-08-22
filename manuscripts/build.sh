@@ -15,10 +15,22 @@ set -e
 cd "$(dirname "$0")"
 root=$(pwd)
 
+# latexmk reports a remembered failure as "gave an error in previous
+# invocation" and says nothing about the cause, so on failure pull the real
+# error out of the log rather than leaving it to be dug up by hand.
 build_one() {
   dir=$1; tex=$2
   printf '=== %s ===\n' "$dir"
-  (cd "$root/$dir" && latexmk -pdf -interaction=nonstopmode -halt-on-error "$tex")
+  if (cd "$root/$dir" && latexmk -pdf -interaction=nonstopmode -halt-on-error "$tex"); then
+    return 0
+  fi
+  log="$root/$dir/$(basename "$tex" .tex).log"
+  if [ -f "$log" ]; then
+    printf '\n--- %s: first errors in %s ---\n' "$dir" "$log"
+    grep -n -E '^!|^l\.[0-9]+|\.tex:[0-9]+:' "$log" | head -8
+    printf -- '--- if you have already fixed this, the log is stale: ./build.sh clean ---\n'
+  fi
+  return 1
 }
 
 case "${1:-}" in
