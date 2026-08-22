@@ -12,6 +12,16 @@
   number  = {2},
   pages   = {518--538},
   year    = {1993},
+  annote  = {Ancestor of the dual certificate. Reformulates nonlinear OCP as a convex
+             problem over linear functionals; the minimum cost is the upper
+             envelope of subsolutions to Hamilton-Jacobi, which is the object
+             Paper 1 calls Phi. Thm 1.2 p521 compactness of relaxed arcs;
+             Thm 1.3 and Cor 1.4 p524 weak-star closed convex hull; Lem 1.8-1.9
+             pp526-527 smooth subsolutions by mollification (Fleming-Vermes);
+             Thm 2.1-2.2 p529 duality, sup over subsolutions equals min cost;
+             Lem 2.8-2.9 pp537-538 solvability and no duality gap. Expository
+             and self-contained --- the right citation for WHY the embedding is
+             linear, as against how to compute it.},
 }
 
 @article{lewis1980relaxation,
@@ -26,6 +36,15 @@
   note    = {DOI derived from the PII in the file metadata. Authors read
              from the page image: R. M. Lewis (Newcastle), R. B. Vinter
              (Imperial College); the OCR text layer omits the author line},
+  annote  = {Earliest of the sources: relaxation to measures on the control-times-state
+             product, i.e. the occupation-measure idea before the name. Thm 2.1
+             p487 equivalence of relaxed and original problem, via Filippov's
+             lemma --- the inclusion direction Paper 1 section 5 needs.
+             Prop 3.11 p484 the feasible set of measures is weak-star compact;
+             Lem 3.10 p484 norm bounded; Prop 3.12 p484 weak-star lower
+             semicontinuity of the cost. Thm 3.14 p485 every admissible measure
+             lies in the convex hull of generalized curves with given endpoints
+             --- the superposition/representation result in its original form.},
 }
 
 @book{rubio1986control,
@@ -42,6 +61,17 @@
                British Library and Library of Congress CIP records read
                "optimization". The LoC CIP is dated 1985 (LCCN 85-15256)
                against a 1986 copyright line},
+  annote  = {Book-length treatment of the measure embedding, and the only source here
+             that develops it as a linear-programming theory rather than as
+             machinery for a hierarchy. Ch1 section 4 "Metamorphosis" is the
+             embedding itself; Ch2 existence and the weak-star topology; Ch3
+             "Linear programs" sections 2-3 the finite-dimensional truncation
+             and its approximation properties; Ch4 approximations; Ch6
+             controllability; Appendix sections 3-4 functionals, measures, and
+             the minimum of a linear form at an extremal point. Useful for the
+             Paper 1 background section: it predates moment-SOS entirely, so it
+             separates what is intrinsic to the embedding from what is an
+             artifact of the SDP. Full text greppable in the MinerU markdown.},
 }
 
 @book{young1980lectures,
@@ -53,6 +83,15 @@
   address   = {New York},
   year      = {1980},
   note      = {Originally W. B. Saunders, Philadelphia, 1969},
+  annote  = {Origin of generalized curves/flows, the parametric ancestor of relaxed
+             controls. Vol 1 sections 66-69 pp166-179 generalized curves and
+             flows, their boundaries, parametric representation, existence of a
+             minimum, and the nature of generalized solutions; section 75 p189
+             Riesz measures; section 88 p204 measures, mixtures and consistent
+             flows. Vol 2 Ch III "Generalized Optimal Control" p282, section 36
+             "Control Measures" p300. Cite for provenance of the relaxation
+             idea; the modern statements are cleaner in Lewis-Vinter and
+             Vinter.},
 }
 
 % ------------------------------------------- occupation measures and moment-SOS
@@ -67,6 +106,15 @@
   number  = {4},
   pages   = {1643--1666},
   year    = {2008},
+  annote  = {Where the compactness hypothesis Paper 1 must discharge is stated
+             precisely. Def 3.4 p1651 Putinar's condition and Thm 3.5 p1651
+             Putinar's Positivstellensatz --- the entry corridor argument has to
+             land exactly here. Thm 2.3 p1648 solvability and no duality gap;
+             Def 3.1 p1650 moment matrix, Def 3.3 p1651 localizing matrix;
+             Thm 3.6 p1653 and Thm 4.1 p1654 convergence of the LMI hierarchy.
+             Note the standing hypothesis that X, K and U sit inside
+             [-1,1]^n --- the affine rescaling in the Chebyshev appendix is
+             required by the theory, not merely good conditioning.},
 }
 
 % references/ also holds the preliminary ECC 2013 conference version
@@ -82,6 +130,19 @@
   pages   = {297--312},
   year    = {2014},
   doi     = {10.1109/TAC.2013.2283095},
+  annote  = {The template Paper 1 adapts. Dual LP on functions (v,w) whose 1-superlevel
+             set outer-approximates the ROA; Paper 1 renames the pair (Phi,Psi)
+             to avoid colliding with body-frame velocity. Assumption 1 p298
+             compactness of the state, target and control sets. Lemma 3 p300
+             superposition: any measures satisfying Liouville come from a
+             trajectory family. Assumption 2 p300 classical and relaxed ROA
+             have equal volume --- a tightness hypothesis, not soundness.
+             Thm 1 p301 LP value equals ROA volume; Lemma 2 p301 w >= 1 on the
+             ROA, which is the bound itself; Thm 2 p302 no duality gap; Thm 3
+             p302 and Thm 5 p304 convergence from above in L1 and almost
+             uniformly. Assumption 3 p304 requires a ball constraint among the
+             defining polynomials --- stated as without loss of generality,
+             but for the entry corridor it is a claim needing proof.},
 }
 
 @article{korda2014convex,
@@ -93,6 +154,15 @@
   number  = {5},
   pages   = {2944--2969},
   year    = {2014},
+  annote  = {Supplies the monotonicity the degree hierarchy is sold on. Thm 5 p2956 the
+             dual optima decrease monotonically, d*(k+1) <= d*(k); Thm 6 p2956
+             w_k converges from above to the indicator in L1; Thm 7 p2957 the
+             outer approximations satisfy X_I contained in X_I(k) with
+             lambda(X_I(k) minus X_I) going to zero. Lemmas 3-4 pp2952-2953 give
+             v >= 0 and w >= 1 on the invariant set. Read alongside
+             henrion2014convex: same dual pair, infinite-horizon invariance
+             rather than finite-time reachability, and it is the cleaner
+             statement of the volume monotonicity claim.},
 }
 
 @article{magron2015semidefinite,
@@ -105,6 +175,17 @@
   pages   = {2143--2164},
   year    = {2015},
   doi     = {10.1137/140992047},
+  annote  = {Two things Paper 1 needs that the ROA papers do not cover. First,
+             projections and polynomial images: the footprint is a projection of
+             a 13-dimensional reachable set onto a 2- or 3-dimensional output,
+             and Thm 3.1 p2147 gives an L1-convergent outer approximation of an
+             image set, with Thm 4.4 p2153 the convergence result (needs F and
+             its complement to have nonempty interior). Second, sparsity:
+             Def 5.1 p2156 the running intersection property, Assumption 5.2 and
+             Prop 5.3 p2156 --- the standard escape from the dimension wall, and
+             worth checking against the block structure of the 6-DOF equations
+             before concluding the hierarchy is intractable. Assumption 2.1
+             p2146 again requires an explicit ball constraint.},
 }
 
 @article{korda2016controller,
@@ -117,6 +198,16 @@
   year    = {2016},
   doi     = {10.1016/j.automatica.2016.01.022},
   note    = {references/ also holds the arXiv preprint, arXiv:1503.06650},
+  annote  = {The one source here that bounds from BOTH sides, and by tightening rather
+             than relaxing. Thm 1 p58 value functions of the extracted rational
+             controllers converge to the true one in L1 from above; Thm 4 p60
+             polynomial bounds above and below with explicit suboptimality;
+             Thm 6 p61 any feasible V underestimates the value function.
+             Thm 2 p58 is a clean statement of superposition. Prop 1 and Cor 1
+             p55 restate Putinar plus Stone-Weierstrass. Relevant to Paper 1
+             mainly as the counterexample to "measure methods only give outer
+             bounds"; also the natural reference if the residual term in the
+             profile decomposition needs a two-sided estimate.},
 }
 
 @book{henrion2020momentsos,
@@ -132,6 +223,17 @@
   isbn      = {9781786348531},
   note      = {VERIFY year --- the Library of Congress record reads [2021]
                while the copyright and preface are dated 2020},
+  annote  = {Textbook consolidation; cite for background rather than for results.
+             Section 1.2.2 p8 Putinar's certificate; section 1.2.3 p9 Stokes'
+             theorem (used to tighten moment relaxations, worth knowing for the
+             corridor constraints); Ch2 p15 the hierarchy itself. Ch9 p141
+             optimal control: 9.3.1 relaxed controls p143, 9.3.2 occupation
+             measure p145, 9.3.3 primal LP p147, 9.3.4 dual LP p148, 9.4
+             approximation results p149. Ch10 p163 region of attraction: 10.2
+             occupation measures and Liouville p165, 10.3.1 dual LP p168,
+             10.4.1 outer approximation p173. The preface is explicit that
+             avoiding time discretization is the point of the weak formulation
+             --- the same argument Paper 1 makes against grid methods.},
 }
 
 % ------------------------------------------------------ hybrid and switched systems
@@ -145,6 +247,16 @@
   pages   = {143--154},
   year    = {2016},
   doi     = {10.1016/j.automatica.2015.11.003},
+  annote  = {Switching as a CONTROL, on one shared state space --- the right model for
+             the propulsive on/off letter of the mode alphabet, where nothing
+             is reset and the vehicle chooses. Def 4 p146 modal occupation
+             measures, one per mode, coupled linearly; Def 1 p145 Young measure,
+             Def 2 p145 relaxed arc, Def 3 p146 occupation measure; Lemma 1 p146
+             the Liouville constraint; Thm 1 p146 and Thm 2 p147 no relaxation
+             gap; Lemma 3 p147 the conic dual; Thm 3 p147 no duality gap; Thm 5
+             p149 monotonically non-decreasing lower bounds. Contrast with
+             zhao2020optimal, which handles the other kind of transition ---
+             state-triggered, with resets. Paper 1 needs both.},
 }
 
 @inproceedings{shia2014convex,
@@ -156,6 +268,19 @@
   pages     = {1499--1506},
   year      = {2014},
   doi       = {10.1109/CDC.2014.7039612},
+  annote  = {Closest existing work to the Paper 1 embedding: backward reachable set of
+             a controlled polynomial HYBRID system by occupation measures, with
+             guard measures across modes. Lemma 1 p1502 the reset map enters as
+             a pushforward on the guard measure --- the mechanism Paper 1 needs
+             for non-identity resets. Thm 4 p1503 the per-mode 1-superlevel sets
+             of w contain the reachable set; Cor 1 p1504 monotone convergence
+             from above; Thm 7 p1504 vanishing volume error. Assumption 1 p1500
+             no Zeno, Assumption 2 p1500 compact targets. Only 8 pages and the
+             proofs are omitted for space --- take the statements here and the
+             proofs from zhao2020optimal. Establishing what this does NOT do
+             (the mode sequence is not a word over a physical alphabet, and the
+             guards are not derived from flight regimes) is the cleanest way to
+             state the Paper 1 contribution.},
 }
 
 @article{zhao2020optimal,
@@ -168,4 +293,19 @@
   pages   = {2062--2077},
   year    = {2020},
   doi     = {10.1109/TAC.2019.2929110},
+  annote  = {The full-length hybrid treatment, and the source of the hypotheses Paper 1
+             will have to verify for the mode alphabet. Lemma 7 p2065 is the
+             embedding: initial, occupation, terminal and guard measures satisfy
+             one linear equation --- the C1 statement, in the form to adapt.
+             Assumption 11 p2066 requires F(t,x,U) compact AND CONVEX for
+             measures to correspond exactly to trajectories; Cor 13 p2066 shows
+             control-affine dynamics with convex U suffice. Check this against
+             the 6-DOF equations before assuming it: flap deflections enter
+             aerodynamic moments nonlinearly. Assumption 2 p2063 guards do not
+             self-intersect and the vector field is transverse to each guard ---
+             a real constraint on where the dynamic-pressure threshold may be
+             placed; Assumptions 3-5 p2064 no Zeno, and target and initial
+             condition off the guards. Thm 9 and Thm 12 p2066 the converse
+             (measures give trajectories); Thm 15 p2067 no duality gap; Thm 22
+             p2069 monotone convergence from below.},
 }
