@@ -11,6 +11,8 @@ from aether.geodesy import (
     ecef_to_eci,
     ecef_to_geodetic,
     eci_to_ecef,
+    geodesic_bearing,
+    geodesic_range,
     geodetic_to_ecef,
     geodetic_to_eci,
     geodetic_to_geocentric_latitude,
@@ -122,13 +124,51 @@ class TestConversions:
 
 
 class TestGreatCircle:
-    """Now geodesics on the WGS84 ellipsoid, not great circles on a sphere.
+    """The spherical pair, which is spherical deliberately.
 
-    Both assertions below used to read ``0.5 * pi * WGS84_MEAN_RADIUS``. That is
-    the spherical answer, and on an ellipsoid it is wrong for *both* cases in
-    opposite directions -- 5.6 km short of a quarter equator and 5.6 km long
-    against a quarter meridian. The tests were asserting the model rather than
-    the fact, which is invisible while the implementation shares the model.
+    A great circle is a spherical object, and these functions exist for the
+    models that are themselves spherical -- the Keplerian orbital propagator in
+    particular, which closes its aimpoint loop by turning a range into a central
+    angle on a sphere of the mean radius. The ellipsoidal quantities live under
+    :class:`TestGeodesic` and are a different thing, not a better version of this
+    one.
+    """
+
+    def test_a_quarter_of_the_equator_is_a_quarter_of_the_mean_sphere(self):
+        """The spherical answer, asserted as the spherical answer."""
+        origin = GeodeticPosition.from_degrees(0.0, 0.0)
+        quarter = GeodeticPosition.from_degrees(0.0, 90.0)
+        assert great_circle_range(origin, quarter) == pytest.approx(
+            0.5 * np.pi * WGS84_MEAN_RADIUS, rel=1e-12
+        )
+        assert great_circle_bearing(origin, quarter) == pytest.approx(np.pi / 2.0, abs=1e-12)
+
+    def test_it_cannot_tell_the_equator_from_the_meridian(self):
+        """The limitation, stated as a property rather than left implicit.
+
+        On a sphere a quarter equator and a quarter meridian are the same
+        distance. On the real Earth they differ by 16.8 km. That is exactly what
+        this function cannot express and :func:`geodesic_range` can.
+        """
+        equator = great_circle_range(
+            GeodeticPosition.from_degrees(0.0, 0.0),
+            GeodeticPosition.from_degrees(0.0, 90.0),
+        )
+        meridian = great_circle_range(
+            GeodeticPosition.from_degrees(0.0, 30.0),
+            GeodeticPosition.from_degrees(90.0, 30.0),
+        )
+        assert equator == pytest.approx(meridian, rel=1e-12)
+
+
+class TestGeodesic:
+    """The ellipsoidal pair, against exact references.
+
+    These used to be what :class:`TestGreatCircle` asserted, with
+    ``0.5 * pi * WGS84_MEAN_RADIUS`` standing in for both cases -- a value 5.6 km
+    short of a quarter equator and 5.6 km long against a quarter meridian. The
+    tests were asserting the model rather than the fact, which stays invisible
+    for as long as the implementation shares the model.
     """
 
     def test_a_quarter_of_the_equator_is_a_quarter_of_the_equatorial_circle(self):
@@ -139,10 +179,10 @@ class TestGreatCircle:
         """
         origin = GeodeticPosition.from_degrees(0.0, 0.0)
         quarter = GeodeticPosition.from_degrees(0.0, 90.0)
-        assert great_circle_range(origin, quarter) == pytest.approx(
+        assert geodesic_range(origin, quarter) == pytest.approx(
             0.5 * np.pi * WGS84_SEMI_MAJOR_AXIS, rel=1e-12
         )
-        assert great_circle_bearing(origin, quarter) == pytest.approx(np.pi / 2.0, abs=1e-12)
+        assert geodesic_bearing(origin, quarter) == pytest.approx(np.pi / 2.0, abs=1e-12)
 
     def test_equator_to_pole_is_the_quarter_meridian(self):
         """10 001 965.7 m, the published WGS84 quarter meridian.
@@ -153,18 +193,16 @@ class TestGreatCircle:
         """
         origin = GeodeticPosition.from_degrees(0.0, 30.0)
         pole = GeodeticPosition.from_degrees(90.0, 30.0)
-        assert great_circle_bearing(origin, pole) == pytest.approx(0.0, abs=1e-12)
-        assert great_circle_range(origin, pole) == pytest.approx(
-            10_001_965.7, abs=1.0
-        )
+        assert geodesic_bearing(origin, pole) == pytest.approx(0.0, abs=1e-12)
+        assert geodesic_range(origin, pole) == pytest.approx(10_001_965.7, abs=1.0)
 
     def test_the_equator_is_longer_than_the_meridian(self):
         """The property the spherical implementation could not have."""
-        equator = great_circle_range(
+        equator = geodesic_range(
             GeodeticPosition.from_degrees(0.0, 0.0),
             GeodeticPosition.from_degrees(0.0, 90.0),
         )
-        meridian = great_circle_range(
+        meridian = geodesic_range(
             GeodeticPosition.from_degrees(0.0, 30.0),
             GeodeticPosition.from_degrees(90.0, 30.0),
         )

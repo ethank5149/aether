@@ -27,6 +27,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # Geodesics on WGS84 (Karney 2013) -- replaced a haversine approximation
+    # documented as erring up to 0.5%, and is faster than what it replaced.
+    "pyproj>=3.6",
     "numpy>=1.26",
     "scipy>=1.11",
 ]

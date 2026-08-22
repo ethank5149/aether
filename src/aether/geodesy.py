@@ -57,9 +57,16 @@ __all__ = [
     "WGS84_POLAR_RADIUS",
     "WGS84_SEMI_MAJOR_AXIS",
     "GeodeticPosition",
+    "central_angle",
+    "central_bearing",
     "ecef_to_eci",
     "ecef_to_geodetic",
     "eci_to_ecef",
+    "geocentric_to_geodetic_latitude",
+    "geodesic_bearing",
+    "geodesic_range",
+    "geodesic_track",
+    "geodesic_walk",
     "geodetic_to_ecef",
     "geodetic_to_eci",
     "geodetic_to_geocentric_latitude",
@@ -148,6 +155,23 @@ def geodetic_to_geocentric_latitude(latitude: ArrayLike) -> _FloatArray:
     """
     phi = np.asarray(latitude, dtype=np.float64)
     return np.asarray(np.arctan((1.0 - WGS84_ECCENTRICITY_SQUARED) * np.tan(phi)))
+
+
+def geocentric_to_geodetic_latitude(latitude: ArrayLike) -> _FloatArray:
+    r"""Geodetic latitude (rad) for a geocentric latitude on the ellipsoid.
+
+    The inverse of :func:`geodetic_to_geocentric_latitude`:
+    :math:`\tan\phi_d = \tan\phi_c / (1 - e^2)`.
+
+    Needed wherever a spherical construction produces a latitude and something
+    ellipsoidal then consumes it. Any formula that walks an *angular* distance
+    along a great circle -- an orbital ground track swept in an inertial plane,
+    for instance -- yields the angle of the radius vector, which is geocentric.
+    Labelling that result geodetic without converting displaces it by up to
+    0.19 degrees near 45 degrees latitude, **which is 21 km on the ground**.
+    """
+    phi = np.asarray(latitude, dtype=np.float64)
+    return np.asarray(np.arctan(np.tan(phi) / (1.0 - WGS84_ECCENTRICITY_SQUARED)))
 
 
 def geodetic_to_ecef(position: GeodeticPosition) -> _FloatArray:
@@ -274,19 +298,183 @@ def geodetic_to_eci(
 
 
 def great_circle_range(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
-    """Geodesic surface range (m) between two points on the WGS84 ellipsoid.
+    """Great-circle range (m) on a sphere of the mean radius.
 
-    Delegated to PROJ through :class:`pyproj.Geod`, which solves Karney's
-    (2013) formulation of the inverse geodesic problem -- exact to round-off and
-    convergent for the near-antipodal cases where Vincenty's iteration does not
-    terminate.
+    Haversine, and **spherical on purpose** rather than as an approximation to
+    be improved. A great circle is a spherical object; callers that want the
+    distance across the real ellipsoid want :func:`geodesic_range`, which is a
+    different quantity and says so in its name.
 
-    This was haversine on a sphere of the mean radius, honestly documented as a
-    *budgeting* tool erring by "up to about 0.5%". Measured against published
-    geodesics that claim held: -0.26% to +0.33%, roughly 30 km over a 6000 km
-    arc. There is no reason to keep an approximation whose stated purpose was to
-    avoid a dependency the project now has, and 30 km is not a rounding error in
-    a targeting chain.
+    The distinction is not pedantic, and conflating the two costs kilometres.
+    :mod:`aether_gambit.orbital.scenario` is a two-body Keplerian model on a
+    sphere of this radius -- true anomaly, Kepler's equation, ``body_radius =
+    WGS84_MEAN_RADIUS`` -- and closes its aimpoint loop by converting a range to
+    a central angle. Feeding it an ellipsoidal geodesic instead mixes two
+    models, and a trajectory that had landed on its aimpoint to under a metre
+    then missed by **15.6 km**. The ellipsoidal number is the more accurate
+    description of the ground; it is the less accurate input to a spherical
+    propagator, and both statements are true at once.
+    """
+    lat1, lat2 = origin.latitude, destination.latitude
+    dlat = lat2 - lat1
+    dlon = destination.longitude - origin.longitude
+    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
+    return float(2.0 * WGS84_MEAN_RADIUS * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0))))
+
+
+def great_circle_bearing(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
+    """Initial bearing (rad from north, positive east) along the great circle.
+
+    Spherical, matching :func:`great_circle_range`; the ellipsoidal counterpart
+    is :func:`geodesic_bearing`. A range and a bearing must describe the same
+    curve, or a point built from the pair lies off the path it claims to follow.
+
+    This is the *initial* bearing: a great circle does not hold a constant
+    heading, so the bearing at arrival differs, sometimes by a great deal on a
+    long high-latitude arc.
+    """
+    dlon = destination.longitude - origin.longitude
+    y = np.sin(dlon) * np.cos(destination.latitude)
+    x = np.cos(origin.latitude) * np.sin(destination.latitude) - np.sin(origin.latitude) * np.cos(
+        destination.latitude
+    ) * np.cos(dlon)
+    if x == 0.0 and y == 0.0:
+        raise ValueError("origin and destination coincide, so no bearing is defined")
+    return float(np.arctan2(y, x))
+
+
+def geodesic_track(
+    origin: GeodeticPosition,
+    destination: GeodeticPosition,
+    samples: int,
+) -> list[GeodeticPosition]:
+    """``samples`` points evenly spaced in distance along the WGS84 geodesic.
+
+    Endpoints included and **exact**, which is the property that matters. A
+    track laid by repeatedly stepping a direct-problem formula accumulates its
+    error and arrives near the destination; this one arrives *at* it by
+    construction, so "did the trajectory land on its aimpoint" stops being a
+    question about accumulated round-off.
+
+    Delegated to PROJ's ``inv_intermediate``. The back-azimuth convention is
+    requested explicitly because pyproj 3.5 changed the default and warns
+    otherwise -- and a warning is an error in this project's test suite.
+    """
+    if samples < 2:
+        raise ValueError(
+            f"a track needs at least its two endpoints, got samples={samples}"
+        )
+    result = _GEOD.inv_intermediate(
+        np.rad2deg(origin.longitude), np.rad2deg(origin.latitude),
+        np.rad2deg(destination.longitude), np.rad2deg(destination.latitude),
+        samples, initial_idx=0, terminus_idx=0, return_back_azimuth=True,
+    )
+    return [
+        GeodeticPosition(float(np.deg2rad(lat)), float(np.deg2rad(lon)))
+        for lon, lat in zip(result.lons, result.lats, strict=True)
+    ]
+
+
+def geodesic_walk(
+    origin: GeodeticPosition,
+    azimuth: float,
+    distance: float,
+    samples: int,
+) -> list[GeodeticPosition]:
+    """``samples`` points along the geodesic leaving ``origin`` on ``azimuth``.
+
+    The *direct* problem, where :func:`geodesic_track` is the inverse one. The
+    distinction is not stylistic: an inverse track is defined by its two
+    endpoints and can only ever take the short way between them, so a
+    fractional-orbital ground track that deliberately goes the long way round
+    cannot be expressed that way at all. This walks a stated distance on a
+    stated bearing and lands where the ellipsoid puts it.
+
+    **It does not close.** Walking the complement of a short-way distance on the
+    reversed azimuth returns near the destination but not to it, because
+    geodesics on an ellipsoid precess -- the long way and the short way are not
+    two halves of one curve, as they are on a sphere. That is a property of the
+    Earth rather than of this function, and a caller needing the long way to
+    arrive exactly wants the orbital plane projected through
+    :func:`ecef_to_geodetic`, not a walk.
+    """
+    if samples < 2:
+        raise ValueError(
+            f"a track needs at least its two endpoints, got samples={samples}"
+        )
+    if not (np.isfinite(distance) and distance > 0.0):
+        raise ValueError(f"distance must be finite and > 0, got {distance}")
+    result = _GEOD.fwd_intermediate(
+        np.rad2deg(origin.longitude), np.rad2deg(origin.latitude),
+        np.rad2deg(azimuth), samples, float(distance) / (samples - 1),
+        initial_idx=0, terminus_idx=0, return_back_azimuth=True,
+    )
+    return [
+        GeodeticPosition(float(np.deg2rad(lat)), float(np.deg2rad(lon)))
+        for lon, lat in zip(result.lons, result.lats, strict=True)
+    ]
+
+
+def central_angle(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
+    r"""Geocentric central angle (rad) subtended by two surface points.
+
+    The angle between the two radius vectors -- which is the quantity a
+    Keplerian orbit actually sweeps, because a conic lives in the geocentric
+    frame. Its ground track is where the position vector points, and that
+    direction is a *geocentric* latitude regardless of the ellipsoid's shape.
+
+    This is not :func:`geodesic_range` divided by a radius, and the difference
+    is not small. A geodesic length is measured along the curved surface and
+    divided by a mean radius that fits neither the equator nor the meridian; the
+    central angle is exact and needs no radius at all. Feeding a propagator the
+    former and then placing its ground track by the latter mixes two frames, and
+    a fractional-orbital profile that had landed on its aimpoint then missed by
+    tens of kilometres.
+
+    Uses geocentric latitude on both ends, so a track swept in this angle and
+    converted back through :func:`geocentric_to_geodetic_latitude` closes on its
+    endpoints exactly.
+    """
+    lat1 = float(geodetic_to_geocentric_latitude(origin.latitude))
+    lat2 = float(geodetic_to_geocentric_latitude(destination.latitude))
+    dlon = destination.longitude - origin.longitude
+    haversine = (
+        np.sin(0.5 * (lat2 - lat1)) ** 2
+        + np.cos(lat1) * np.cos(lat2) * np.sin(0.5 * dlon) ** 2
+    )
+    return float(2.0 * np.arcsin(np.sqrt(np.clip(haversine, 0.0, 1.0))))
+
+
+def central_bearing(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
+    """Initial bearing (rad) of the great circle joining the two *geocentric* points.
+
+    Pairs with :func:`central_angle`, in the same frame. Mixing a geodetic
+    bearing with a geocentric angle tilts the swept plane slightly and the track
+    drifts off its aimpoint along the way rather than at the end, which is
+    harder to notice.
+    """
+    lat1 = float(geodetic_to_geocentric_latitude(origin.latitude))
+    lat2 = float(geodetic_to_geocentric_latitude(destination.latitude))
+    dlon = destination.longitude - origin.longitude
+    y = np.sin(dlon) * np.cos(lat2)
+    x = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+    if x == 0.0 and y == 0.0:
+        raise ValueError("origin and destination coincide, so no bearing is defined")
+    return float(np.arctan2(y, x))
+
+
+def geodesic_range(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
+    """True surface distance (m) across the WGS84 ellipsoid.
+
+    PROJ's implementation of Karney (2013) for the inverse geodesic problem --
+    exact to round-off, and convergent for the near-antipodal cases where
+    Vincenty's iteration does not terminate.
+
+    What :func:`great_circle_range` approximates, and by how much: measured
+    against published geodesics the spherical figure errs by -0.26 % to +0.33 %,
+    roughly 30 km over a 6000 km arc. Use this wherever a distance on the ground
+    is the answer -- targeting, asset ranging, footprint extent -- and the
+    spherical one only inside a model that is itself spherical.
     """
     return float(
         _GEOD.inv(
@@ -296,17 +484,13 @@ def great_circle_range(origin: GeodeticPosition, destination: GeodeticPosition) 
     )
 
 
-def great_circle_bearing(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
-    """Initial bearing (rad from north, positive east) along the geodesic.
+def geodesic_bearing(origin: GeodeticPosition, destination: GeodeticPosition) -> float:
+    """Initial bearing (rad from north, positive east) along the WGS84 geodesic.
 
-    The *initial* bearing: a geodesic does not hold a constant heading, so the
-    bearing at arrival differs, sometimes by a great deal on a long
-    high-latitude arc. PROJ returns both; this is the forward azimuth.
-
-    Ellipsoidal, matching :func:`great_circle_range`. The two must agree on
-    which curve they describe -- a spherical bearing paired with an ellipsoidal
-    range would place a point off the path it claims to be along, and the error
-    would grow with distance rather than announcing itself.
+    Ellipsoidal, matching :func:`geodesic_range`. Pair these two with each
+    other, never one of each: a spherical bearing with an ellipsoidal range
+    places a point off the curve it names, and the error grows with distance
+    instead of announcing itself.
     """
     if (
         origin.latitude == destination.latitude
