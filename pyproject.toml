@@ -107,5 +107,5 @@ follow_imports = "skip"
 # gmsh and cantera arrived with the aerodynamics and aerothermal packages;
 # each is wrapped behind a typed facade here, so the untyped surface is one
 # call wide in each case.
-module = ["gmsh", "pymsis.*", "cantera.*", "xarray.*"]
+module = ["gmsh", "pymsis.*", "cantera.*", "xarray.*", "rasterio.*"]
 ignore_missing_imports = true
