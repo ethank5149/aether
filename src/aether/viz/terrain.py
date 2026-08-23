@@ -826,7 +826,8 @@ def _dataset_candidates(name: str) -> list[Path]:
         found += [root / name, root / "datasets" / name,
                   root / "reference" / name, root / "reference" / "datasets" / name]
     for parent in Path(__file__).resolve().parents:
-        found += [parent / "reference" / name,
+        found += [parent / "datasets" / name,
+                  parent / "reference" / name,
                   parent / "reference" / "datasets" / name]
     return found
 
@@ -839,7 +840,7 @@ def default_terrain(root: str | Path | None = None, product: str = "mea") -> Ter
         if candidate.is_dir():
             return Terrain(candidate, product=product)
     msg = (
-        "no reference/GMTED2010 (or reference/datasets/GMTED2010) directory "
+        "no datasets/GMTED2010 (or reference/GMTED2010, reference/datasets/GMTED2010) "
         f"found. Set ${DATA_ROOT_ENV} or pass an explicit root."
     )
     raise FileNotFoundError(msg)

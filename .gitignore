@@ -6,6 +6,8 @@
 #
 # The one-way dependency is enforced by `tools/check_boundary.py`.
 
+.kopiaignore
+
 # Python
 __pycache__/
 *.py[cod]
