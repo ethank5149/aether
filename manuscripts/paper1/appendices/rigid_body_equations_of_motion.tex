@@ -85,6 +85,21 @@ with $\vec V_{\mathcal I}$ the inertial velocity and $\vec w_{\mathrm{wind}}$
 the local wind (\cref{sub:apx_atmosphere}); and $(p,q,r_{\!b})$ are the body
 components of the inertial angular velocity $\vec\omega\equiv\vec\omega_{B/I}$.
 
+\begin{remark}[Why body-frame velocity, not $(V,\gamma,\psi)$]
+Writing velocity in body axes makes the incidence angles ratios of state
+components rather than inverse-trigonometric functions of them:
+\begin{equation}
+\label{eq:apx_incidence}
+\alpha=\operatorname{atan2}(w,u),\qquad
+\beta=\arcsin\!\bigl(v/V\bigr),\qquad
+V=\sqrt{u^2+v^2+w^2}.
+\end{equation}
+Adjoining $V$ through the polynomial constraint $V^2=u^2+v^2+w^2$ lets the
+aerodynamic coefficients be written in the direction cosines
+$(u/V,\,v/V,\,w/V)$, which is what carries them into the polynomial ring of
+\cref{apx:embedding}.
+\end{remark}
+
 \subsection{Translational equations}
 \label{sub:apx_translational}
 
@@ -173,21 +188,80 @@ redistributes it, so $\mathbf I=\mathbf I(s,\eta)$ through the recession depth
 $s$ and modal amplitudes $\eta$ (\cref{sub:certified_envelopes}), and
 Euler's equations acquire the $\dot{\mathbf I}\vec\omega$ term in
 \cref{eq:apx_euler}.
-We carry it rather than drop it: the whole point of
-going to $6$-DOF is to keep the deformation$\to$incidence$\to$moment$\to$attitude
+We carry it rather than drop it: the whole point of maintaining $6$-DOF is to 
+keep the deformation$\to$incidence$\to$moment$\to$attitude
 loop closed, and that loop runs through $\mathbf I(s,\eta)$. Its magnitude is
 bounded by the recession and modal-amplitude envelopes, so carrying it costs
 one Jacobian block, not a new uncertainty.
 \end{remark}
 
+\begin{remark}[Variable-mass reaction terms]
+Mass leaving by ablation carries angular momentum with it. Modelling the
+char products as departing at the local surface velocity (no net ablative
+thrust), the reaction torque is second order in the recession rate and is
+absorbed into the moment envelope of \cref{sub:apx_aero}; only the
+$\dot{\mathbf I}\vec\omega$ contribution is kept explicitly. Propulsive
+mass flow enters through $\vec M_{\mathrm{rcs}}$ and the mass equation, not
+here.
+\end{remark}
+
+\paragraph{Attitude kinematics.} With $\vec q$ carrying $\mathcal I\to\mathcal B$
+and body rates $\vec\omega=(p,q,r_{\!b})$,
+\begin{equation}
+\label{eq:apx_qkin}
+\dot{\vec q}=\tfrac12\,\Omega(\vec\omega)\,\vec q,\qquad
+\Omega(\vec\omega)=
+\begin{pmatrix}
+0 & -p & -q & -r_{\!b}\\
+p & 0 & r_{\!b} & -q\\
+q & -r_{\!b} & 0 & p\\
+r_{\!b} & q & -p & 0
+\end{pmatrix},
+\end{equation}
+bilinear in $(\vec q,\vec\omega)$ and hence polynomial. The unit-norm
+condition $|\vec q|^2=1$ is a polynomial constraint the embedding already
+carries rather than one it must add; $\Omega$ is skew, so the flow preserves
+$|\vec q|$ exactly and the constraint is invariant, not merely initial.
+
 \subsection{Aerodynamic forces and moments}
 \label{sub:apx_aero}
+
+Six coefficients, with dynamic pressure $\bar q=\tfrac12\rho V^2$,
+reference area $S$ and reference length $\ell_{\mathrm{ref}}$,
+\begin{equation}
+\label{eq:apx_aeroFM}
+\vec F_a=\bar q\,S
+\begin{pmatrix}C_X\\ C_Y\\ C_Z\end{pmatrix},\qquad
+\vec M_a=\bar q\,S\,\ell_{\mathrm{ref}}
+\begin{pmatrix}C_l\\ C_m\\ C_n\end{pmatrix},
+\end{equation}
+each coefficient a function of the incidence pair, the compressibility and
+rarefaction parameters, the control deflections, and (through
+\cref{apx:constraints}) the recession depth and modal amplitudes:
+\begin{equation}
+\label{eq:apx_coeffdep}
+C_{(\cdot)}=C_{(\cdot)}\bigl(\alpha,\beta,\;M_\infty,\;Kn,\;\vec\delta,\;s,\;\eta\bigr),
+\qquad
+M_\infty=\frac{V}{a(h)},\quad Kn=\frac{\lambda(h)}{\ell_{\mathrm{ref}}},
+\end{equation}
+with $a(h)$ the speed of sound and $\lambda(h)$ the mean free path from the
+atmosphere model.
 
 \subsection{Atmosphere}
 \label{sub:apx_atmosphere}
 
+Density, speed of sound, and mean free path are taken from US Standard 1976 
+below $86$~km, MSIS above, not a bare exponential. The exponential idealization
+$\rho=\rho_0 e^{-h/H_s}$ enters only in \cref{apx:embedding}, as the profile
+whose scale-height ratio $\varepsilon_{\mathrm{atm}}=H_s/R_e$ organizes the
+decomposition of \cref{sec:decomposition}; the departure of the tabulated
+profile from it is bounded there and enters the residual, not the skeleton.
+Geometric altitude is $h=r-R_e(\phi)$. Winds enter through
+\cref{eq:apx_relvel} as a relative-wind correction; this matters more in
+$6$-DOF than in $3$-DOF because sideslip $\beta$ is now a state-dependent
+output rather than an assumed zero, so a lateral gust perturbs the moment
+balance, not merely the force.
+
+
 \subsection{Per-mode forms}
 \label{sub:apx_per_mode_forms}
-
-\subsection{Boundary discipline}
-\label{sub:apx_boundary_discipline}
