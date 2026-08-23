@@ -21,6 +21,8 @@ root=$(pwd)
 build_one() {
   dir=$1; tex=$2
   printf '=== %s ===\n' "$dir"
+  # Remove stale dependency cache so latexmk re-checks all inputs.
+  rm -f "$root/$dir/build/$(basename "$tex" .tex).fdb_latexmk"
   if (cd "$root/$dir" && latexmk -pdf -interaction=nonstopmode -halt-on-error "$tex"); then
     return 0
   fi
@@ -36,7 +38,9 @@ build_one() {
 case "${1:-}" in
   clean)
     for d in paper1 paper2 paper3; do
-      (cd "$root/$d" && latexmk -C >/dev/null 2>&1 || true; rm -f ./*.bbl ./*.blg)
+      (cd "$root/$d" && latexmk -C)
+      rm -rf "$root/$d"/build
+      rm -f "$root/$d"/*.aux "$root/$d"/*.bbl "$root/$d"/*.blg "$root/$d"/*.log "$root/$d"/*.out "$root/$d"/*.toc "$root/$d"/*.fls "$root/$d"/*.fdb_latexmk "$root/$d"/*.synctex.gz "$root/$d"/*.tdo "$root/$d"/*.pdf
     done
     echo "cleaned"
     ;;

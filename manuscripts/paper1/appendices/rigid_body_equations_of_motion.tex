@@ -115,6 +115,40 @@ $\vec\omega=\vec\omega_{B/E}+\vec\omega_E$ recovers the familiar
 $\vec\omega_{B/E}\times\vec V+2\,\vec\omega_E\times\vec V$ split, the second
 being the Coriolis acceleration proper.
 
+ Resolved in $\mathcal B$ with
+$\vec V=(u,v,w)^{\!\top}$, $\vec\omega=(p,q,r_{\!b})^{\!\top}$,
+$\vec\omega_E^{\mathcal B}=\mathbf R_{B/I}\,\omega_E\hat z_{\mathcal I}$, and
+$\vec r^{\,\mathcal B}=\mathbf R_{B/I}\,r\,\hat e_r$, \cref{eq:apx_trans_vector}
+is three scalar ODEs for $(\dot u,\dot v,\dot w)$; the full expansion is
+assembled in \texttt{src/aether/dynamics/}.
+
+\paragraph{Gravity.} The central term is $\vec g=-(\mu/r^2)\,\hat e_r$. On
+long vacuum arcs the oblateness perturbation is retained; in geocentric
+components,
+\begin{align}
+\label{eq:apx_gravity}
+g_r &=-\frac{\mu}{r^2}\Bigl[1-\tfrac{3}{2}J_2\bigl(R_e/r\bigr)^2\bigl(3\sin^2\phi-1\bigr)\Bigr],\\
+g_\phi &=-\frac{\mu}{r^2}\,3J_2\bigl(R_e/r\bigr)^2\sin\phi\cos\phi,
+\end{align}
+with $g_\theta=0$, then rotated into $\mathcal B$ by
+$\mathbf R_{B/I}\mathbf R_{L/I}^{\!\top}$.
+
+\begin{decide}
+Keeping J2 on vacuum coasts and dropping inside the atmospheric mode, where
+aerodynamic acceleration dominates the oblateness term by several orders of
+magnitude over the corridor. Stating this explicitly or carry J2 throughout.
+\end{decide}
+
+\paragraph{Position kinematics.} With
+$(V_r,V_\theta,V_\phi)^{\!\top}=\mathbf R_{L/I}\mathbf R_{B/I}^{\!\top}(u,v,w)^{\!\top}$
+the relative velocity in local geocentric axes,
+\begin{equation}
+\label{eq:apx_poskin}
+\dot r=V_r,\qquad
+\dot\theta=\frac{V_\theta}{r\cos\phi},\qquad
+\dot\phi=\frac{V_\phi}{r}.
+\end{equation}
+
 \subsection{Rotational equations}
 \label{sub:apx_rotational}
 
