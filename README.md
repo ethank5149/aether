@@ -214,7 +214,7 @@ pip install -e ".[cuda]"         # optional: GPU batch backend
 ### Running
 
 ```bash
-pytest tests -q                  # 582 tests
+pytest tests -q                  # 588 tests
 python -m aether.verification    # verification tasks -> results/
 ```
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from aether.verification.p2v1_ultraspherical import run_p2v1
 from aether.verification.p2v123_plates import run_p2v123
 from aether.verification.r1v1_timescales import run_r1v1
+from aether.verification.r1v2_attitude_gap import run_r1v2
 from aether.verification.v1_structural import run_v1
 from aether.verification.v2_slosh import run_v2
 from aether.verification.v3_integrators import run_v3
@@ -33,6 +34,7 @@ def main() -> int:
         (run_p2v1, "p2v1-ultraspherical"),
         (run_p2v123, "p2v123-plates"),
         (run_r1v1, "r1v1-timescales"),
+        (run_r1v2, "r1v2-attitude-gap"),
     ):
         report = runner(args.output)
         path = report.write(args.output, stem)
