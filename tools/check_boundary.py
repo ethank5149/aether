@@ -24,23 +24,27 @@ import re
 import sys
 from pathlib import Path
 
-# Any module name that must never appear in this repository. The controlled
-# package itself, plus the top-level names that were moved out of it — a
-# reference to a bare `guidance`/`orbital` import is just as much a leak as
-# one to `aether_gambit`, and usually means a file was copied back by hand.
+# Any module name that must never appear in this repository: the controlled
+# package itself, plus the top-level names that are still held in it. A bare
+# `systems`/`sensor` import is as much a leak as one to `aether_gambit`, and
+# usually means a file was copied back by hand.
 FORBIDDEN_PACKAGES = ("aether_gambit",)
+
+# NARROWED 2026-08-24. This list previously also held guidance, flight,
+# orbital, estimation, viz, aerothermal, aerodynamics, geometry and fiat.
+# A research-comparison audit found all nine publishable, and they now live
+# here deliberately rather than by drift — so flagging them was reporting a
+# violation that no longer exists, and the tool was failing on the repository's
+# intended contents.
+#
+# What this tool can and cannot do is worth restating, because narrowing the
+# list narrows the guarantee: it checks the IMPORT DIRECTION and nothing else.
+# Subject-matter judgement — whether a future addition is defensible as the
+# "general scientific, mathematical, or engineering principles" the public
+# split relies on — stays manual, and this file is not evidence about it.
 FORBIDDEN_SUBMODULES = (
-    "guidance",
-    "flight",
-    "orbital",
     "systems",
     "sensor",
-    "estimation",
-    "viz",
-    "aerothermal",
-    "aerodynamics",
-    "geometry",
-    "fiat",
 )
 
 IMPORT_RE = re.compile(
@@ -96,8 +100,9 @@ def main() -> int:
         for f in failures:
             print(f"  {f}", file=sys.stderr)
         print(
-            "\nIf this module genuinely belongs in the public kernel, move it here"
-            "\nand delete it from the controlled repository — do not import across"
+            "\nIf this module has been audited and belongs in the public kernel,"
+            "\nmove it here, delete it from the controlled repository, and remove"
+            "\nits name from FORBIDDEN_SUBMODULES above — do not import across"
             "\nthe boundary.",
             file=sys.stderr,
         )

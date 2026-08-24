@@ -31,6 +31,7 @@
 \usepackage{enumitem}
 \usepackage{microtype}          % typographic polish: char protrusion, expansion
 \usepackage{xcolor}
+\usepackage{comment}
 \usepackage{tcolorbox}          % highlighted result boxes
 \tcbuselibrary{skins,breakable}
 \usepackage{fancyhdr}           % running header with the short title
@@ -103,8 +104,48 @@
 % ---- Highlighted-result box ----
 \newtcolorbox{keybox}[1][]{colback=blue!4,colframe=blue!45!black,
   boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
-\newtcolorbox{decide}[1][]{colback=orange!4,colframe=orange!45!black,
+
+% ---- Development annotations ----
+%  Three coloured boxes carrying the drafting ledger inside the source:
+%    decide -- a choice made, recorded so it is not silently re-opened
+%    gap    -- an obligation not yet discharged
+%    idea   -- a line of argument worth keeping, not yet load-bearing
+%  They are deliberately conspicuous. Set \draftnotesfalse below (or pass
+%  \PassOptionsToPackage before \input{preamble}) to compile a submission
+%  copy in which all three vanish, exactly as [disable]{todonotes} removes
+%  the \todo list --- the boxes must not survive into a submitted draft,
+%  and a single switch is the only reliable way to be sure of that.
+\newif\ifdraftnotes
+\draftnotestrue
+
+\newtcolorbox{decide@box}[1][]{colback=orange!4,colframe=orange!45!black,
   boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+\newtcolorbox{gap@box}[1][]{colback=red!4,colframe=red!50!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+\newtcolorbox{idea@box}[1][]{colback=green!4,colframe=green!35!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+
+\ifdraftnotes
+  \newenvironment{decide}{\begin{decide@box}}{\end{decide@box}}
+  \newenvironment{gap}{\begin{gap@box}}{\end{gap@box}}
+  \newenvironment{idea}{\begin{idea@box}}{\end{idea@box}}
+\else
+  \excludecomment{decide}
+  \excludecomment{gap}
+  \excludecomment{idea}
+\fi
+
+% ---- Theorem-environment aliases ----
+%  The drafts write \begin{assumption} and \begin{lemma} in full; the
+%  counters above are declared as assum and lem. Alias rather than rename,
+%  so neither spelling is a compile error and no draft has to be rewritten
+%  to match a decision about abbreviation.
+\makeatletter
+\@ifundefined{assumption}{%
+  \newenvironment{assumption}[1][]{\begin{assum}[#1]}{\end{assum}}}{}
+\@ifundefined{lemma}{%
+  \newenvironment{lemma}[1][]{\begin{lem}[#1]}{\end{lem}}}{}
+\makeatother
 
 \usepackage{babel}
 
