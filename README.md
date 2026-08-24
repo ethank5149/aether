@@ -1,4 +1,4 @@
-# AETHER
+# AETHER 
 
 **Aero-thermo-Elastic Trajectory & Hypersonic Estimation Research**
 

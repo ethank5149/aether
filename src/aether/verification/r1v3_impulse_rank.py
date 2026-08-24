@@ -70,7 +70,7 @@ from aether.aerothermal import stefan_recession_rate, sutton_graves
 from aether.atmosphere import USStandard1976
 from aether.verification.common import VerificationReport, write_csv
 
-__all__ = ["impulse_jacobian", "impulse_of_pass", "run_r1v3"]
+__all__ = ["impulse_jacobian", "impulse_of_pass", "lift_drag_polars", "run_r1v3"]
 
 _FloatArray = NDArray[np.float64]
 
@@ -119,6 +119,15 @@ def _polar() -> tuple[CubicSpline, CubicSpline]:
 
 
 _CL, _CD = _polar()
+
+
+def lift_drag_polars() -> tuple[CubicSpline, CubicSpline]:
+    """Lift and drag polars of the demonstration body, shared with R1-V4.
+
+    Both tasks must fly the *same* vehicle or their conclusions cannot be
+    compared, and comparing them is the point of R1-V4's last section.
+    """
+    return _CL, _CD
 
 
 def _piecewise(values: _FloatArray, t: float, horizon: float) -> float:
