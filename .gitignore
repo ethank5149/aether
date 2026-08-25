@@ -28,7 +28,6 @@ datasets/
 results/
 
 # In Progress, Check Back Soon
-manuscripts/references/
 manuscripts/legacy/
 manuscripts/notes.md
 # Dependent on the results of previous papers
@@ -42,3 +41,6 @@ manuscripts/**/build/
 # The editor passes -synctex=1, and the .synctex.gz has to sit beside the
 # PDF rather than in build/ for the viewer's inverse search to resolve.
 manuscripts/**/*.synctex.gz
+
+references/
+notes/
