@@ -50,6 +50,15 @@ cuda = [
 atmosphere = [
     "pymsis>=0.10",
 ]
+# Rendering. matplotlib arrived with `viz.scene`, whose overlays draw onto
+# Axes; Pillow reads the imagery tiles. Optional because the numerics do not
+# need either, and a headless install that only builds tables should not pull
+# a plotting stack.
+viz = [
+    "matplotlib>=3.8",
+    "pillow>=10.0",
+    "rasterio>=1.3",
+]
 # ERA5 reanalysis: measured wind and temperature profiles.
 reanalysis = [
     "cfgrib>=0.9",

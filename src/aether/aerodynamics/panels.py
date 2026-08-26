@@ -27,14 +27,76 @@ from aether.aerodynamics.closure import blended_pressure_coefficient
 
 __all__ = [
     "PanelModel",
+    "SurfaceGrid",
     "TrimSolution",
+    "blunted_multiconic",
     "caret_waverider",
     "curved_lifting_body",
+    "exact_mitered_bent_biconic",
+    "smooth_bent_biconic",
+    "spatular_wedge",
     "sphere_cone",
     "sphere_cone_closure",
 ]
 
 _FloatArray = NDArray[np.float64]
+
+
+@dataclass(frozen=True)
+class SurfaceGrid:
+    """The structured vertex net a parametric generator built its panels from.
+
+    A :class:`PanelModel` is centroids, normals and areas, which is everything
+    impact theory reads and nothing a mesh generator can use. Panels carry no
+    connectivity: two neighbouring triangles are two independent rows, and
+    there is no way back from that to the closed surface they came from. A CFD
+    domain needs the closed surface — gmsh has to know which edges are shared
+    before it can put a volume outside them — so the generators that build
+    their panels from a structured net keep the net rather than discarding it.
+
+    Attributes
+    ----------
+    vertices:
+        Shape ``(n_axial, n_circumferential + 1, 3)``, ordered nose-first
+        along the first axis and once around the body along the second. The
+        last circumferential column repeats the first, which is what makes
+        the seam closable without a search for coincident points.
+    """
+
+    vertices: _FloatArray = field(repr=False)
+
+    def __post_init__(self) -> None:
+        v = np.asarray(self.vertices, dtype=np.float64)
+        if v.ndim != 3 or v.shape[2] != 3:
+            msg = f"vertices must have shape (n_axial, n_circ + 1, 3), got {v.shape}"
+            raise ValueError(msg)
+        if v.shape[0] < 2 or v.shape[1] < 4:
+            msg = f"a surface net needs at least 2 x 4 vertices, got {v.shape[:2]}"
+            raise ValueError(msg)
+
+    @property
+    def n_axial(self) -> int:
+        return int(self.vertices.shape[0])
+
+    @property
+    def n_circumferential(self) -> int:
+        """Distinct circumferential stations — one fewer than the array width."""
+        return int(self.vertices.shape[1]) - 1
+
+    @property
+    def seam_closed(self) -> bool:
+        """Does the last circumferential column repeat the first?
+
+        Checked rather than assumed: a generator that sampled ``psi`` on
+        ``linspace(0, 2*pi, n + 1)`` closes the seam exactly, and one that used
+        ``endpoint=False`` does not. Triangulating the second as though it were
+        the first leaves a full-length slit down the body, which is invisible
+        in a panel integration — the slit has no area — and fatal to a mesh
+        generator, which will happily fill the vehicle's interior with cells.
+        """
+        gap = self.vertices[:, -1, :] - self.vertices[:, 0, :]
+        scale = float(np.max(np.abs(self.vertices))) or 1.0
+        return bool(np.max(np.abs(gap)) <= 1.0e-9 * scale)
 
 
 @dataclass(frozen=True)
@@ -74,6 +136,14 @@ class PanelModel:
     reference_point: _FloatArray = field(
         repr=False, default_factory=lambda: np.zeros(3)
     )
+    surface: SurfaceGrid | None = field(repr=False, default=None)
+    """The net the panels were cut from, when the generator had one.
+
+    Optional because it is not always available — :func:`caret_waverider` and
+    :func:`sphere_cone` assemble triangles directly and :func:`curved_lifting_body`
+    is an open two-sheet surface with no inside — and because nothing in the
+    panel integration needs it. It exists for the mesh generator, which does.
+    """
 
     def __post_init__(self) -> None:
         c = np.asarray(self.centroids, dtype=np.float64)
@@ -90,6 +160,9 @@ class PanelModel:
         norms = np.linalg.norm(n, axis=1)
         if np.max(np.abs(norms - 1.0)) > 1e-9:
             raise ValueError("normals must be unit vectors")
+        if self.surface is not None and not isinstance(self.surface, SurfaceGrid):
+            msg = f"surface must be a SurfaceGrid or None, got {type(self.surface).__name__}"
+            raise TypeError(msg)
 
     @property
     def n_panels(self) -> int:
@@ -611,16 +684,16 @@ def caret_waverider(
             for j in range(n_span):
                 v0, v1 = span[j], span[j + 1]
 
-                def lower(u: float, v: float) -> _FloatArray:
+                def lower(u: float, v: float, side: float = sign) -> _FloatArray:
                     # ruled from keel (v=0) to leading edge (v=1)
                     return np.array([
                         u * length,
-                        sign * u * semi_span * v,
+                        side * u * semi_span * v,
                         -u * keel_depth * (1.0 - v),
                     ])
 
-                def upper(u: float, v: float) -> _FloatArray:
-                    return np.array([u * length, sign * u * semi_span * v, 0.0])
+                def upper(u: float, v: float, side: float = sign) -> _FloatArray:
+                    return np.array([u * length, side * u * semi_span * v, 0.0])
 
                 quad_l = np.array([lower(u0, v0), lower(u1, v0),
                                    lower(u1, v1), lower(u0, v1)])
@@ -698,7 +771,8 @@ def _grid_to_panels(
         centroids=np.asarray(centroids),
         normals=np.asarray(normals),
         areas=np.asarray(areas),
-        reference_point=reference_point
+        reference_point=reference_point,
+        surface=SurfaceGrid(vertices=np.asarray(vertices, dtype=np.float64)),
     )
 
 def blunted_multiconic(
@@ -742,7 +816,17 @@ def blunted_multiconic(
             r_int = r_current + L_seg * np.tan(theta)
             
             half_delta = abs(theta - theta_next) / 2.0
-            L_tan = R_f / np.tan(half_delta) if half_delta > 1e-6 else 0.0
+            # Tangent length of a circular arc of radius R_f blending two lines
+            # that meet at deflection angle delta: T = R tan(delta/2). The
+            # reciprocal, R/tan(delta/2), is the *cotangent* form and diverges
+            # as the cones become parallel — which is the usual case, since
+            # consecutive cone angles differ by a few degrees. At the default
+            # 12/7-degree junction it returns 2.29 m of tangent for a 1.0 m
+            # segment, so both tangency points land outside their own frusta and
+            # the profile folds back through the nose. That fold is invisible to
+            # a panel integration, which sums unordered faces, and fatal to a
+            # mesh generator, which sees overlapping facets.
+            L_tan = R_f * np.tan(half_delta) if half_delta > 1e-6 else 0.0
             
             x_end_frustum = x_int - L_tan * np.cos(theta)
             r_end_frustum = r_int - L_tan * np.sin(theta)

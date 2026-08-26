@@ -189,7 +189,7 @@ artifact carrying the guarantee.
 | `fiat/` | Fully implicit ablation and thermal response of a multilayer TPS stack; independent implementation of the Chen–Milos formulation |
 | `aerothermal/` | Fay–Riddell stagnation heating with the Lewis exponent stated; modified-Newtonian velocity gradient |
 | `aerodynamics/` | Five methods, each valid somewhere and none everywhere — modified-Newtonian and Prandtl–Meyer impact, panels, free-molecular closure |
-| `geometry/` | Outer mould line from a mesh; measured shape scalars rather than stipulated ones |
+| `geometry/` | Outer mould line from a mesh; measured shape scalars rather than stipulated ones. `prep` conditions an authored STL into a master — consistent winding, degenerate facets dropped, units and orientation normalised — and writes a manifest recording every repair and factor applied |
 | `atmosphere/` | US Standard 1976, MSIS thermosphere, ERA5 reanalysis winds |
 | `dynamics/` | Quaternion attitude kinematics with norm-error diagnostics; incidence on a deformed surface |
 | `flight/` | The coupled simulator: thirteen rigid-body states augmented by mass, recession and retained structural modes, as one system of ODEs |
@@ -199,7 +199,7 @@ artifact carrying the guarantee.
 | `estimation/` | Adaptive state estimation: χ² anomaly gating and IAE |
 | `certification/` | Machinery answering "is this inequality *provably* true", as distinct from "did a float suggest so" |
 | `batch/` | NumPy/CuPy backend abstraction; batched common-outer-grid integrator — a Monte Carlo batch as a rank-3 tensor operation |
-| `viz/` | Textured WGS84 ellipsoid, terrain and imagery tiles, vehicle glyphs |
+| `viz/` | Textured WGS84 ellipsoid, terrain and Blue Marble Next Generation imagery tiles, vehicle glyphs, and `scene` — a chase-camera rig with polyline, mesh and glyph projection over the globe |
 | `verification/` | Executable verification tasks with failure criteria stated in advance |
 
 ### Setup
@@ -214,7 +214,7 @@ pip install -e ".[cuda]"         # optional: GPU batch backend
 ### Running
 
 ```bash
-pytest tests -q                  # 591 tests
+pytest tests -q                  # 604 tests
 python -m aether.verification    # verification tasks -> results/
 ```
 

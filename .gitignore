@@ -42,5 +42,8 @@ manuscripts/**/build/
 # PDF rather than in build/ for the viewer's inverse search to resolve.
 manuscripts/**/*.synctex.gz
 
+legacy/
 references/
 notes/
+
+__main__*/

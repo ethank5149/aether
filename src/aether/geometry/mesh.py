@@ -49,7 +49,7 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from aether.aerodynamics.panels import PanelModel
+from aether.aerodynamics.panels import PanelModel, SurfaceGrid
 
 __all__ = ["VehicleMesh", "load_stl", "write_stl"]
 
@@ -150,6 +150,103 @@ class VehicleMesh:
         if f.size and (f.min() < 0 or f.max() >= v.shape[0]):
             msg = "faces index vertices outside the vertex array"
             raise ValueError(msg)
+
+    @classmethod
+    def from_surface_grid(
+        cls,
+        grid: SurfaceGrid,
+        name: str = "",
+        weld_tolerance: float = 1.0e-9,
+        cap_ends: bool = True,
+    ) -> VehicleMesh:
+        """Close a parametric generator's vertex net into a watertight mesh.
+
+        The generators in :mod:`aether.aerodynamics.panels` build an
+        ``(n_axial, n_circ + 1, 3)`` net and hand the panels cut from it to
+        impact theory, which never asks whether the body is closed — a panel
+        integration sums over faces and an absent face contributes nothing.
+        A mesh generator does ask, and answers wrongly if the body is open:
+        gmsh reads a hole in the base as a way into the interior and fills the
+        vehicle with cells.
+
+        Two places need closing, and they are different problems:
+
+        **The seam.** The net's last circumferential column repeats its first,
+        so the quads that bridge them would be zero-width. The wrap is done by
+        index instead — column ``n_circ - 1`` joins column ``0`` — and the
+        duplicate column is dropped. :attr:`SurfaceGrid.seam_closed` is checked
+        first, because if the generator sampled with ``endpoint=False`` the
+        repeat is not a repeat and dropping it opens a slit down the body.
+
+        **The ends.** Each end ring is a hole unless it is degenerate.
+        ``cap_ends`` closes whichever are not, with a triangle fan to the ring's
+        centroid, wound so the fan's normal points out of the body at that end.
+        Both ends have to be tested rather than assumed: a sphere-cone's nose
+        ring collapses to the tip and needs nothing, while
+        :func:`~aether.aerodynamics.panels.spatular_wedge` starts its net at
+        ``u = 1e-5`` on a blunt elliptical nose and leaves a small but real
+        hole there. Capping only the base closes the second body and not the
+        first, and the difference is invisible until gmsh meshes the inside.
+
+        A degenerate ring's collapsed triangles are dropped by area, exactly as
+        :func:`load_stl` drops them.
+        """
+        if not grid.seam_closed:
+            msg = (
+                "the surface grid's last circumferential column does not repeat "
+                "its first, so it cannot be wrapped by index; the generator "
+                "sampled the circumference with endpoint=False"
+            )
+            raise ValueError(msg)
+
+        net = np.asarray(grid.vertices, dtype=np.float64)[:, :-1, :]
+        n_circ = net.shape[1]
+
+        j = np.arange(n_circ)
+        j_next = (j + 1) % n_circ
+        lower = net[:-1]
+        upper = net[1:]
+        # Wound azimuth-first, so each face normal is (azimuthal x axial) and
+        # points radially *outward*. The opposite order is the natural one to
+        # write and gives an inward-facing body: closed, correct in area, and
+        # silently wrong to anything that reads the normals — which includes
+        # the boundary-layer extrusion, whose prisms would grow into the
+        # vehicle rather than into the flow.
+        quads = np.stack(
+            [lower[:, j], lower[:, j_next], upper[:, j_next], upper[:, j]], axis=2
+        ).reshape(-1, 4, 3)
+        triangles = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
+
+        if cap_ends:
+            scale = float(np.max(np.abs(net))) or 1.0
+            caps = []
+            # The nose fan is wound opposite to the base fan: both must turn
+            # their normals away from the body, and the two ends face opposite
+            # directions along the axis.
+            for ring, forward in ((net[0], False), (net[-1], True)):
+                if float(np.max(np.abs(ring - ring.mean(axis=0)))) <= 1.0e-9 * scale:
+                    continue  # degenerate: the ring is already a point
+                hub = np.broadcast_to(ring.mean(axis=0), ring.shape)
+                fan = (
+                    np.stack([ring[j], ring[j_next], hub], axis=1)
+                    if forward
+                    else np.stack([ring[j_next], ring[j], hub], axis=1)
+                )
+                caps.append(fan)
+            if caps:
+                triangles = np.concatenate([triangles, *caps])
+
+        edge_a = triangles[:, 1] - triangles[:, 0]
+        edge_b = triangles[:, 2] - triangles[:, 0]
+        twice_area = np.linalg.norm(np.cross(edge_a, edge_b), axis=1)
+        keep = twice_area > 1.0e-14
+        vertices, faces = _weld(triangles[keep], weld_tolerance)
+        return cls(
+            vertices=vertices,
+            faces=faces,
+            name=name,
+            degenerate_dropped=int((~keep).sum()),
+        )
 
     # -- basic geometry --------------------------------------------------
 

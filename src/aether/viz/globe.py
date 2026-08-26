@@ -89,10 +89,8 @@ than the render it was meant to accelerate.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -105,10 +103,8 @@ from aether.viz.imagery import Texture
 from aether.viz.terrain import ReliefMap
 
 __all__ = [
-    "DEFAULT_TEXTURE",
     "Camera",
     "as_ellipsoid",
-    "load_texture",
     "look_at",
     "project",
     "render",
@@ -117,44 +113,6 @@ __all__ = [
 ]
 
 _FloatArray = NDArray[np.float64]
-
-from aether.viz.terrain import DATA_ROOT_ENV  # noqa: E402
-
-
-def _default_texture() -> Path:
-    """Locate ``assets/blue_marble.jpg``, never relative to the working directory.
-
-    ``AETHER_DATA_ROOT`` first, then a walk up from this module. Resolving
-    against the process CWD works for a notebook running in its own folder and
-    fails for a test running from a repository root -- or the reverse -- which
-    is how the first version of this broke.
-
-    The walk is a fallback for the same reason it is one in
-    :mod:`aether.viz.terrain`: it holds only while the module and the asset
-    share a checkout, and it stops holding the moment either moves. The last
-    resort returns a *relative* path, which is the one case this function
-    promises to avoid, so a caller that reaches it gets a clear missing-file
-    error rather than a texture loaded from somewhere unexpected.
-    """
-    configured = os.environ.get(DATA_ROOT_ENV)
-    if configured:
-        candidate = Path(configured).expanduser() / "assets" / "blue_marble.jpg"
-        if candidate.is_file():
-            return candidate
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "assets" / "blue_marble.jpg"
-        if candidate.is_file():
-            return candidate
-    return Path("assets/blue_marble.jpg")
-
-
-#: The packaged legacy Blue Marble texture: equirectangular, north-up,
-#: longitude -180 at column zero. Superseded by
-#: :func:`~aether.viz.imagery.default_blue_marble`, which reads the Next
-#: Generation GeoTIFFs at 15 arc-seconds; this remains the fallback for an
-#: install without the reference archive.
-DEFAULT_TEXTURE = _default_texture()
-
 
 def as_ellipsoid(surface: Ellipsoid | float) -> Ellipsoid:
     """Coerce a radius or an ellipsoid to an :class:`Ellipsoid`.
@@ -170,31 +128,6 @@ def as_ellipsoid(surface: Ellipsoid | float) -> Ellipsoid:
         msg = f"radius must be finite and positive, got {surface}"
         raise ValueError(msg)
     return Ellipsoid(semi_major=radius, flattening=0.0, name="sphere")
-
-
-def load_texture(path: str | Path = DEFAULT_TEXTURE) -> Texture:
-    """Load an equirectangular image as a global :class:`Texture`.
-
-    Raises
-    ------
-    FileNotFoundError
-        With a message naming what the file should be, since a missing
-        texture is a setup problem rather than a bug and the fix is to
-        supply an equirectangular image.
-    """
-    location = Path(path)
-    if not location.is_file():
-        msg = (
-            f"no globe texture at {location}. Expected an equirectangular "
-            "(plate carree) image, north-up, spanning -180..180 in longitude "
-            "and -90..90 in latitude; NASA's Blue Marble at 4096x2048 is what "
-            "this was built against."
-        )
-        raise FileNotFoundError(msg)
-    from PIL import Image
-
-    with Image.open(location) as handle:
-        return Texture(np.asarray(handle.convert("RGB"), dtype=np.uint8))
 
 
 def to_device(

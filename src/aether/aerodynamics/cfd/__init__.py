@@ -11,11 +11,16 @@ from __future__ import annotations
 
 from aether.aerodynamics.cfd.meshing import (
     BodyProfile,
+    BoundaryLayerTruncated,
     DomainSizing,
     MeshResult,
+    ViscousSizing,
     axisymmetric_domain,
+    boundary_layer_thickness,
     cone_profile,
     profile_from_arrays,
+    viscous_domain,
+    wall_spacing_for_y_plus,
 )
 from aether.aerodynamics.cfd.solver import (
     EulerSolver,
@@ -32,17 +37,22 @@ from aether.aerodynamics.cfd.su2 import (
 
 __all__ = [
     "BodyProfile",
+    "BoundaryLayerTruncated",
     "DomainSizing",
     "EulerSolver",
     "GridConvergence",
     "MeshResult",
     "SU2Result",
     "SU2Settings",
+    "ViscousSizing",
     "axisymmetric_domain",
+    "boundary_layer_thickness",
     "cone_profile",
     "find_su2",
     "grid_convergence",
     "profile_from_arrays",
     "run_su2",
     "surface_axial_force",
+    "viscous_domain",
+    "wall_spacing_for_y_plus",
 ]

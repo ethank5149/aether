@@ -19,5 +19,6 @@ picture.
 
 from aether.viz.globe import *  # noqa: F403
 from aether.viz.imagery import *  # noqa: F403
+from aether.viz.scene import *  # noqa: F403
 from aether.viz.terrain import *  # noqa: F403
 from aether.viz.vehicle import *  # noqa: F403
