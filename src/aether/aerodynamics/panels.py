@@ -17,6 +17,7 @@ It corresponds to no vehicle and carries no design data.
 from __future__ import annotations
 
 import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -160,9 +161,6 @@ class PanelModel:
         norms = np.linalg.norm(n, axis=1)
         if np.max(np.abs(norms - 1.0)) > 1e-9:
             raise ValueError("normals must be unit vectors")
-        if self.surface is not None and not isinstance(self.surface, SurfaceGrid):
-            msg = f"surface must be a SurfaceGrid or None, got {type(self.surface).__name__}"
-            raise TypeError(msg)
 
     @property
     def n_panels(self) -> int:
@@ -727,8 +725,8 @@ def caret_waverider(
 
 
 def _grid_to_panels(
-    vertices: _FloatArray, 
-    reference_point: _FloatArray, 
+    vertices: _FloatArray,
+    reference_point: _FloatArray,
     outward_hint: _FloatArray | None = None
 ) -> PanelModel:
     """Helper to convert an (N_axial, N_circ, 3) vertex grid into a PanelModel."""
@@ -742,7 +740,7 @@ def _grid_to_panels(
             return
         normal = cross / np.linalg.norm(cross)
         mid = tri.mean(axis=0)
-        
+
         radial = mid.copy()
         radial[0] = 0.0
         if outward_hint is not None:
@@ -753,7 +751,7 @@ def _grid_to_panels(
                 normal = -normal
         elif normal[0] > 0.0:
             normal = -normal
-            
+
         centroids.append(mid)
         normals.append(normal)
         areas.append(area)
@@ -762,7 +760,7 @@ def _grid_to_panels(
         for j in range(n_circ - 1):
             p00, p10 = vertices[i, j], vertices[i+1, j]
             p11, p01 = vertices[i+1, j+1], vertices[i, j+1]
-            
+
             quad = np.array([p00, p10, p11, p01])
             add(quad[[0, 1, 2]])
             add(quad[[0, 2, 3]])
@@ -777,44 +775,52 @@ def _grid_to_panels(
 
 def blunted_multiconic(
     nose_radius: float = 0.05,
-    lengths: list[float] = [1.0, 1.5],
-    half_angles: list[float] = [np.radians(12.0), np.radians(7.0)],
-    fillet_radii: list[float] = [0.1],
+    lengths: Sequence[float] | None = None,
+    half_angles: Sequence[float] | None = None,
+    fillet_radii: Sequence[float] | None = None,
     n_axial_per_segment: int = 40,
     n_circ: int = 48,
     reference_fraction: float = 0.5
 ) -> PanelModel:
     """Generates a C1 continuous biconic, triconic, or n-conic with tangent fillets."""
+    # Defaults built here, not in the signature: a list literal in a default
+    # is shared by every call that takes it, so one caller mutating it changes
+    # the geometry every later caller gets.
+    lengths = [1.0, 1.5] if lengths is None else list(lengths)
+    half_angles = (
+        [np.radians(12.0), np.radians(7.0)] if half_angles is None else list(half_angles)
+    )
+    fillet_radii = [0.1] if fillet_radii is None else list(fillet_radii)
     if len(lengths) != len(half_angles):
         raise ValueError("Lengths and half_angles arrays must match.")
     if len(fillet_radii) != len(lengths) - 1:
         raise ValueError("Must provide exactly one fillet radius per junction.")
-    
+
     n_segments = len(lengths)
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
-    
+
     x_profile, r_profile = [], []
-    
+
     theta_0 = half_angles[0]
     phi_tangent = 0.5 * np.pi - theta_0
     for phi in np.linspace(0, phi_tangent, n_axial_per_segment):
         x_profile.append(nose_radius * (1.0 - np.cos(phi)))
         r_profile.append(nose_radius * np.sin(phi))
-        
+
     x_current = nose_radius * (1.0 - np.sin(theta_0))
     r_current = nose_radius * np.cos(theta_0)
-    
+
     for i in range(n_segments):
         theta = half_angles[i]
-        
+
         if i < n_segments - 1:
             theta_next = half_angles[i+1]
             R_f = fillet_radii[i]
-            
+
             L_seg = lengths[i]
             x_int = x_current + L_seg
             r_int = r_current + L_seg * np.tan(theta)
-            
+
             half_delta = abs(theta - theta_next) / 2.0
             # Tangent length of a circular arc of radius R_f blending two lines
             # that meet at deflection angle delta: T = R tan(delta/2). The
@@ -827,28 +833,31 @@ def blunted_multiconic(
             # a panel integration, which sums unordered faces, and fatal to a
             # mesh generator, which sees overlapping facets.
             L_tan = R_f * np.tan(half_delta) if half_delta > 1e-6 else 0.0
-            
+
             x_end_frustum = x_int - L_tan * np.cos(theta)
             r_end_frustum = r_int - L_tan * np.sin(theta)
-            
+
             x_start_next = x_int + L_tan * np.cos(theta_next)
             r_start_next = r_int + L_tan * np.sin(theta_next)
-            
+
             x_c = x_end_frustum + R_f * np.sin(theta)
             r_c = r_end_frustum - R_f * np.cos(theta)
-            
+
             x_frust = np.linspace(x_current, x_end_frustum, n_axial_per_segment)[1:]
             r_frust = np.linspace(r_current, r_end_frustum, n_axial_per_segment)[1:]
             x_profile.extend(x_frust)
             r_profile.extend(r_frust)
-            
-            angles = np.linspace(np.pi/2 - theta, np.pi/2 - theta_next, max(4, n_axial_per_segment//2))[1:]
+
+            angles = np.linspace(
+                np.pi / 2 - theta, np.pi / 2 - theta_next,
+                max(4, n_axial_per_segment // 2),
+            )[1:]
             for a in angles:
                 x_profile.append(x_c - R_f * np.cos(a))
                 r_profile.append(r_c + R_f * np.sin(a))
-                
+
             x_current, r_current = x_start_next, r_start_next
-            
+
         else:
             x_end = x_current + lengths[i]
             r_end = r_current + lengths[i] * np.tan(theta)
@@ -859,11 +868,11 @@ def blunted_multiconic(
 
     x_prof, r_prof = np.array(x_profile), np.array(r_profile)
     vertices = np.zeros((len(x_prof), len(psi), 3))
-    
-    for i, (x, r) in enumerate(zip(x_prof, r_prof)):
+
+    for i, (x, r) in enumerate(zip(x_prof, r_prof, strict=True)):
         for j, p in enumerate(psi):
             vertices[i, j] = [x, r * np.cos(p), r * np.sin(p)]
-            
+
     ref_pt = np.array([reference_fraction * np.max(x_prof), 0.0, 0.0])
     return _grid_to_panels(vertices, ref_pt)
 
@@ -880,28 +889,28 @@ def exact_mitered_bent_biconic(
     vertices = np.zeros((n_axial, len(psi), 3))
     n_fwd = n_axial // 2
     n_aft = n_axial - n_fwd
-    
+
     x_tan = nose_radius * (1.0 - np.sin(theta1))
     r_tan = nose_radius * np.cos(theta1)
     x_apex = x_tan - r_tan / np.tan(theta1)
     v_apex = np.array([x_apex, 0.0, 0.0])
-    
+
     hinge = np.array([x_tan + L1, 0.0, 0.0])
     v1 = np.array([1.0, 0.0, 0.0])
     v2 = np.array([np.cos(bend_angle), 0.0, np.sin(bend_angle)])
-    
-    n_plane = v1 - v2 
+
+    n_plane = v1 - v2
     n_plane /= np.linalg.norm(n_plane)
-    
+
     P_junction = np.zeros((len(psi), 3))
-    
+
     for j, p in enumerate(psi):
         d = np.array([np.cos(theta1), np.sin(theta1)*np.cos(p), np.sin(theta1)*np.sin(p)])
         t_junc = np.dot(hinge - v_apex, n_plane) / np.dot(d, n_plane)
         t_tan = r_tan / np.sin(theta1)
-        
+
         P_junction[j] = v_apex + t_junc * d
-        
+
         for i in range(n_fwd):
             if i < n_fwd // 3:
                 phi = (0.5 * np.pi - theta1) * (i / max(1, (n_fwd // 3 - 1)))
@@ -917,10 +926,10 @@ def exact_mitered_bent_biconic(
     R_nom = r_tan + L1 * np.tan(theta1)
     R_base = R_nom + L2 * np.tan(theta2)
     C_base = hinge + L2 * v2
-    
+
     u2 = np.array([0.0, 1.0, 0.0])
     w2 = np.array([-np.sin(bend_angle), 0.0, np.cos(bend_angle)])
-    
+
     for j, p in enumerate(psi):
         B = C_base + R_base * (np.cos(p) * u2 + np.sin(p) * w2)
         for i in range(n_aft):
@@ -928,7 +937,7 @@ def exact_mitered_bent_biconic(
 
     total_len = hinge[0] + L2 * np.cos(bend_angle)
     ref_pt = np.array([reference_fraction * total_len, 0.0, 0.0])
-    
+
     return _grid_to_panels(vertices, ref_pt)
 
 def smooth_bent_biconic(
@@ -943,38 +952,38 @@ def smooth_bent_biconic(
     """Watertight C1 continuous bent biconic utilizing a planar Bishop frame loft."""
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
     vertices = np.zeros((n_axial, len(psi), 3))
-    
+
     x_tan = nose_radius * (1.0 - np.sin(theta1))
     r_tan = nose_radius * np.cos(theta1)
     x_apex = x_tan - r_tan / np.tan(theta1)
-    
+
     L_fwd_spine = L1 - spine_bend_radius * np.tan(bend_angle / 2.0)
     if L_fwd_spine <= x_tan:
         raise ValueError("Spine bend radius is too large; intersects nose cap.")
-        
+
     arc_length = spine_bend_radius * bend_angle
-    
+
     n_nose = max(4, n_axial // 10)
     n_arc = max(4, n_axial // 6)
     n_fwd = (n_axial - n_nose - n_arc) // 2
     n_aft = n_axial - n_nose - n_fwd - n_arc
-    
+
     s_vals = []
     phi_vals = np.linspace(0, 0.5 * np.pi - theta1, n_nose, endpoint=False)
     for phi in phi_vals:
         s_vals.append((nose_radius * (1.0 - np.cos(phi))) - x_apex)
-        
+
     s_fwd_end = L_fwd_spine - x_apex
     s_vals.extend(np.linspace(s_vals[-1], s_fwd_end, n_fwd, endpoint=False)[1:])
-    
+
     s_arc_end = s_fwd_end + arc_length
     s_vals.extend(np.linspace(s_fwd_end, s_arc_end, n_arc, endpoint=False))
-    
+
     s_aft_end = s_arc_end + (L2 - spine_bend_radius * np.tan(bend_angle / 2.0))
     s_vals.extend(np.linspace(s_arc_end, s_aft_end, n_aft))
-    
+
     B_vec = np.array([0.0, 1.0, 0.0])
-    
+
     for i, s in enumerate(s_vals):
         if i < n_nose:
             phi = phi_vals[i]
@@ -983,12 +992,12 @@ def smooth_bent_biconic(
             for j, p in enumerate(psi):
                 vertices[i, j] = [x_c, r_c * np.cos(p), r_c * np.sin(p)]
             continue
-            
+
         if s <= s_fwd_end:
             gamma = np.array([x_apex + s, 0.0, 0.0])
             N_vec = np.array([0.0, 0.0, 1.0])
             R = r_tan + (s - (x_tan - x_apex)) * np.tan(theta1)
-            
+
         elif s <= s_arc_end:
             theta_local = (s - s_fwd_end) / spine_bend_radius
             gamma = np.array([
@@ -997,11 +1006,15 @@ def smooth_bent_biconic(
                 spine_bend_radius - spine_bend_radius * np.cos(theta_local)
             ])
             N_vec = np.array([-np.sin(theta_local), 0.0, np.cos(theta_local)])
-            
+
             u_arc = (s - s_fwd_end) / arc_length
             theta_eff = theta1 * (1 - u_arc) + theta2 * u_arc
-            R = r_tan + (s_fwd_end - (x_tan - x_apex)) * np.tan(theta1) + (s - s_fwd_end) * np.tan(theta_eff)
-            
+            R = (
+                r_tan
+                + (s_fwd_end - (x_tan - x_apex)) * np.tan(theta1)
+                + (s - s_fwd_end) * np.tan(theta_eff)
+            )
+
         else:
             s_local = s - s_arc_end
             gamma_arc_end = np.array([
@@ -1011,56 +1024,60 @@ def smooth_bent_biconic(
             ])
             T_vec = np.array([np.cos(bend_angle), 0.0, np.sin(bend_angle)])
             N_vec = np.array([-np.sin(bend_angle), 0.0, np.cos(bend_angle)])
-            
+
             gamma = gamma_arc_end + s_local * T_vec
-            
-            R_arc_end = r_tan + (s_fwd_end - (x_tan - x_apex)) * np.tan(theta1) + arc_length * np.tan(0.5*(theta1+theta2))
+
+            R_arc_end = (
+                r_tan
+                + (s_fwd_end - (x_tan - x_apex)) * np.tan(theta1)
+                + arc_length * np.tan(0.5 * (theta1 + theta2))
+            )
             R = R_arc_end + s_local * np.tan(theta2)
-            
+
         for j, p in enumerate(psi):
             vertices[i, j] = gamma + R * (np.cos(p) * B_vec + np.sin(p) * N_vec)
-            
+
     ref_pt = np.array([reference_fraction * vertices[-1, 0, 0], 0.0, 0.0])
     return _grid_to_panels(vertices, ref_pt)
 
 def spatular_wedge(
     length: float = 3.0,
-    nose_radius_y: float = 0.1,    
-    nose_radius_z: float = 0.1,    
+    nose_radius_y: float = 0.1,
+    nose_radius_z: float = 0.1,
     base_half_span: float = 1.0,
     base_half_thickness: float = 0.3,
-    p_span: float = 0.5,           
-    p_thickness: float = 0.75,     
-    n_power_nose: float = 2.0,     
-    n_power_base: float = 1.2,     
-    p_n_exp: float = 2.0,          
-    n_axial: int = 60, 
+    p_span: float = 0.5,
+    p_thickness: float = 0.75,
+    n_power_nose: float = 2.0,
+    n_power_base: float = 1.2,
+    p_n_exp: float = 2.0,
+    n_axial: int = 60,
     n_circ: int = 48,
     reference_fraction: float = 0.5
 ) -> PanelModel:
     """Exact power-law blended lifting body using rigorous Lamé curve transitions."""
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
     vertices = np.zeros((n_axial, len(psi), 3))
-    
-    u_vals = np.linspace(1e-5, 1.0, n_axial) 
-    
+
+    u_vals = np.linspace(1e-5, 1.0, n_axial)
+
     for i, u in enumerate(u_vals):
         x = u * length
-        
+
         a = nose_radius_y + (base_half_span - nose_radius_y) * (u ** p_span)
         b = nose_radius_z + (base_half_thickness - nose_radius_z) * (u ** p_thickness)
         n_exp = n_power_nose + (n_power_base - n_power_nose) * (u ** p_n_exp)
-        
+
         for j, p in enumerate(psi):
             cos_p = np.cos(p)
             sin_p = np.sin(p)
-            
+
             y = a * (np.abs(cos_p) ** (2.0 / n_exp)) * np.sign(cos_p)
             z = b * (np.abs(sin_p) ** (2.0 / n_exp)) * np.sign(sin_p)
-            
+
             rad_fraction = (y/a)**2 + (z/b)**2
             x_offset = nose_radius_y * (1.0 - np.sqrt(max(0.0, 1.0 - rad_fraction)))
-            
+
             x_local = x + x_offset * (1.0 - u)
             vertices[i, j] = [x_local, y, z]
 

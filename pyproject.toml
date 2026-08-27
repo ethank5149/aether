@@ -95,6 +95,14 @@ ignore = [
     "RUF003", # same, in comments
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Single-capital and subscripted names in the geometry generators are the
+# symbols their formulae are written in — R for a fillet radius, L1/L2 for
+# segment lengths, N_vec/T_vec for the normal and tangent of a mitred joint.
+# Renaming them to satisfy pep8 would make the code harder to check against
+# the derivation it implements, which is the only way it can be checked.
+"src/aether/aerodynamics/panels.py" = ["N803", "N806"]
+
 [tool.mypy]
 # numpy >= 2.3 ships stubs using PEP 695 `type` statements, which mypy
 # only parses when targeting >= 3.12; runtime code remains 3.10-compatible.
