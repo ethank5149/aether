@@ -123,6 +123,20 @@ class Loft:
     section: Callable[[float], _FloatArray] = field(repr=False)
     stations: _FloatArray
     smooth: bool = True
+    ruled: bool = False
+    """Rule the surface between adjacent sections instead of lofting through them.
+
+    Independent of :attr:`smooth`, which decides how each *section* is built.
+    Conflating the two is a trap: a caret waverider needs segment-built
+    sections, so that its ridge and leading edges stay sharp corners, and a
+    *through-lofted* longitudinal surface. Ruling it instead makes every
+    section-to-section strip its own face, which pins the mesh to the section
+    spacing — 143 mm along the body against 3 mm across a filleted leading
+    edge, a median edge-length ratio of 71:1 and 1625 of 2916 faces below a
+    quality of 0.1. Nothing downstream could fix that: mesh size fields,
+    ``size_min`` and the 2D algorithm choice all had *no effect at all* on the
+    result, because the faces themselves were the constraint.
+    """
     name: str = "body"
 
     def __post_init__(self) -> None:
@@ -163,7 +177,7 @@ class Loft:
         # the first station's section, so a blunt-nosed body wants its first
         # station close to zero and a pointed one is better built by Revolve.
         made = gmsh.model.occ.addThruSections(
-            wires, makeSolid=True, makeRuled=not self.smooth
+            wires, makeSolid=True, makeRuled=self.ruled
         )
         gmsh.model.occ.synchronize()
         volumes = [tag for dim, tag in made if dim == 3]

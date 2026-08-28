@@ -24,7 +24,13 @@ from aether.aerodynamics.closure import rayleigh_pitot_cp_max
 
 _FloatArray = NDArray[np.float64]
 
-__all__ = ["PitotViolation", "pitot_limit_violation", "surface_pressure_coefficient"]
+__all__ = [
+    "PitotViolation",
+    "SurfaceQuality",
+    "pitot_limit_violation",
+    "surface_pressure_coefficient",
+    "surface_quality",
+]
 
 
 def surface_pressure_coefficient(
@@ -134,4 +140,90 @@ def pitot_limit_violation(
         limit=float(limit),
         extent=(float(x.min()), float(x.max()), float(radius.min()), float(radius.max())),
         nodes=int(np.count_nonzero(over)),
+    )
+
+
+@dataclass(frozen=True)
+class SurfaceQuality:
+    """Triangle shape quality of a wall mesh, before it is ever extruded."""
+
+    minimum: float
+    """Worst triangle quality, :math:`4\\sqrt{3}A/\\sum \\ell^2` — 1 equilateral, 0 degenerate."""
+    first_percentile: float
+    """Quality below which 1 % of triangles fall."""
+    median: float
+    slivers: int
+    """Triangles below the usable threshold."""
+    worst_location: tuple[float, float]
+    """``(x, r)`` of the worst triangle's centroid (m) — where to go looking."""
+    faces: int
+
+    @property
+    def usable(self) -> bool:
+        """No sliver triangles."""
+        return self.slivers == 0
+
+    def summary(self) -> str:
+        if self.usable:
+            return (
+                f"{self.faces} faces, worst quality {self.minimum:.3f}, "
+                f"median {self.median:.3f} — no slivers"
+            )
+        return (
+            f"{self.slivers} of {self.faces} faces are slivers (worst "
+            f"{self.minimum:.4f}, median {self.median:.3f}), worst at "
+            f"x={self.worst_location[0]:.4f} r={self.worst_location[1]:.4f}"
+        )
+
+
+def surface_quality(mesh: object, threshold: float = 0.1) -> SurfaceQuality:
+    """Shape quality of a wall triangulation.
+
+    Worth checking *before* extruding, because a prism stack multiplies a bad
+    triangle by the layer count and the failure surfaces far from its cause. A
+    Mach 8 sphere-cone with a 10 mm shoulder fillet on a 785 mm body carried
+    432 needle triangles — 102 mm long, 1.9 mm wide, quality 0.033 — because
+    the fillet is resolved across its arc by curvature but around the body only
+    by the global maximum size. Extruded, those became the 34 prisms SU2
+    reported as distorted, with a control-volume sub-volume ratio of 13131 and
+    29 non-physical points before the first iteration.
+
+    The cure is geometric, not numerical: a needle of width :math:`w` and
+    length :math:`\\ell` has quality about :math:`\\sqrt{3}w/\\ell`, so a
+    feature far smaller than the local mesh size cannot be meshed isotropically
+    at any affordable cost. On that body, opening the fillet from 10 mm to
+    60 mm removed every sliver and used *fewer* faces.
+
+    Parameters
+    ----------
+    mesh:
+        Anything with ``vertices`` and ``faces`` arrays.
+    threshold:
+        Quality below which a triangle is counted a sliver.
+    """
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)  # type: ignore[attr-defined]
+    faces = np.asarray(mesh.faces, dtype=np.int64)  # type: ignore[attr-defined]
+    a, b, c = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
+    area = 0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1)
+    edges = np.stack(
+        [
+            np.linalg.norm(b - a, axis=1),
+            np.linalg.norm(c - b, axis=1),
+            np.linalg.norm(a - c, axis=1),
+        ],
+        axis=1,
+    )
+    total = np.sum(edges**2, axis=1)
+    quality = np.divide(
+        4.0 * np.sqrt(3.0) * area, total, out=np.zeros_like(area), where=total > 0.0
+    )
+    worst = int(np.argmin(quality))
+    centroid = (a[worst] + b[worst] + c[worst]) / 3.0
+    return SurfaceQuality(
+        minimum=float(quality.min()),
+        first_percentile=float(np.percentile(quality, 1.0)),
+        median=float(np.median(quality)),
+        slivers=int(np.count_nonzero(quality < threshold)),
+        worst_location=(float(centroid[0]), float(np.hypot(centroid[1], centroid[2]))),
+        faces=int(faces.shape[0]),
     )

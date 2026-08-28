@@ -1001,8 +1001,97 @@ def shock_layer_sizing(
     return layered, layered.first_cell_for_thickness(float(span) * standoff)
 
 
+def _split_su2_marker(
+    path: Path,
+    wall_marker: str,
+    centroids: _FloatArray,
+    aft: NDArray[np.bool_],
+) -> None:
+    """Split a written ``.su2`` wall marker into forebody and base patches.
+
+    Done on the file rather than in the mesher because it is a *labelling*
+    operation: the wall triangulation is handed to gmsh as a discrete surface
+    and comes back unchanged, so every wall element in the file is one of the
+    input faces under a different number, and the split is exact. Attempting
+    the same thing topologically — two discrete surfaces, two prism stacks —
+    fails to weld along the rim; see the note in :func:`_build_viscous_domain`.
+
+    Elements are matched to input faces by centroid, on a rounded grid rather
+    than by nearest neighbour, so a mismatch raises instead of silently
+    assigning a face to the wrong patch and corrupting the force split.
+    """
+    text = path.read_text().split("\n")
+    index = 0
+    points: _FloatArray | None = None
+    while index < len(text):
+        line = text[index].strip()
+        if line.startswith("NPOIN="):
+            count = int(line.split("=")[1].split()[0])
+            points = np.array(
+                [
+                    [float(value) for value in text[index + 1 + offset].split()[:3]]
+                    for offset in range(count)
+                ],
+                dtype=np.float64,
+            )
+            break
+        index += 1
+    if points is None:
+        raise ValueError(f"{path} has no NPOIN block")
+
+    lookup = {
+        tuple(np.round(centroid, 9)): bool(flag)
+        for centroid, flag in zip(centroids, aft, strict=True)
+    }
+
+    out: list[str] = []
+    index = 0
+    replaced = False
+    while index < len(text):
+        line = text[index]
+        stripped = line.strip()
+        if stripped.startswith("NMARK="):
+            out.append(f"NMARK= {int(stripped.split('=')[1]) + 1}")
+            index += 1
+            continue
+        if stripped.startswith("MARKER_TAG=") and stripped.split("=")[1].strip() == wall_marker:
+            count = int(text[index + 1].split("=")[1])
+            rows = text[index + 2 : index + 2 + count]
+            fore: list[str] = []
+            base: list[str] = []
+            for row in rows:
+                nodes = [int(token) for token in row.split()[1:4]]
+                key = tuple(np.round(points[nodes].mean(axis=0), 9))
+                flag = lookup.get(key)
+                if flag is None:
+                    raise ValueError(
+                        f"wall element at {key} in {path.name} matches no input "
+                        f"face; the surface was re-meshed and the base split "
+                        f"cannot be trusted"
+                    )
+                (base if flag else fore).append(row)
+            out.append(f"MARKER_TAG= {wall_marker}")
+            out.append(f"MARKER_ELEMS= {len(fore)}")
+            out.extend(fore)
+            out.append(f"MARKER_TAG= {wall_marker}_base")
+            out.append(f"MARKER_ELEMS= {len(base)}")
+            out.extend(base)
+            index += 2 + count
+            replaced = True
+            continue
+        out.append(line)
+        index += 1
+    if not replaced:
+        raise ValueError(f"{path} has no marker named {wall_marker!r}")
+    path.write_text("\n".join(out))
+
+
 def _base_faces(
-    mesh: Any, n_faces: int, split_base: bool, base_station: float | None
+    mesh: Any,
+    n_faces: int,
+    split_base: bool,
+    base_station: float | None,
+    base_cone_deg: float = 20.0,
 ) -> NDArray[np.bool_]:
     """Which wall faces belong to the base patch.
 
@@ -1011,9 +1100,20 @@ def _base_faces(
     mesh disagreeing with an inviscid one about where the base starts would
     make the two force histories incomparable.
 
-    The default test is the sign of the outward normal's axial component,
-    which is exact for a body whose base is a plane normal to the axis.
-    ``base_station`` overrides it with an axial cut for bodies where it is not.
+    The default test is that the outward normal lies within ``base_cone_deg``
+    of the axis. The bare *sign* of the axial component is not enough: a caret
+    waverider's upper surface is a freestream surface with :math:`n_x \approx
+    0`, so its sign is decided by rounding, and the sign test put 1534 of 2916
+    faces — 53 % of the body, the entire upper surface — on the base. The same
+    body under any threshold from 0.3 to 0.94 returns the same 60 faces, all
+    at the base station, and the two blunt bodies are likewise identical
+    between 0.90 and 0.94. The answer is insensitive to the threshold and very
+    sensitive to having one.
+
+    This also draws the base at the base *plane*, leaving the shoulder fillet
+    on the forebody where the flow is still attached and the Euler solution is
+    still meaningful. ``base_station`` overrides the whole test with an axial
+    cut for bodies whose base is not normal to the axis.
     """
     if not split_base and base_station is None:
         return np.zeros(n_faces, dtype=bool)
@@ -1028,11 +1128,17 @@ def _base_faces(
             )
             raise ValueError(msg)
         return aft
-    aft = np.asarray(mesh.normals, dtype=np.float64)[:, 0] > 0.0
+    normals = np.asarray(mesh.normals, dtype=np.float64)
+    lengths = np.linalg.norm(normals, axis=1)
+    axial = np.divide(
+        normals[:, 0], lengths, out=np.zeros_like(lengths), where=lengths > 0.0
+    )
+    aft = axial > float(np.cos(np.deg2rad(base_cone_deg)))
     if not aft.any():
         msg = (
-            "no wall face points aft, so there is no base to split off; "
-            "the body closes to a point, or its normals are inward"
+            f"no wall face points aft within {base_cone_deg:g} deg of the axis, "
+            "so there is no base to split off; the body closes to a point, or "
+            "its normals are inward"
         )
         raise ValueError(msg)
     return _aft_component(np.asarray(mesh.faces, dtype=np.int64), centroids, aft)
@@ -1476,28 +1582,24 @@ def _build_viscous_domain(
         # off both patches in one call so the two share the nodes along their
         # seam; extruding them separately gives each its own copy of the rim
         # and leaves a crack down the middle of the boundary layer.
-        base_faces = (
-            np.zeros(faces.shape[0], dtype=bool) if aft is None else np.asarray(aft)
-        )
+        # One entity, extruded once. Splitting the wall into two discrete
+        # surfaces and extruding both is the obvious way to get two markers,
+        # and it does not survive contact with a real body: discrete surfaces
+        # carry no shared topological curve, so the two prism stacks fail to
+        # weld along the rim. Forcing the curve into existence with
+        # ``createTopology`` fixed the sphere-cone and made the biconic worse —
+        # the extruder returned *zero* entities, silently, on a surface whose
+        # feature edges it had just fragmented into a dozen point entities.
+        #
+        # The split is a labelling question, not a meshing one, so it is done
+        # on the written file by :func:`_split_su2_marker`, where it is exact.
         wall = gmsh.model.addDiscreteEntity(2)
         gmsh.model.mesh.addNodes(
             2, wall, list(range(1, vertices.shape[0] + 1)), vertices.ravel().tolist()
         )
         gmsh.model.mesh.addElementsByType(
-            wall, 2, [], (faces[~base_faces] + 1).ravel().tolist()
+            wall, 2, [], (faces + 1).ravel().tolist()
         )
-        walls = [wall]
-        if base_faces.any():
-            disc = gmsh.model.addDiscreteEntity(2)
-            gmsh.model.mesh.addElementsByType(
-                disc, 2, [], (faces[base_faces] + 1).ravel().tolist()
-            )
-            walls.append(disc)
-            # Discrete surfaces share node *tags* but no topological curve, and
-            # the extruder welds two stacks along a shared curve. Without this
-            # the two patches each grow their own copy of the rim and the mesher
-            # stops with "Could not find extruded node" at a seam coordinate.
-            gmsh.model.mesh.createTopology()
 
         # A *vector* field, not a scalar one: gmsh reads it as the marching
         # direction itself rather than as a multiplier on its own normals, so
@@ -1519,8 +1621,7 @@ def _build_viscous_domain(
                 view, 0, name, "NodeData", tags, scale.tolist()
             )
         extruded = gmsh.model.geo.extrudeBoundaryLayer(
-            [(2, tag) for tag in walls], [1] * len(heights), heights, True,
-            viewIndex=view,
+            [(2, wall)], [1] * len(heights), heights, True, viewIndex=view
         )
         gmsh.model.geo.synchronize()
 
@@ -1531,8 +1632,7 @@ def _build_viscous_domain(
         # fixed, so indexing into it is only right for the cases it was tried on.
         layer_volumes = [dim_tag for dim_tag in extruded if dim_tag[0] == 3]
         boundary = gmsh.model.getBoundary(layer_volumes, combined=True, oriented=False)
-        wall_entities = {(2, tag) for tag in walls}
-        outer = [dim_tag for dim_tag in boundary if dim_tag not in wall_entities]
+        outer = [dim_tag for dim_tag in boundary if dim_tag != (2, wall)]
         if not outer:
             msg = "the boundary-layer extrusion produced no outer surface"
             raise RuntimeError(msg)
@@ -1551,8 +1651,6 @@ def _build_viscous_domain(
         gmsh.model.geo.synchronize()
 
         gmsh.model.addPhysicalGroup(2, [wall], name=wall_marker)
-        if len(walls) > 1:
-            gmsh.model.addPhysicalGroup(2, [walls[1]], name=f"{wall_marker}_base")
         gmsh.model.addPhysicalGroup(2, box, name=farfield_marker)
         gmsh.model.addPhysicalGroup(
             3, [tag for _, tag in layer_volumes] + [volume], name="fluid"
@@ -1572,6 +1670,11 @@ def _build_viscous_domain(
         gmsh.write(str(target))
     finally:
         gmsh.finalize()
+
+    if aft is not None and bool(np.any(aft)):
+        _split_su2_marker(
+            target, wall_marker, vertices[faces].mean(axis=1), np.asarray(aft)
+        )
 
     return MeshResult(
         path=target,
