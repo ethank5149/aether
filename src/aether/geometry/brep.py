@@ -347,7 +347,17 @@ def solid_properties(body: Body) -> SolidProperties:
         # because a body faceted into near-planar strips has a tight control
         # polygon — exact arcs are what expose it. The number feeds domain
         # extents and refinement sizes, so it has to be the real one.
+        # Sized off OCC's own (loose) box, so this stays a cheap tessellation
+        # for measuring a body and does not inherit the default fine sizing —
+        # on the waverider, curvature-driven default sizes over a 3 mm leading
+        # edge fillet turn "measure this solid" into an unbounded mesh.
+        box = gmsh.model.occ.getBoundingBox(3, volume)
+        diagonal = float(
+            np.linalg.norm(np.asarray(box[3:]) - np.asarray(box[:3]))
+        )
         gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 12.0)
+        gmsh.option.setNumber("Mesh.MeshSizeMax", diagonal / 60.0)
+        gmsh.option.setNumber("Mesh.MeshSizeMin", diagonal / 600.0)
         gmsh.model.mesh.generate(2)
         _, coordinates, _ = gmsh.model.mesh.getNodes()
         nodes = np.asarray(coordinates, dtype=np.float64).reshape(-1, 3)
@@ -355,16 +365,51 @@ def solid_properties(body: Body) -> SolidProperties:
         high = nodes.max(axis=0)
         low_x, low_y, low_z = (float(value) for value in low)
         high_x, high_y, high_z = (float(value) for value in high)
-        area = sum(
-            gmsh.model.occ.getMass(2, tag)
-            for _, tag in gmsh.model.getBoundary(
-                [(3, volume)], combined=True, oriented=False
-            )
+        # Area and centroid from the same tessellation, not from OCC. Asking
+        # OCC to integrate over exact spherical, toroidal and BSpline faces is
+        # far slower than integrating a triangulation of them: on the caret
+        # waverider it had not returned after four minutes of CPU, against a
+        # few seconds here. The cost was invisible while these solids were
+        # sampled polylines, because integrating a few hundred planar strips
+        # is trivial — it is the price of exact faces, and not one worth
+        # paying for two numbers a triangulation gives to five figures.
+        # Volume stays exact: ``getMass(3, ...)`` is closed-form and immediate.
+        node_tags = np.asarray(gmsh.model.mesh.getNodes()[0], dtype=np.int64)
+        lookup = np.zeros(int(node_tags.max()) + 1, dtype=np.int64)
+        lookup[node_tags] = np.arange(node_tags.size)
+        # Only the volume's own boundary. ``getElementsByType`` would return
+        # every triangle in the model, and ``revolve`` leaves its generating
+        # meridian face behind as a separate entity — including it inflated the
+        # sphere-cone's wetted area by 13 %.
+        boundary = gmsh.model.getBoundary(
+            [(3, volume)], combined=True, oriented=False
+        )
+        blocks = [
+            np.asarray(block, dtype=np.int64).reshape(-1, 3)
+            for _, tag in boundary
+            for block in gmsh.model.mesh.getElements(2, abs(tag))[2]
+        ]
+        if not blocks:
+            raise RuntimeError(f"{body.name} produced no boundary triangles")
+        triangles = np.concatenate(blocks)
+        corners = nodes[lookup[triangles]]
+        first, second, third = corners[:, 0], corners[:, 1], corners[:, 2]
+        cross = np.cross(second - first, third - first)
+        area = float(0.5 * np.linalg.norm(cross, axis=1).sum())
+        # Centroid of the enclosed solid, by the divergence theorem over the
+        # closed surface rather than by averaging vertices, which would weight
+        # by how finely each region happens to be meshed.
+        signed = np.einsum("ij,ij->i", first, cross) / 6.0
+        total = float(signed.sum())
+        centre = (
+            np.einsum("i,ij->j", signed, (first + second + third) / 4.0) / total
+            if abs(total) > 1e-30
+            else nodes.mean(axis=0)
         )
         return SolidProperties(
             volume=float(gmsh.model.occ.getMass(3, volume)),
-            surface_area=float(area),
-            centroid=np.asarray(gmsh.model.occ.getCenterOfMass(3, volume), dtype=np.float64),
+            surface_area=area,
+            centroid=np.asarray(centre, dtype=np.float64),
             bounds=(
                 np.array([low_x, low_y, low_z], dtype=np.float64),
                 np.array([high_x, high_y, high_z], dtype=np.float64),

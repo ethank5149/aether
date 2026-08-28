@@ -59,7 +59,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -969,6 +969,7 @@ def shock_layer_sizing(
     *,
     cells: int = 16,
     span: float = 1.5,
+    growth: float = 1.05,
 ) -> tuple[ViscousSizing, float]:
     """Size a prism stack to resolve a captured bow shock, not a viscous layer.
 
@@ -990,6 +991,20 @@ def shock_layer_sizing(
     inside the structured stack rather than on the seam where the prisms hand
     over to tetrahedra.
 
+    Why the growth ratio is near one
+    --------------------------------
+    A viscous stack clusters hard at the wall, because a boundary layer's
+    gradients live there and :math:`y^+` sets the first cell. A **captured
+    shock has no such preference**: it sits somewhere out in the stack and
+    wants uniform resolution across the standoff. Carrying the viscous default
+    of 1.2 over to a shock-layer stack put the wall cell at 0.129 mm under a
+    5 mm surface cell and gave SU2 a control-volume face-area aspect ratio of
+    30834 and a sub-volume ratio of 21897 — six non-physical points before the
+    first iteration, and a Mach 8 Euler solution that diverged at iteration 207
+    with the geometry otherwise clean. At 1.05 the same sixteen layers put
+    twelve cells through the standoff with a wall cell near 0.48 mm, an aspect
+    ratio around ten.
+
     This is the same argument that makes every hypersonic code march layers,
     and the reason it is worth doing properly: see the note on hyperbolic
     marching in :func:`_marching_vectors`.
@@ -997,7 +1012,9 @@ def shock_layer_sizing(
     standoff = shock_standoff(mach, nose_radius, geometry="sphere")
     if not np.isfinite(standoff):
         standoff = float(nose_radius)
-    layered = sizing.with_layers(int(cells))
+    layered = replace(
+        sizing.with_layers(int(cells)), growth_ratio=float(growth)
+    )
     return layered, layered.first_cell_for_thickness(float(span) * standoff)
 
 
@@ -1091,7 +1108,7 @@ def _base_faces(
     n_faces: int,
     split_base: bool,
     base_station: float | None,
-    base_cone_deg: float = 20.0,
+    base_cone_deg: float = 10.0,
 ) -> NDArray[np.bool_]:
     """Which wall faces belong to the base patch.
 
@@ -1110,10 +1127,23 @@ def _base_faces(
     between 0.90 and 0.94. The answer is insensitive to the threshold and very
     sensitive to having one.
 
-    This also draws the base at the base *plane*, leaving the shoulder fillet
-    on the forebody where the flow is still attached and the Euler solution is
-    still meaningful. ``base_station`` overrides the whole test with an axial
-    cut for bodies whose base is not normal to the axis.
+    Ten degrees, not twenty, and the difference is measurable rather than a
+    matter of taste. On the sphere-cone the analytic base disc is 0.46009 m^2;
+    the patch recovered at 2, 5 and 10 degrees is 0.46008-0.46010, and at 20
+    degrees it is 0.47055 — 2.3 % high, because the tolerance has begun eating
+    into the shoulder fillet, whose flow is attached and whose pressure the
+    Euler solution gets right. Charging that ring to the base would hand it to
+    a correlation instead. The same holds on the biconic, and the waverider's
+    base is flat enough that 5, 10 and 20 degrees return the identical 88
+    faces.
+
+    The wide default was harmless while the fillet was a band of sliver
+    triangles that mostly failed the test anyway; resolving the fillet properly
+    is what made the tolerance matter.
+
+    This draws the base at the base *plane*, leaving the shoulder fillet on the
+    forebody. ``base_station`` overrides the whole test with an axial cut for
+    bodies whose base is not normal to the axis.
     """
     if not split_base and base_station is None:
         return np.zeros(n_faces, dtype=bool)
@@ -1582,17 +1612,32 @@ def _build_viscous_domain(
         # off both patches in one call so the two share the nodes along their
         # seam; extruding them separately gives each its own copy of the rim
         # and leaves a crack down the middle of the boundary layer.
-        # One entity, extruded once. Splitting the wall into two discrete
-        # surfaces and extruding both is the obvious way to get two markers,
-        # and it does not survive contact with a real body: discrete surfaces
-        # carry no shared topological curve, so the two prism stacks fail to
-        # weld along the rim. Forcing the curve into existence with
-        # ``createTopology`` fixed the sphere-cone and made the biconic worse —
-        # the extruder returned *zero* entities, silently, on a surface whose
-        # feature edges it had just fragmented into a dozen point entities.
+        # The whole closed body is extruded as one discrete surface, and the
+        # base marker is separated afterwards on the written file by
+        # :func:`_split_su2_marker`.
         #
-        # The split is a labelling question, not a meshing one, so it is done
-        # on the written file by :func:`_split_su2_marker`, where it is exact.
+        # Not extruding the base is the better idea and does not work here:
+        # gmsh's boundary-layer extruder lives in the *geo* kernel while the
+        # wall is a *discrete* entity, so the un-extruded base disc cannot be
+        # named in the geo surface loop that bounds the tetrahedral region.
+        # The mesh writes without complaint and SU2 rejects it on load —
+        # "The surface element (1, 2) doesn't have an associated volume
+        # element" — because no tetrahedron was ever grown against the disc.
+        #
+        # Superseded note, kept because the measurement stands: growing a stack
+        # off the base as well is what
+        # the obvious reading of "wrap the body in a boundary layer" gives, and
+        # it is wrong twice over. Physically, the base is the one region an
+        # Euler solution cannot represent — it is replaced by a correlation
+        # downstream — so layers there resolve nothing. Numerically, the two
+        # stacks fan apart around the convex shoulder and the tetrahedra left
+        # to fill the wedge between them are slivers: on this sphere-cone the
+        # volume mesh spanned 4.7e-9 to 8.9 m^3, a ratio of 2e9, with the worst
+        # cell at x = 2.0109, r = 0.375 — just aft of the base rim — and SU2
+        # took a NaN there after 1159 iterations however low the CFL went.
+        #
+        # Leaving the base as a plain surface also gives the base *marker*
+        # topologically, so the force split needs no file surgery.
         wall = gmsh.model.addDiscreteEntity(2)
         gmsh.model.mesh.addNodes(
             2, wall, list(range(1, vertices.shape[0] + 1)), vertices.ravel().tolist()
@@ -1671,10 +1716,7 @@ def _build_viscous_domain(
     finally:
         gmsh.finalize()
 
-    if aft is not None and bool(np.any(aft)):
-        _split_su2_marker(
-            target, wall_marker, vertices[faces].mean(axis=1), np.asarray(aft)
-        )
+
 
     return MeshResult(
         path=target,
@@ -2008,6 +2050,11 @@ def inviscid_domain(
         gmsh.write(str(target))
     finally:
         gmsh.finalize()
+
+    if aft is not None and bool(np.any(aft)):
+        _split_su2_marker(
+            target, wall_marker, vertices[faces].mean(axis=1), np.asarray(aft)
+        )
 
     return MeshResult(
         path=target,
