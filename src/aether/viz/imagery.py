@@ -57,7 +57,6 @@ argues about.
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -494,35 +493,14 @@ class BlueMarble:
         return Texture(self.mosaic(height=height, month=self.month_of(month)))
 
 
-#: Environment variable naming the directory that holds the open reference
-#: datasets. Checked before any filesystem search.
-DATA_ROOT_ENV = "AETHER_DATA_ROOT"
-
-
-def _dataset_candidates(name: str) -> list[Path]:
-    """Where to look for a named dataset, in order of decreasing confidence.
-
-    ``AETHER_DATA_ROOT`` first, then a walk up from this module. The walk is a
-    *fallback*, not the mechanism: it works only while the module happens to sit
-    inside a checkout that also holds the data, and it breaks silently the
-    moment either moves. Promoting these renderers into the kernel broke exactly
-    that assumption -- 72 tests failed at once, every one of them reporting a
-    missing archive that had not gone anywhere.
-
-    A library should be told where its data is, not deduce it from its own
-    location on disk.
-    """
-    found: list[Path] = []
-    configured = os.environ.get(DATA_ROOT_ENV)
-    if configured:
-        root = Path(configured).expanduser()
-        found += [root / name, root / "datasets" / name,
-                  root / "reference" / name, root / "reference" / "datasets" / name]
-    for parent in Path(__file__).resolve().parents:
-        found += [parent / "datasets" / name,
-                  parent / "reference" / name,
-                  parent / "reference" / "datasets" / name]
-    return found
+# Archive resolution is shared with the terrain reader rather than repeated.
+# It was copy-pasted between the two, identically, so every fix had to be made
+# twice and a divergence between them would have been invisible. Imported here
+# rather than at the top because it sits with the dataset code it serves.
+from aether.viz.terrain import (  # noqa: E402
+    DATA_ROOT_ENV,
+    _dataset_candidates,
+)
 
 
 def default_blue_marble(root: str | Path | None = None) -> BlueMarble:

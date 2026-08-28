@@ -98,24 +98,77 @@ def test_the_frozen_triangulation_does_not_reach_the_exact_body() -> None:
     )
 
 
-def test_the_caret_keeps_its_leading_edge_sharp() -> None:
-    """A waverider whose leading edge is rounded is a different vehicle.
+def test_the_caret_rides_its_own_shock() -> None:
+    """The defining property, and the one the old parameterisation lacked.
 
-    The section is a triangle, so the exact solid must reproduce the corner.
-    Measured as the fraction of the base section's span that is within a
-    hair of the z = 0 upper plate: a sharp caret has a straight upper surface
-    all the way out to the edge, and a splined one bulges away from it.
+    A waverider is defined by the flow it rides: its leading edges must lie in
+    the shock plane its own compression surface makes, or the high pressure
+    underneath spills around them and the shape is a caret-*formed* body rather
+    than a waverider. Parameterised by span and keel depth instead, the edges
+    sat 0.74 m above the shock at Mach 8.
     """
-    body = bodies.caret_waverider()
-    mesh = brep.surface_mesh(body, curvature_nodes=8)
-    v = np.asarray(mesh.vertices)
-    aft = v[v[:, 0] > 0.9 * v[:, 0].max()]
-    assert aft.size > 0
-    on_plate = np.count_nonzero(np.abs(aft[:, 2]) < 1.0e-9)
-    assert on_plate > 0.2 * len(aft), (
-        "the upper surface is not flat; the section was splined rather than "
-        "built from straight edges"
+    from aether.aerodynamics.conical import wedge_shock_angle
+
+    mach, wedge = 8.0, np.deg2rad(6.0)
+    body = bodies.caret_waverider(design_mach=mach, wedge_angle=wedge, length=4.0)
+    properties = brep.solid_properties(body)
+    low, _ = properties.bounds
+
+    beta = wedge_shock_angle(mach, wedge)
+    expected_depth = -properties.length * np.tan(beta)
+    # The deepest point of the body is the leading edge at the base station,
+    # and it must sit on the shock plane to within the nose truncation.
+    assert low[2] == pytest.approx(expected_depth, rel=0.02), (
+        f"deepest point {low[2]:.4f} m against a shock at {expected_depth:.4f} m"
     )
+
+
+def test_the_caret_is_sharp_by_default_and_blunts_on_request() -> None:
+    """Edge blunting is a design variable, so it must be off unless asked for.
+
+    A sharp edge carries infinite stagnation heating and cannot be built; a
+    blunt one spills flow and moves the shock off the edge. Which trade to make
+    is the caller's, so the default reproduces the ideal shape exactly and the
+    radius is tunable per edge family.
+    """
+    sharp = brep.solid_properties(bodies.caret_waverider())
+    blunt = brep.solid_properties(bodies.caret_waverider(leading_edge_radius=0.01))
+    blunter = brep.solid_properties(bodies.caret_waverider(leading_edge_radius=0.02))
+
+    # Rounding a convex corner can only remove material.
+    assert blunt.volume < sharp.volume
+    assert blunter.volume < blunt.volume
+    assert blunt.surface_area < sharp.surface_area
+    # And it is a small perturbation, not a different vehicle.
+    assert abs(blunt.volume - sharp.volume) / sharp.volume < 0.01
+
+
+def test_the_leading_edge_and_ridge_blunt_independently() -> None:
+    """They see different environments and are optimised separately."""
+    edge_only = brep.solid_properties(bodies.caret_waverider(leading_edge_radius=0.02))
+    ridge_only = brep.solid_properties(bodies.caret_waverider(ridge_radius=0.02))
+    sharp = brep.solid_properties(bodies.caret_waverider())
+    assert edge_only.surface_area < sharp.surface_area
+    assert ridge_only.surface_area < sharp.surface_area
+    assert edge_only.surface_area != ridge_only.surface_area
+
+
+@pytest.mark.parametrize("maker", (bodies.sphere_cone, bodies.blunted_multiconic),
+                         ids=lambda f: f.__name__)
+def test_the_base_shoulder_blunts(maker) -> None:
+    """The second sharpest feature after the nose, and a singular expansion."""
+    sharp = brep.solid_properties(maker())
+    blunt = brep.solid_properties(maker(shoulder_radius=0.02))
+    assert blunt.volume < sharp.volume
+    assert blunt.surface_area < sharp.surface_area
+    # The fillet lives inside the original envelope, so the body does not grow.
+    assert blunt.length == pytest.approx(sharp.length, rel=1e-6)
+
+
+def test_an_over_large_shoulder_radius_is_refused() -> None:
+    with pytest.raises(ValueError, match="too large"):
+        bodies.sphere_cone(half_angle=np.deg2rad(10.0), nose_radius=0.05,
+                           length=2.0, shoulder_radius=1.0)
 
 
 def test_a_loft_refuses_a_degenerate_station_list() -> None:
@@ -135,3 +188,86 @@ def test_step_export_is_readable(tmp_path) -> None:
     text = path.read_text(errors="ignore")
     assert text.startswith("ISO-10303-21")
     assert "MANIFOLD_SOLID_BREP" in text or "ADVANCED_BREP_SHAPE_REPRESENTATION" in text
+
+
+class TestEdgeBlunting:
+    """Blunting radii are design variables, so they need real invariants."""
+
+    def test_rounding_only_removes_material(self) -> None:
+        from aether.geometry.edges import round_corners
+
+        square = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+        sharp_reach = float(np.max(np.linalg.norm(square - 0.5, axis=1)))
+        for radius in (0.05, 0.15, 0.3):
+            rounded = round_corners(square, radius, samples=12)
+            reach = float(np.max(np.linalg.norm(rounded - 0.5, axis=1)))
+            assert reach < sharp_reach, "a fillet cannot push a corner outward"
+
+    def test_the_arc_is_tangent_to_both_edges(self) -> None:
+        """A fillet that is not tangent is a chamfer, and reads as one."""
+        from aether.geometry.edges import round_corners
+
+        square = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+        radius = 0.2
+        rounded = round_corners(square, radius, samples=24)
+        # Every arc point around the (1, 0) corner is `radius` from its centre.
+        centre = np.array([1.0 - radius, radius])
+        near = rounded[np.linalg.norm(rounded - np.array([1.0, 0.0]), axis=1) < 0.35]
+        distances = np.linalg.norm(near - centre, axis=1)
+        assert np.allclose(distances, radius, atol=1e-9), (
+            f"arc radii span {distances.min():.6f}..{distances.max():.6f}"
+        )
+
+    def test_zero_radius_is_exactly_the_sharp_shape(self) -> None:
+        from aether.geometry.edges import round_corners
+
+        points = np.array([[0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -0.5]])
+        assert np.array_equal(round_corners(points, 0.0), points)
+
+    def test_radii_may_differ_per_corner(self) -> None:
+        """A waverider blunts its leading edges and its ridge differently."""
+        from aether.geometry.edges import round_corners
+
+        points = np.array([[0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -0.5]])
+        mixed = round_corners(points, np.array([0.05, 0.05, 0.0]), samples=6)
+        # Two corners rounded into arcs, the third left as a single vertex.
+        assert len(mixed) == 2 * 6 + 1
+
+
+class TestBasePressure:
+    """The Euler base is substituted, not computed. The substitute must be sane."""
+
+    @pytest.mark.parametrize("mach", [1.5, 2.0, 4.0, 8.0, 12.0, 20.0])
+    def test_never_below_vacuum(self, mach) -> None:
+        """Nothing can pull harder than an absolute vacuum."""
+        from aether.aerodynamics.closure import (
+            base_pressure_coefficient,
+            vacuum_pressure_coefficient,
+        )
+
+        base = base_pressure_coefficient(mach)
+        assert base < 0.0, "a base is always below freestream in supersonic flow"
+        assert base >= vacuum_pressure_coefficient(mach)
+
+    def test_base_drag_falls_with_mach(self) -> None:
+        from aether.aerodynamics.closure import base_axial_coefficient
+
+        values = [base_axial_coefficient(m, 1.0, 1.0) for m in (2.0, 4.0, 8.0, 16.0)]
+        assert all(a > b for a, b in zip(values, values[1:], strict=False))
+        assert all(v > 0.0 for v in values), "base drag adds to axial force"
+
+    def test_it_replaces_an_impossible_euler_value(self) -> None:
+        """What the substitution is for, as a number.
+
+        The solver reported a *positive* pressure coefficient on a base at
+        Mach 8 — pushing the vehicle forward — worth -0.30 in axial force
+        against a forebody of +0.08. The correlated value is small, negative,
+        and bounded.
+        """
+        from aether.aerodynamics.closure import base_axial_coefficient
+
+        correlated = base_axial_coefficient(8.0, 0.489, 0.489)
+        euler_artefact = -0.30
+        assert correlated > 0.0
+        assert abs(correlated) < 0.05
+        assert correlated * euler_artefact < 0.0, "they do not even share a sign"

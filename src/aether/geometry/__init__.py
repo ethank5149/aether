@@ -40,6 +40,12 @@ from aether.geometry.brep import (
     surface_mesh,
     write_step,
 )
+from aether.geometry.columns import (
+    WallColumnGrid,
+    graded_widths,
+    solve_growth,
+    wall_columns,
+)
 from aether.geometry.mesh import VehicleMesh, load_stl, write_stl
 from aether.geometry.prep import (
     ConditionReport,
@@ -55,14 +61,18 @@ __all__ = [
     "Revolve",
     "SolidProperties",
     "VehicleMesh",
+    "WallColumnGrid",
     "bodies",
     "condition",
     "export_master",
+    "graded_widths",
     "load_stl",
     "measure",
     "sha256_of",
     "solid_properties",
+    "solve_growth",
     "surface_mesh",
+    "wall_columns",
     "write_step",
     "write_stl",
 ]

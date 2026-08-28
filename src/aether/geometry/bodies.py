@@ -29,6 +29,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from aether.geometry.brep import Loft, Revolve
+from aether.geometry.edges import round_corners
 
 __all__ = [
     "blunted_multiconic",
@@ -38,6 +39,45 @@ __all__ = [
 ]
 
 _FloatArray = NDArray[np.float64]
+
+
+
+def _shoulder(
+    station: float, radius_at_corner: float, half_angle: float,
+    fillet: float, samples: int = 8,
+) -> _FloatArray:
+    r"""Meridian points rounding the corner where a cone meets its base disc.
+
+    A base shoulder is the second sharpest feature on a re-entry body after the
+    nose, and left as a mathematical corner it is unbuildable and a singular
+    expansion to any solver that meets it.
+
+    The fillet is tangent to the cone on one side and to the base plane on the
+    other. Equal distance to both puts its centre at
+
+    .. math::
+
+        x_c = x_b - R, \qquad r_c = r_b - R\,\frac{1 + \sin\theta}{\cos\theta},
+
+    and the arc then sweeps from :math:`\phi = \pi/2 + \theta`, where it meets
+    the cone, round to :math:`\phi = 0`, where it meets the base plane
+    travelling radially inward so the flat base closes it. Station increases
+    monotonically across that sweep, which is what the profile requires.
+    """
+    if fillet <= 0.0:
+        return np.zeros((0, 2))
+    offset = fillet * (1.0 + np.sin(half_angle)) / np.cos(half_angle)
+    centre_r = radius_at_corner - offset
+    centre_x = station - fillet
+    if centre_r <= 0.0:
+        msg = (
+            f"shoulder radius {fillet:g} is too large for a base radius of "
+            f"{radius_at_corner:g} at a {np.rad2deg(half_angle):.1f} degree cone"
+        )
+        raise ValueError(msg)
+    phi = np.linspace(0.5 * np.pi + half_angle, 0.0, max(3, int(samples)))
+    return np.column_stack([centre_x + fillet * np.cos(phi),
+                            centre_r + fillet * np.sin(phi)])
 
 
 def spatular_wedge(
@@ -102,48 +142,137 @@ def spatular_wedge(
 
 
 def caret_waverider(
+    design_mach: float = 8.0,
+    wedge_angle: float = np.deg2rad(6.0),
     length: float = 4.0,
-    semi_span: float = 1.2,
-    keel_depth: float = 0.32,
+    span_fraction: float = 0.55,
+    leading_edge_radius: float = 0.0,
+    ridge_radius: float = 0.0,
+    edge_samples: int = 6,
     n_sections: int = 24,
     nose_station: float = 0.004,
     name: str = "caret-waverider",
 ) -> Loft:
-    """Caret waverider — exact, because its sections are triangles.
+    r"""Caret (Nonweiler) waverider, constructed **on-design** from its shock.
 
-    The lower surface is a straight dihedral V and the upper surface a
-    freestream-aligned plate, so the cross-section at every station is the
-    triangle joining the two leading edges and the keel. Three points describe
-    it with no error at all, and lofting them with ``smooth=False`` reproduces
-    the ruled surface exactly rather than approximating it.
+    A waverider is defined by the flow it rides, not by a set of dimensions.
+    Given a design Mach number and the deflection of its compression surface,
+    the oblique-shock relation fixes the shock angle :math:`\beta`, and the
+    leading edges must lie **in that shock plane** — that is the entire point
+    of the shape. The high pressure behind the shock is then trapped under the
+    body instead of spilling around the edges, and the lift-to-drag ratio
+    escapes the barrier that limits blunt bodies.
 
-    That exactness is the point. A waverider rides its own attached shock, and
-    the leading edge has to be a crease for the high pressure underneath to be
-    trapped; rounding it — which any spline through these three points would
-    do — is not a small geometric error but a different vehicle.
+    Parameterising it by span and keel depth instead — as an earlier version of
+    this function did, and as
+    :func:`aether.aerodynamics.panels.caret_lifting_body` still does under a
+    name that no longer claims otherwise — produces a caret-*shaped* body that is not
+    a waverider.
+    At the values that version defaulted to — 4 m long, 1.2 m semi-span, 0.32 m
+    keel — the implied deflection is 4.57°, the Mach 8 shock angle is 10.49°,
+    and the leading edges sit **0.74 m above the shock**. The flow spills over
+    them, and the L/D that comes back is not representative of the class.
+
+    Geometry
+    --------
+
+    With the apex at the origin and the freestream along :math:`+x`, at station
+    :math:`x`:
+
+    * the **shock plane** is :math:`z = -x\tan\beta`;
+    * the **leading edges** lie in it, at :math:`(x, \pm x s \tan\beta, -x\tan\beta)`
+      where ``span_fraction`` :math:`s` sets how wide the caret is opened;
+    * the **ridge** — the compression surface's upper line — is at
+      :math:`(x, 0, -x\tan\delta)`, above the shock because
+      :math:`\delta < \beta`;
+    * the **upper surface** is freestream-aligned, closing the section from
+      each leading edge back to the ridge.
+
+    Every section is a triangle, so ``smooth=False`` reproduces the ruled
+    surface exactly. That matters: the leading edge is a crease, and splining
+    through it would round the one feature the shape exists to have.
+
+    Parameters
+    ----------
+    design_mach, wedge_angle:
+        The design point. The shock angle is solved from them, so the body is
+        on-design at ``design_mach`` and only there — which is true of real
+        waveriders and is why off-design performance is the interesting
+        question about them.
+    span_fraction:
+        Lateral opening of the caret as a fraction of the shock's depth. One
+        gives leading edges at 45° in the base plane; smaller is a narrower,
+        deeper caret.
+    leading_edge_radius, ridge_radius:
+        Blunting radii (m) for the two edge families, applied in each
+        cross-section. Zero — the default — keeps the ideal sharp shape.
+
+        They are separate because they do different jobs. The **leading edge**
+        is where the shock attaches, and blunting it is a direct trade: a sharp
+        edge carries infinite stagnation heating (:math:`q \propto 1/\sqrt R`),
+        while a blunt one lets flow spill and moves the shock off the edge by
+        roughly the radius. One to five millimetres is the range real vehicles
+        live in, and it wants optimising rather than assuming. The **ridge** is
+        interior to the shock layer, sees far milder conditions, and can
+        usually be blunted more freely — it is separate so that it can be.
+
+        The radius scales with the section, so it is applied at the base and
+        tapered forward with the section itself; a constant-radius edge would
+        need a radius larger than the section near the apex.
+    edge_samples:
+        Points per fillet arc.
     """
-    for label, value in (("length", length), ("semi_span", semi_span),
-                         ("keel_depth", keel_depth)):
+    from aether.aerodynamics.conical import wedge_shock_angle
+
+    for label, value in (("length", length), ("design_mach", design_mach),
+                         ("wedge_angle", wedge_angle), ("span_fraction", span_fraction)):
         if not (np.isfinite(value) and value > 0.0):
             msg = f"{label} must be finite and > 0, got {value}"
             raise ValueError(msg)
+    if design_mach <= 1.0:
+        msg = f"a waverider needs supersonic design flow, got Mach {design_mach}"
+        raise ValueError(msg)
+
+    beta = float(wedge_shock_angle(float(design_mach), float(wedge_angle)))
+    if beta <= float(wedge_angle):
+        msg = (
+            f"shock angle {np.rad2deg(beta):.2f} deg does not exceed the wedge "
+            f"angle {np.rad2deg(wedge_angle):.2f} deg; the shock has detached"
+        )
+        raise ValueError(msg)
+    shock_slope = np.tan(beta)
+    ridge_slope = np.tan(float(wedge_angle))
+
+    for label, value in (("leading_edge_radius", leading_edge_radius),
+                         ("ridge_radius", ridge_radius)):
+        if not (np.isfinite(value) and value >= 0.0):
+            msg = f"{label} must be finite and >= 0, got {value}"
+            raise ValueError(msg)
 
     def section(u: float) -> _FloatArray:
-        span = u * semi_span
-        depth = u * keel_depth
         x = u * length
-        return np.array([
-            [x, +span, 0.0],   # starboard leading edge
-            [x, -span, 0.0],   # port leading edge
-            [x, 0.0, -depth],  # keel
+        shock_depth = x * shock_slope
+        corners = np.array([
+            [x, +span_fraction * shock_depth, -shock_depth],  # starboard edge, on the shock
+            [x, -span_fraction * shock_depth, -shock_depth],  # port edge, on the shock
+            [x, 0.0, -x * ridge_slope],                       # ridge, inside the shock layer
         ])
+        if leading_edge_radius <= 0.0 and ridge_radius <= 0.0:
+            return corners
+        # Radii scale with the station: the section shrinks to a point at the
+        # apex, and a constant radius would exceed it there.
+        return round_corners(
+            corners,
+            u * np.array([leading_edge_radius, leading_edge_radius, ridge_radius]),
+            samples=int(edge_samples),
+            closed=True,
+        )
 
-    # Started just off the apex rather than at it: the section there is a
-    # point and a loft needs a curve. Left at 1/n the truncation costs 5 % of
-    # the length, which on a waverider is 5 % of the compression surface.
     if not (0.0 < nose_station < 1.0):
         msg = f"nose_station must lie in (0, 1), got {nose_station}"
         raise ValueError(msg)
+    # Started just off the apex: the section there is a point and a loft needs
+    # a curve. Clustered forward, where the compression surface does its work.
     fraction = np.linspace(0.0, 1.0, int(n_sections)) ** 1.3
     stations = nose_station + (1.0 - nose_station) * fraction
     return Loft(section=section, stations=stations, smooth=False, name=name)
@@ -153,8 +282,10 @@ def sphere_cone(
     half_angle: float = np.deg2rad(10.0),
     nose_radius: float = 0.05,
     length: float = 2.0,
+    shoulder_radius: float = 0.0,
     n_cap: int = 40,
     n_cone: int = 60,
+    n_shoulder: int = 10,
     name: str = "sphere-cone",
 ) -> Revolve:
     """Spherically blunted cone, tangent at the shoulder.
@@ -179,11 +310,15 @@ def sphere_cone(
     cone_x = np.linspace(x_tangent, length, int(n_cone))[1:]
     cone_r = r_tangent + (cone_x - x_tangent) * np.tan(half_angle)
 
-    return Revolve(
-        station=np.concatenate([cap_x, cone_x]),
-        radius=np.concatenate([cap_r, cone_r]),
-        name=name,
-    )
+    station = np.concatenate([cap_x, cone_x])
+    radius = np.concatenate([cap_r, cone_r])
+    if shoulder_radius > 0.0:
+        arc = _shoulder(float(station[-1]), float(radius[-1]), half_angle,
+                        float(shoulder_radius), int(n_shoulder))
+        keep = station < arc[0, 0]
+        station = np.concatenate([station[keep], arc[:, 0]])
+        radius = np.concatenate([radius[keep], arc[:, 1]])
+    return Revolve(station=station, radius=radius, name=name)
 
 
 def blunted_multiconic(
@@ -191,9 +326,11 @@ def blunted_multiconic(
     lengths: tuple[float, ...] = (1.0, 1.5),
     half_angles: tuple[float, ...] = (np.deg2rad(12.0), np.deg2rad(7.0)),
     fillet_radii: tuple[float, ...] = (0.1,),
+    shoulder_radius: float = 0.0,
     n_cap: int = 40,
     n_segment: int = 40,
     n_fillet: int = 20,
+    n_shoulder: int = 10,
     name: str = "blunted-multiconic",
 ) -> Revolve:
     """Biconic, triconic or n-conic with tangent fillets at every junction.
@@ -252,8 +389,12 @@ def blunted_multiconic(
         x_current = x_corner + tangent * np.cos(theta_next)
         r_current = r_corner + tangent * np.sin(theta_next)
 
-    return Revolve(
-        station=np.asarray(station, dtype=np.float64),
-        radius=np.asarray(radius, dtype=np.float64),
-        name=name,
-    )
+    station_array = np.asarray(station, dtype=np.float64)
+    radius_array = np.asarray(radius, dtype=np.float64)
+    if shoulder_radius > 0.0:
+        arc = _shoulder(float(station_array[-1]), float(radius_array[-1]),
+                        float(half_angles[-1]), float(shoulder_radius), int(n_shoulder))
+        keep = station_array < arc[0, 0]
+        station_array = np.concatenate([station_array[keep], arc[:, 0]])
+        radius_array = np.concatenate([radius_array[keep], arc[:, 1]])
+    return Revolve(station=station_array, radius=radius_array, name=name)

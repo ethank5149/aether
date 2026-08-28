@@ -52,6 +52,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -61,9 +62,11 @@ from aether.aerodynamics.cfd.meshing import BodyProfile, MeshResult
 __all__ = [
     "SU2Result",
     "SU2Settings",
+    "SurfaceForces",
     "find_su2",
     "run_su2",
     "surface_axial_force",
+    "surface_force_breakdown",
 ]
 
 _FloatArray = NDArray[np.float64]
@@ -594,3 +597,188 @@ def _read_history(path: Path) -> _History:
         else empty
     )
     return _History(residual, len(rows), drag)
+
+
+@dataclass(frozen=True)
+class SurfaceForces:
+    """Wall forces split into the part that means something and the part that does not."""
+
+    forebody_axial: float
+    """:math:`C_A` from the forebody, on the reference area. Compare this to theory."""
+    base_axial: float
+    """:math:`C_A` from the base disc.
+
+    Reported separately because in an Euler solution it is **not a physical
+    quantity**. Real base pressure is set by a separated viscous shear layer
+    that the Euler equations do not contain, so the solver returns whatever its
+    unresolved base region happens to settle at. On a Mach 8 sphere-cone that
+    was :math:`C_p = +0.34` against a physical value near :math:`-0.02` —
+    contributing :math:`-0.34` to an axial force whose forebody was worth
+    :math:`+0.08`, and turning the reported drag negative.
+
+    Replace it with a correlation, or add it knowingly.
+    """
+    normal: float
+    """:math:`C_N` over the whole wall, base included."""
+    forebody_normal: float
+    """:math:`C_N` from the forebody alone.
+
+    Split for the same reason the axial force is, and it matters at incidence
+    rather than at zero: a base disc at angle of attack carries a normal force
+    driven by the same non-physical Euler base pressure, and folding it in
+    corrupts the lift. On a Mach 8 sphere-cone at six degrees it produced a
+    *negative* lift coefficient at positive incidence.
+    """
+    base_normal: float
+    pitching_moment: float
+    """:math:`C_m` over the whole wall."""
+    forebody_moment: float
+    """:math:`C_m` from the forebody alone."""
+    forebody_area: float
+    base_area: float
+
+    @property
+    def axial(self) -> float:
+        """Forebody plus base — the raw Euler answer, base pressure and all."""
+        return float(self.forebody_axial + self.base_axial)
+
+    def wind_axes(self, alpha: float, forebody_only: bool = True) -> tuple[float, float]:
+        """Lift and drag coefficients at incidence ``alpha`` (rad).
+
+        ``forebody_only`` by default, which is the honest choice: both the
+        axial and the normal contribution of an Euler base are artefacts, and
+        a lift-to-drag ratio built from them is not a property of the vehicle.
+        """
+        axial = self.forebody_axial if forebody_only else self.axial
+        normal = self.forebody_normal if forebody_only else self.normal
+        drag = axial * np.cos(alpha) + normal * np.sin(alpha)
+        lift = normal * np.cos(alpha) - axial * np.sin(alpha)
+        return float(lift), float(drag)
+
+
+def surface_force_breakdown(
+    surface_csv: str | Path,
+    mesh: Any,
+    freestream_pressure: float,
+    dynamic_pressure: float,
+    reference_area: float,
+    reference_length: float,
+    base_station: float | None = None,
+    base_cone_deg: float = 20.0,
+    moment_reference: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    match_tolerance: float = 1.0e-7,
+) -> SurfaceForces:
+    """Integrate a three-dimensional wall pressure distribution, split at a station.
+
+    The pressure is integrated **here** rather than read from SU2's force
+    output, which is the same choice :func:`surface_axial_force` makes for the
+    axisymmetric case and is made for a further reason in three dimensions:
+    SU2 reports one force per monitoring marker, and separating the base
+    therefore needs a second marker, which needs the split to exist in the
+    mesh. Re-tagging faces after the volume is meshed produces surface elements
+    with no adjacent volume element and SU2 refuses the mesh; splitting before
+    meshing means two discrete surfaces sharing a seam, which is fragile to
+    build and easy to get subtly wrong. Reading the pressure back and
+    integrating against the wall triangles we already have avoids all of it.
+
+    ``mesh`` must be the same :class:`~aether.geometry.VehicleMesh` the domain
+    was built from: its faces supply the areas and outward normals, and the CSV
+    supplies the pressure at their vertices.
+
+    Where the base begins
+    ---------------------
+
+    By default a face belongs to the base when its outward normal lies within
+    ``base_cone_deg`` of the axis — when it is *nearly* aft-facing. That
+    matches how the split is drawn in practice: a wind tunnel measures base
+    pressure over the flat aft face with its own taps and subtracts it to
+    report forebody drag, and a CFD grid carries the base as its own boundary
+    patch, so the base is the face the geometry author called the base.
+
+    Taking every aft-facing face instead — ``base_cone_deg = 90`` — sweeps in
+    the downstream half of a shoulder fillet, where in supersonic flow the
+    stream is still attached and expanding round the corner. That is afterbody,
+    not base, and counting it as base both inflates a correlated base drag and
+    removes attached-flow area from the forebody.
+
+    ``base_station`` overrides it with an axial cut. That was the first version
+    of this, and on a 10 mm-shouldered sphere-cone it swept a band of cone into
+    the base, making the base patch **1.14 times** the area of the disc and
+    inflating a correlated base drag by the same fraction.
+    """
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)
+    faces = np.asarray(mesh.faces, dtype=np.int64)
+
+    with Path(surface_csv).open() as handle:
+        reader = csv.reader(handle)
+        header = [cell.strip().strip('"').lower() for cell in next(reader)]
+        table = np.array([[float(c) for c in row] for row in reader if row])
+    index = {name: position for position, name in enumerate(header)}
+
+    def need(*names: str) -> int:
+        for name in names:
+            if name in index:
+                return index[name]
+        msg = f"none of {names} in {sorted(index)}"
+        raise KeyError(msg)
+
+    points = table[:, [need("x"), need("y"), need("z")]]
+    if "pressure" in index:
+        pressure = table[:, index["pressure"]]
+    else:
+        density = table[:, need("density")]
+        momentum = table[:, [need("momentum_x"), need("momentum_y"), need("momentum_z")]]
+        energy = table[:, need("energy")]
+        pressure = 0.4 * (energy - 0.5 * np.sum(momentum**2, axis=1) / density)
+
+    # The CSV nodes are the mesh vertices, but SU2 neither preserves their order
+    # nor their numbering, so they are matched on position. Quantising to a
+    # tolerance and hashing is O(n) where a nearest-neighbour search would be
+    # O(n log n) with a tree this does not otherwise need.
+    scale = float(np.max(np.abs(vertices))) or 1.0
+    def key(array: _FloatArray) -> Any:
+        return np.round(array / (match_tolerance * scale)).astype(np.int64)
+
+    lookup = {tuple(row): position for position, row in enumerate(key(points))}
+    matched = np.array([lookup.get(tuple(row), -1) for row in key(vertices)])
+    if np.any(matched < 0):
+        missing = int(np.count_nonzero(matched < 0))
+        msg = (
+            f"{missing} of {vertices.shape[0]} wall vertices had no matching "
+            f"point in {surface_csv}; the surface mesh and the case are not the "
+            f"same geometry"
+        )
+        raise ValueError(msg)
+
+    nodal = pressure[matched]
+    face_pressure = nodal[faces].mean(axis=1)
+
+    triangles = vertices[faces]
+    cross = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    area = 0.5 * np.linalg.norm(cross, axis=1)
+    normal = cross / np.maximum(np.linalg.norm(cross, axis=1, keepdims=True), 1e-300)
+    centroid = triangles.mean(axis=1)
+
+    # Force on the body is -(p - p_inf) n dA with n the outward wall normal.
+    load = -((face_pressure - freestream_pressure) * area)[:, None] * normal
+    scale_force = dynamic_pressure * reference_area
+    aft = (
+        normal[:, 0] >= np.cos(np.deg2rad(float(base_cone_deg)))
+        if base_station is None
+        else centroid[:, 0] >= float(base_station)
+    )
+
+    arm = centroid - np.asarray(moment_reference, dtype=np.float64)
+    moment = np.cross(arm, load)
+
+    return SurfaceForces(
+        forebody_axial=float(load[~aft, 0].sum() / scale_force),
+        base_axial=float(load[aft, 0].sum() / scale_force),
+        normal=float(load[:, 2].sum() / scale_force),
+        forebody_normal=float(load[~aft, 2].sum() / scale_force),
+        base_normal=float(load[aft, 2].sum() / scale_force),
+        pitching_moment=float(moment[:, 1].sum() / (scale_force * reference_length)),
+        forebody_moment=float(moment[~aft, 1].sum() / (scale_force * reference_length)),
+        forebody_area=float(area[~aft].sum()),
+        base_area=float(area[aft].sum()),
+    )

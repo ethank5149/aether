@@ -43,6 +43,8 @@ from numpy.typing import ArrayLike, NDArray
 from aether.blending import smoothstep
 
 __all__ = [
+    "base_axial_coefficient",
+    "base_pressure_coefficient",
     "blended_pressure_coefficient",
     "newtonian_pressure_coefficient",
     "prandtl_meyer_angle",
@@ -281,3 +283,53 @@ def blended_pressure_coefficient(
         return np.asarray(np.where(delta > 0.0, windward, leeward))
     weight = smoothstep((delta + width) / (2.0 * width))
     return np.asarray((1.0 - weight) * leeward + weight * windward)
+
+
+def base_pressure_coefficient(mach: float, gamma: float = 1.4) -> float:
+    r"""Base pressure coefficient for a blunt-based body in supersonic flow.
+
+    The engineering estimate :math:`C_{p,b} \approx -1/M^2`, clipped to the
+    vacuum limit. It is first-order — real base pressure depends on Reynolds
+    number, boundary-layer state at separation, base geometry and any sting or
+    plume — but it is *physical*, which is the entire point of using it.
+
+    Why this exists rather than a CFD number
+    ----------------------------------------
+
+    An Euler solution has no base pressure worth reading. Real base flow is set
+    by a separated viscous shear layer that the Euler equations do not contain,
+    so the solver returns whatever its unresolved recirculation settles at, and
+    that value is neither converged nor bounded by anything. Measured on this
+    package's Mach 8 sphere-cone the Euler base came back at
+    :math:`C_p = +0.34` — a *positive* pressure coefficient on a base, pushing
+    the vehicle forward, when the physical value is small and negative. It
+    contributed :math:`-0.30` to an axial force whose forebody was worth
+    :math:`+0.08`, and moved 27 % between grid levels while the forebody moved
+    2 %.
+
+    So the base term is not computed, it is *substituted*: run the CFD, take
+    the forebody force from it, and add a base drag from here. At Mach 8 this
+    gives :math:`C_{p,b} = -0.0156` against a vacuum bound of :math:`-0.0223`
+    — both small, both negative, and both nothing like what the solver said.
+    """
+    if not (np.isfinite(mach) and mach > 1.0):
+        msg = f"base pressure correlation needs supersonic flow, got Mach {mach}"
+        raise ValueError(msg)
+    return float(max(-1.0 / mach**2, vacuum_pressure_coefficient(mach, gamma)))
+
+
+def base_axial_coefficient(
+    mach: float, base_area: float, reference_area: float, gamma: float = 1.4
+) -> float:
+    r"""Axial-force coefficient contributed by a blunt base.
+
+    :math:`C_A = -C_{p,b} S_b / S_{\mathrm{ref}}`, positive because a base
+    pressure below freestream pulls the vehicle backwards. Add it to a CFD
+    forebody force to get a total that means something.
+    """
+    if reference_area <= 0.0 or base_area < 0.0:
+        msg = f"areas must be positive, got base {base_area}, reference {reference_area}"
+        raise ValueError(msg)
+    return float(
+        -base_pressure_coefficient(mach, gamma) * base_area / reference_area
+    )

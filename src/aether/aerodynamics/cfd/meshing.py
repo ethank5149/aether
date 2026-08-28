@@ -58,6 +58,7 @@ configurations does not need re-tuning:
 from __future__ import annotations
 
 import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -70,11 +71,18 @@ __all__ = [
     "BoundaryLayerTruncated",
     "DomainSizing",
     "MeshResult",
+    "RefinementBall",
     "ViscousSizing",
     "axisymmetric_domain",
     "boundary_layer_thickness",
     "cone_profile",
+    "inviscid_domain",
     "profile_from_arrays",
+    "resolvable_radius",
+    "shock_layer_cell_size",
+    "shock_layer_sizing",
+    "shock_standoff",
+    "stagnation_refinement",
     "viscous_domain",
     "wall_spacing_for_y_plus",
 ]
@@ -530,6 +538,8 @@ class ViscousSizing:
     upstream: float = 8.0
     downstream: float = 10.0
     transverse: float = 10.0
+    subsonic_growth: float = 6.0
+    """Multiplier applied to every extent below Mach 1. See :meth:`for_mach`."""
     farfield_size: float = 3.0
     wake_size: float = 0.25
 
@@ -543,6 +553,42 @@ class ViscousSizing:
         if not (np.isfinite(self.y_plus) and self.y_plus > 0.0):
             msg = f"y_plus must be finite and > 0, got {self.y_plus}"
             raise ValueError(msg)
+
+    def for_mach(self, mach: float) -> ViscousSizing:
+        """The same sizing with its extents set for a Mach number.
+
+        Domain size is not a Mach-independent choice, and getting it wrong is
+        silent. Supersonically the farfield can sit a few body lengths away
+        because nothing propagates upstream: the bow shock confines the
+        disturbance and a characteristic boundary just outside it is harmless.
+        **Subsonically that is false.** Pressure disturbances reach every
+        boundary, and a farfield placed where a Mach 8 case would put it
+        produces a blockage error that looks exactly like physics — a lift and
+        drag shifted by percent, converging beautifully, wrong.
+
+        For a database spanning Mach 0 to 27 the extents therefore have to move
+        with the regime. Below Mach 1 they are grown by ``subsonic_growth``;
+        transonically the growth is tapered off between Mach 1 and 1.5, where
+        the upstream influence shrinks but has not vanished.
+        """
+        mach = float(mach)
+        if mach >= 1.5:
+            factor = 1.0
+        elif mach <= 1.0:
+            factor = float(self.subsonic_growth)
+        else:
+            # Linear taper across the transonic band rather than a step: a
+            # sweep that jumps domain size between two neighbouring Mach
+            # numbers puts a discontinuity into the table that is the mesh's,
+            # not the flow's.
+            blend = (mach - 1.0) / 0.5
+            factor = float(self.subsonic_growth) * (1.0 - blend) + blend
+        return ViscousSizing(
+            y_plus=self.y_plus, growth_ratio=self.growth_ratio, n_layers=self.n_layers,
+            upstream=self.upstream * factor, downstream=self.downstream * factor,
+            transverse=self.transverse * factor, farfield_size=self.farfield_size * factor,
+            wake_size=self.wake_size, subsonic_growth=self.subsonic_growth,
+        )
 
     def layer_heights(self, first_cell: float) -> list[float]:
         """Cumulative heights of each layer — what gmsh's extruder wants.
@@ -564,6 +610,20 @@ class ViscousSizing:
     def total_thickness(self, first_cell: float) -> float:
         """How far the prisms reach from the wall (m)."""
         return self.layer_heights(first_cell)[-1]
+
+    def first_cell_for_thickness(self, thickness: float) -> float:
+        """Wall cell that makes the stack reach exactly ``thickness`` (m).
+
+        The inverse of :meth:`total_thickness`, which is linear in the wall
+        cell, so the whole stack simply scales. Use it when the layer is sized
+        to a *geometric* target — a shock standoff — rather than to a viscous
+        wall law, where the wall cell is set by :math:`y^+` and the thickness
+        is whatever follows.
+        """
+        unit = self.total_thickness(1.0)
+        if unit <= 0.0:
+            raise ValueError("degenerate layer stack")
+        return float(thickness) / unit
 
     def layers_to_span(self, first_cell: float, thickness: float) -> int:
         """Layers needed for the stack to reach ``thickness``.
@@ -681,6 +741,193 @@ class BoundaryLayerTruncated(UserWarning):
     """
 
 
+@dataclass(frozen=True)
+class RefinementBall:
+    """A sphere of prescribed cell size, imposed on the volume mesh.
+
+    The unit of *local* control. A single global setting cannot serve a body
+    with more than one blunt feature: on the caret waverider studied here, the
+    curvature setting that gives the 3 mm leading edge its correct 0.79 mm
+    cells would have to be seventeen times stronger to give the 50 mm nose its
+    0.75 mm, and applying that everywhere drives the leading edge to 45 um and
+    the mesh out of reach. Each feature gets its own region instead.
+
+    Attributes
+    ----------
+    center:
+        Centre of the region, in body coordinates (m).
+    radius:
+        Radius within which ``size`` applies (m).
+    size:
+        Target cell size inside the region (m). Take it from
+        :func:`shock_layer_cell_size` for a feature with a detached shock.
+    thickness:
+        Width of the transition out to the surrounding size (m). Defaults to
+        ``radius``, which spreads the jump over an octave rather than putting
+        a discontinuity in the size field where the mesher will make slivers.
+    """
+
+    center: tuple[float, float, float]
+    radius: float
+    size: float
+    thickness: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.radius <= 0.0:
+            raise ValueError(f"radius must be positive, got {self.radius}")
+        if self.size <= 0.0:
+            raise ValueError(f"size must be positive, got {self.size}")
+
+
+def stagnation_refinement(
+    mesh: Any,
+    mach: float,
+    *,
+    nose_radius: float,
+    cells: int = 10,
+    reach: float = 3.0,
+) -> RefinementBall:
+    """A :class:`RefinementBall` resolving a blunt nose's captured bow shock.
+
+    Places the region at the body's most upstream point and sizes it from
+    :func:`shock_layer_cell_size`, extending ``reach`` standoffs back so the
+    shock is resolved where it stands as well as at the wall.
+
+    ``nose_radius`` is passed rather than inferred: the discrete surface's
+    curvature at the apex is a property of its triangulation, and reading the
+    resolution requirement off the thing being resolved is circular.
+    """
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)
+    apex = vertices[int(np.argmin(vertices[:, 0]))]
+    standoff = shock_standoff(mach, nose_radius, geometry="sphere")
+    size = shock_layer_cell_size(mach, nose_radius, cells=cells, geometry="sphere")
+    if not np.isfinite(standoff):
+        standoff = nose_radius
+        size = nose_radius / max(int(cells), 1)
+    span = float(nose_radius + reach * standoff)
+    return RefinementBall(
+        center=(float(apex[0]) + 0.5 * span, float(apex[1]), float(apex[2])),
+        radius=span,
+        size=float(size),
+    )
+
+
+def shock_standoff(
+    mach: float,
+    radius: float,
+    *,
+    geometry: str = "sphere",
+    sweep: float = 0.0,
+    gamma: float = 1.4,
+) -> float:
+    r"""Bow-shock standoff distance ahead of a blunt feature (Billig, 1967).
+
+    .. math::
+        \frac{\Delta}{R} = k\,\exp\!\left(\frac{c}{M_n^2}\right)
+
+    with :math:`(k, c) = (0.143, 3.24)` for a sphere and :math:`(0.386, 4.67)`
+    for a cylinder, and :math:`M_n = M\cos\Lambda` the component normal to a
+    swept edge.
+
+    Why this lives in the meshing module
+    ------------------------------------
+    It is the length that sets the cell size on a blunt nose or leading edge.
+    Sizing those from a fraction of the global wall size instead is what let a
+    Mach 8 sphere-cone run with **1.5 cells across its nose shock layer**: 8 %
+    of the wall nodes then returned a pressure above the Rayleigh pitot limit
+    (see :func:`~aether.aerodynamics.closure.rayleigh_pitot_cp_max`) — a
+    physically unattainable value — inflating forebody :math:`C_A` by about
+    6.5 %, ten times the run's statistical uncertainty. The same sizing left a
+    3 mm waverider leading edge with 0.09 cells across its shock layer.
+
+    The distinction between the two correlations is not cosmetic, and neither
+    is the sweep. A 3 mm leading edge at Mach 8 stands off 0.45 mm read as an
+    unswept sphere and 1.25 mm read as an unswept cylinder. Read correctly —
+    as the cylinder it is, swept 83.5 deg on the caret waverider here — the
+    normal Mach number is 0.90 and **no bow shock forms at all**, so the cell
+    size there is set by resolving the fillet arc and not by a standoff. Using
+    the sphere form on that edge understates the required size by a factor of
+    order ten and misdiagnoses a resolved edge as hopeless.
+
+    Parameters
+    ----------
+    mach:
+        Freestream Mach number.
+    radius:
+        Local radius of the blunt feature (m) — nose radius, or the leading
+        edge fillet radius.
+    geometry:
+        ``"sphere"`` for a nose cap, ``"cylinder"`` for an edge.
+    sweep:
+        Leading-edge sweep (rad), measured from normal to the flow. Only the
+        normal Mach component drives the shock.
+
+    Returns
+    -------
+    float
+        Standoff distance in metres, or ``inf`` where the normal Mach number
+        is subsonic and no bow shock forms.
+    """
+    if radius <= 0.0:
+        raise ValueError(f"radius must be positive, got {radius}")
+    if geometry not in ("sphere", "cylinder"):
+        raise ValueError(f"geometry must be 'sphere' or 'cylinder', got {geometry!r}")
+    del gamma  # correlation is fitted for air; kept for signature symmetry
+    normal_mach = float(mach) * np.cos(float(sweep))
+    if normal_mach <= 1.0:
+        return float("inf")
+    k, c = (0.143, 3.24) if geometry == "sphere" else (0.386, 4.67)
+    return float(radius * k * np.exp(c / normal_mach**2))
+
+
+def shock_layer_cell_size(
+    mach: float,
+    radius: float,
+    *,
+    cells: int = 10,
+    geometry: str = "sphere",
+    sweep: float = 0.0,
+) -> float:
+    """Cell size that puts ``cells`` cells across a blunt feature's shock layer.
+
+    Ten is the conventional default for a captured (non-fitted) bow shock and
+    is the value used here. What is *measured* on this pipeline is the failure
+    end: at 1.5 cells across the standoff, 8 % of a Mach 8 sphere-cone's wall
+    nodes exceeded the Rayleigh pitot limit by a mean Cp of 0.73. The cell
+    count at which that overshoot disappears has not been established here —
+    :func:`aether.aerodynamics.cfd.diagnostics.pitot_limit_violation` measures
+    it directly, and the choice should be made against that rather than
+    against this default.
+    """
+    standoff = shock_standoff(mach, radius, geometry=geometry, sweep=sweep)
+    if not np.isfinite(standoff):
+        return float("inf")
+    return standoff / max(int(cells), 1)
+
+
+def resolvable_radius(
+    cell_size: float,
+    mach: float,
+    *,
+    cells: int = 10,
+    geometry: str = "cylinder",
+    sweep: float = 0.0,
+) -> float:
+    """Smallest blunt radius a given cell size can actually resolve.
+
+    The inverse of :func:`shock_layer_cell_size`, and the honest way to choose
+    an edge radius. Bluntness is a free parameter of these bodies; picking one
+    below this value does not produce a sharper vehicle, it produces an
+    unresolved one, and the resulting leading-edge pressures are set by the
+    mesh rather than by the flow.
+    """
+    normal_mach = float(mach) * np.cos(float(sweep))
+    if normal_mach <= 1.0:
+        return 0.0
+    k, c = (0.143, 3.24) if geometry == "sphere" else (0.386, 4.67)
+    return float(cell_size * max(int(cells), 1) / (k * np.exp(c / normal_mach**2)))
+
+
 def boundary_layer_thickness(
     mach: float,
     distance: float,
@@ -715,6 +962,140 @@ def boundary_layer_thickness(
     return float(0.37 * float(distance) * reynolds ** (-0.2))
 
 
+def shock_layer_sizing(
+    mach: float,
+    nose_radius: float,
+    sizing: ViscousSizing,
+    *,
+    cells: int = 16,
+    span: float = 1.5,
+) -> tuple[ViscousSizing, float]:
+    """Size a prism stack to resolve a captured bow shock, not a viscous layer.
+
+    Returns ``(sizing, first_cell_height)`` ready for :func:`viscous_domain`.
+
+    Why this exists
+    ---------------
+    Resolving a bow shock is a *wall-normal* requirement, and paying for it
+    with isotropic cells means filling a solid ball around the nose with them.
+    Measured on a Mach 8 sphere-cone, whose 50 mm nose stands its shock off
+    7.5 mm: 8 cells across that standoff cost 2.0M elements and 10 cells
+    extrapolate to about 4M, against 77k unrefined — a run of roughly 66 hours
+    where the unrefined one took 20 minutes. Stretched cells buy the same
+    resolution for ``cells x n_faces`` prisms; on the same body, 7448 faces and
+    16 layers is about 119k prisms, comparable to the *4-cell* isotropic mesh
+    while resolving thirteen cells across the standoff.
+
+    ``span`` puts the outermost layer beyond the shock so it is captured
+    inside the structured stack rather than on the seam where the prisms hand
+    over to tetrahedra.
+
+    This is the same argument that makes every hypersonic code march layers,
+    and the reason it is worth doing properly: see the note on hyperbolic
+    marching in :func:`_marching_vectors`.
+    """
+    standoff = shock_standoff(mach, nose_radius, geometry="sphere")
+    if not np.isfinite(standoff):
+        standoff = float(nose_radius)
+    layered = sizing.with_layers(int(cells))
+    return layered, layered.first_cell_for_thickness(float(span) * standoff)
+
+
+def _base_faces(
+    mesh: Any, n_faces: int, split_base: bool, base_station: float | None
+) -> NDArray[np.bool_]:
+    """Which wall faces belong to the base patch.
+
+    Shared by both domain builders so the two cannot drift apart: the forces
+    are split on whichever marker the mesh was written with, and a viscous
+    mesh disagreeing with an inviscid one about where the base starts would
+    make the two force histories incomparable.
+
+    The default test is the sign of the outward normal's axial component,
+    which is exact for a body whose base is a plane normal to the axis.
+    ``base_station`` overrides it with an axial cut for bodies where it is not.
+    """
+    if not split_base and base_station is None:
+        return np.zeros(n_faces, dtype=bool)
+    centroids = np.asarray(mesh.centroids, dtype=np.float64)
+    if base_station is not None:
+        aft = centroids[:, 0] >= float(base_station)
+        if not aft.any() or aft.all():
+            msg = (
+                f"base_station {base_station:g} puts {int(aft.sum())} of "
+                f"{aft.size} faces on the base; it belongs just forward of "
+                f"the base disc, inside the body's axial extent"
+            )
+            raise ValueError(msg)
+        return aft
+    aft = np.asarray(mesh.normals, dtype=np.float64)[:, 0] > 0.0
+    if not aft.any():
+        msg = (
+            "no wall face points aft, so there is no base to split off; "
+            "the body closes to a point, or its normals are inward"
+        )
+        raise ValueError(msg)
+    return _aft_component(np.asarray(mesh.faces, dtype=np.int64), centroids, aft)
+
+
+def _aft_component(
+    faces: NDArray[np.int64], centroids: _FloatArray, aft: NDArray[np.bool_]
+) -> NDArray[np.bool_]:
+    """Keep only the aft-facing faces that actually form the base.
+
+    "Points aft" alone is not a base test. A triangulated nose apex carries a
+    fan of near-degenerate slivers whose computed normal is numerically
+    meaningless, and on the sphere-cone here seven of them came out with a
+    positive axial component — putting faces at ``x = 2e-5`` into the same
+    patch as the base disc at ``x = 2.0``.
+
+    Charged to the force split that error was negligible, 0.0018 % of the base
+    area and 0.04 % of C_A. Charged to a *mesh* it is fatal: growing one prism
+    stack off a patch with a piece at each end of the body fails outright, with
+    ``Could not find extruded node`` naming a coordinate 11 mm ahead of the
+    nose, which reads as an extrusion bug rather than a classification one.
+
+    So the base is the aft-facing region *connected* to the aft-most face,
+    found by flood fill across shared edges. Lobes are kept when they too
+    reach within a tenth of a body length of the aft-most point, so a body
+    whose base is split by a fin or a notch keeps all of it.
+    """
+    keep = np.flatnonzero(aft)
+    if keep.size == 0:
+        return aft
+    span = float(centroids[:, 0].max() - centroids[:, 0].min()) or 1.0
+
+    # Edge -> incident aft faces, giving adjacency without an O(n^2) scan.
+    edges: dict[tuple[int, int], list[int]] = {}
+    for index in keep:
+        tri = faces[index]
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            edges.setdefault((min(a, b), max(a, b)), []).append(int(index))
+
+    unvisited = set(keep.tolist())
+    selected = np.zeros(aft.shape[0], dtype=bool)
+    rear = float(centroids[keep, 0].max())
+    while unvisited:
+        stack = [next(iter(unvisited))]
+        component: list[int] = []
+        while stack:
+            face = stack.pop()
+            if face not in unvisited:
+                continue
+            unvisited.discard(face)
+            component.append(face)
+            tri = faces[face]
+            for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+                for neighbour in edges.get((min(a, b), max(a, b)), ()):
+                    if neighbour in unvisited:
+                        stack.append(neighbour)
+        if float(centroids[component, 0].max()) >= rear - 0.1 * span:
+            selected[component] = True
+    if not selected.any():
+        selected[keep] = True
+    return selected
+
+
 def viscous_domain(
     mesh: Any,
     path: str | Path,
@@ -727,6 +1108,8 @@ def viscous_domain(
     wall_marker: str = "vehicle",
     farfield_marker: str = "farfield",
     shrink_on_failure: bool = True,
+    split_base: bool = False,
+    base_station: float | None = None,
 ) -> MeshResult:
     """Wrap a closed body in a prism boundary layer and a tetrahedral farfield.
 
@@ -797,55 +1180,262 @@ def viscous_domain(
     requested_layers = int(sizing.n_layers)
     requested_thickness = sizing.total_thickness(first_cell_height)
 
-    attempts: list[int] = []
-    layers = requested_layers
-    while layers >= 1:
-        attempts.append(layers)
-        if not shrink_on_failure:
-            break
-        layers = int(layers * 0.8) if int(layers * 0.8) < layers else layers - 1
-
+    # Local termination only. The layer count is never reduced: where a column
+    # cannot reach full height it stops individually, which is what an
+    # industrial mesher does and what keeps the rest of the wall fully layered.
+    # Shortening the layer everywhere to accommodate one region is the crude
+    # alternative and it is not offered — it cost this package's biconic 12 of
+    # its 22 layers over a defect confined to 2.5 % of the wall.
+    #
+    # The retry backs off the *safety margin* on the measured fold limit, which
+    # tightens the field locally where it is already binding and leaves the
+    # unconstrained majority at full height.
+    # Relaxation strength is part of the search, not a fixed choice. Smoothing
+    # the marching field is what lets the biconic reach full height — it goes
+    # from 10 layers to 22 — and the same smoothing makes the waverider fail,
+    # because that shape is mostly crease and relaxing its direction field is
+    # the wrong thing to do to it. Neither setting is right for every geometry,
+    # so the builder tries the strong one first and backs off. The layer
+    # *count* is never reduced in any of these attempts.
+    # The last three rungs hand gmsh a *scalar* field — our per-node heights
+    # applied to its own marching normals — instead of a vector field carrying
+    # our directions too. On a crease-dominated shape like the waverider that
+    # is the better choice: an area-weighted vertex normal at a sharp edge
+    # averages two very different face normals into a direction pointing into
+    # the crease, where gmsh handles the edge itself. On the biconic the
+    # opposite holds and our smoothed directions are what reach full height.
     last_error: Exception | None = None
-    for index, n_layers in enumerate(attempts):
+    aft = _base_faces(mesh, faces.shape[0], split_base, base_station)
+    ladder = (
+        (6, 0.6, True), (2, 0.6, True), (0, 0.6, True),
+        (0, 0.6, False), (0, 0.4, False), (0, 0.25, False),
+    )
+    for attempt, (passes, safety, vector) in enumerate(ladder):
         try:
             result = _build_viscous_domain(
-                vertices=vertices,
-                faces=faces,
-                low=low,
-                high=high,
-                body_length=body_length,
-                diameter=diameter,
-                mach=mach,
-                sizing=sizing.with_layers(n_layers),
-                first_cell_height=first_cell_height,
-                target=target,
+                vertices=vertices, faces=faces, low=low, high=high,
+                body_length=body_length, diameter=diameter, mach=mach,
+                sizing=sizing, first_cell_height=first_cell_height, target=target,
                 name=getattr(mesh, "name", None) or "vehicle",
-                wall_marker=wall_marker,
-                farfield_marker=farfield_marker,
+                wall_marker=wall_marker, farfield_marker=farfield_marker,
+                safety=safety, smoothing_passes=passes, vector_field=vector,
+                aft=aft,
             )
         except Exception as error:
             last_error = error
+            if not shrink_on_failure:
+                break
             continue
-        if index > 0:
-            achieved = sizing.with_layers(n_layers).total_thickness(first_cell_height)
+        if attempt > 0:
             warnings.warn(
-                f"boundary layer truncated from {requested_layers} layers "
-                f"({requested_thickness:.4g} m) to {n_layers} "
-                f"({achieved:.4g} m, {100 * achieved / requested_thickness:.0f} % of "
-                f"the requested thickness): the extrusion self-intersected on this "
-                f"geometry. Cells beyond {achieved:.4g} m from the wall are "
-                f"tetrahedra.",
+                f"boundary layer built with relaxed settings "
+                f"({'directed' if vector else 'height-only'} field, {passes} "
+                f"smoothing passes, fold margin {safety:g}) after "
+                f"{attempt} stricter attempt(s) failed. All "
+                f"{requested_layers} layers are present; where a column would "
+                f"have folded it stops short of the requested "
+                f"{requested_thickness:.4g} m.",
                 BoundaryLayerTruncated,
                 stacklevel=2,
             )
         return result
 
     msg = (
-        f"could not extrude a boundary layer on {getattr(mesh, 'name', 'the body')} "
-        f"at any layer count down to 1 (first cell {first_cell_height:.3e} m). "
-        f"The last gmsh error was: {last_error}"
+        f"could not build a viscous domain for "
+        f"{getattr(mesh, 'name', 'the body')} at {requested_layers} layers "
+        f"({requested_thickness:.4g} m, first cell {first_cell_height:.3e} m) "
+        f"under any combination of marching-field smoothing and fold margin. "
+        f"The last gmsh error "
+        f"was: {last_error}\n"
+        f"A PLC error names the *volume* mesher, not the extruder: the layer "
+        f"may extrude cleanly in isolation and fail only when the outer "
+        f"tetrahedra are filled against it."
     )
     raise RuntimeError(msg)
+
+
+def _marching_vectors(
+    vertices: _FloatArray, faces: NDArray[np.int64],
+    passes: int = 6, blend: float = 0.5, max_turn_deg: float = 20.0,
+    feature_deg: float = 40.0,
+) -> _FloatArray:
+    """Smoothed unit directions for the boundary layer to march along.
+
+    Raw vertex normals are the obvious choice and they are what makes columns
+    collide: where the surface turns, adjacent normals diverge or converge and
+    their columns cross within a few cells. Every industrial extruder marches
+    along a *relaxed* direction field instead — Pointwise, AFLR3, and the
+    hyperbolic grid generators all smooth the marching vectors before using
+    them.
+
+    Smoothing is **feature-preserving**: neighbours across an edge whose faces
+    meet at more than ``feature_deg`` are excluded from the average. A crease
+    is not noise to be relaxed away — on a waverider the leading edge is the
+    entire point of the shape, and relaxing across it both rounds the feature
+    and produces marching directions that fail outright. Unfiltered smoothing
+    fixed this package's biconic and broke its waverider in the same change.
+
+    Two further guards, both learned the hard way. Neighbour averaging is skipped where
+    the neighbours nearly cancel: at a base rim, cone normals and base normals
+    oppose across a single edge, their mean is near zero, and normalising it
+    returns a direction with no relation to the surface. And the result is
+    **clamped** to ``max_turn_deg`` from the original normal, because
+    unclamped smoothing on this package's biconic reversed some normals
+    outright — a measured 168 degrees of turn, which would extrude that column
+    straight into the body.
+    """
+    triangles = vertices[faces]
+    cross = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    area = 0.5 * np.linalg.norm(cross, axis=1)
+    face_normal = cross / np.maximum(np.linalg.norm(cross, axis=1, keepdims=True), 1e-300)
+
+    accumulated = np.zeros_like(vertices)
+    for corner in range(3):
+        np.add.at(accumulated, faces[:, corner], face_normal * area[:, None])
+    original = accumulated / np.maximum(
+        np.linalg.norm(accumulated, axis=1, keepdims=True), 1e-300
+    )
+
+    edges = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])
+    owner = np.concatenate([np.arange(faces.shape[0])] * 3)
+    edges = np.concatenate([edges, edges[:, ::-1]])
+    owner = np.concatenate([owner, owner])
+
+    # An edge is a feature when the normals of the two faces meeting along it
+    # differ by more than the threshold. Keyed on the sorted node pair, so both
+    # directed copies of the edge agree about it.
+    key = np.sort(edges[: edges.shape[0] // 2], axis=1)
+    lookup: dict[tuple[int, int], list[int]] = {}
+    for position, pair in enumerate(map(tuple, key)):
+        lookup.setdefault(pair, []).append(position)
+    sharp = np.zeros(edges.shape[0] // 2, dtype=bool)
+    limit_feature = np.cos(np.deg2rad(float(feature_deg)))
+    for positions in lookup.values():
+        if len(positions) != 2:
+            continue
+        left, right = owner[positions[0]], owner[positions[1]]
+        if float(np.dot(face_normal[left], face_normal[right])) < limit_feature:
+            sharp[positions] = True
+    keep = ~np.concatenate([sharp, sharp])
+    edges = edges[keep]
+
+    degree = np.bincount(edges[:, 0], minlength=vertices.shape[0]).astype(np.float64)
+    degree[degree == 0.0] = 1.0
+
+    marching = original.copy()
+    for _ in range(int(passes)):
+        neighbour = np.zeros_like(marching)
+        for axis in range(3):
+            neighbour[:, axis] = np.bincount(
+                edges[:, 0], weights=marching[edges[:, 1], axis],
+                minlength=vertices.shape[0],
+            )
+        neighbour /= degree[:, None]
+        # Where neighbours cancel there is no meaningful average to move toward.
+        coherent = np.linalg.norm(neighbour, axis=1) > 0.3
+        candidate = np.where(
+            coherent[:, None], (1.0 - blend) * marching + blend * neighbour, marching
+        )
+        length = np.linalg.norm(candidate, axis=1, keepdims=True)
+        marching = candidate / np.maximum(length, 1e-300)
+
+    # Clamp the total turn away from the surface normal.
+    limit = np.cos(np.deg2rad(float(max_turn_deg)))
+    alignment = np.einsum("ij,ij->i", marching, original)
+    too_far = alignment < limit
+    if np.any(too_far):
+        marching[too_far] = original[too_far]
+    return marching
+
+
+def _local_height_scale(
+    vertices: _FloatArray, faces: NDArray[np.int64], total_height: float,
+    safety: float = 0.6, floor: float = 0.02, samples: int = 28,
+    smoothing_passes: int = 8,
+) -> _FloatArray:
+    """Per-node fraction of the boundary-layer height that extrudes without folding.
+
+    This is **local layer termination**, the mechanism industrial meshers use
+    (Pointwise T-Rex, NASA's AFLR3): the columns that would degenerate stop
+    short while every other column grows to full height. Shortening the layer
+    everywhere because one region conflicts is the crude alternative, and it
+    cost this package's biconic 12 of its 22 layers over a defect confined to
+    2.5 % of the wall.
+
+    The limit is **measured, not estimated**. Offsetting the surface along its
+    vertex normals by a distance ``t``, a face folds when its normal reverses;
+    the largest ``t`` at which every incident face is still forward-facing is
+    that node's safe height. Walking a geometric ladder of ``t`` and keeping
+    the last clean rung per node gives the field directly.
+
+    Estimating it from local curvature does not work, and it is worth saying
+    why: a curvature-derived field left 99.9 % of the biconic's nodes at full
+    height while 115 of its 10,328 faces were already folding at a 20 mm
+    offset. The folds are not where curvature is extreme — they are spread
+    across the body with a median at mid-length, in the ordinary anisotropy of
+    a curvature-adapted surface mesh. Only measurement finds them.
+
+    ``safety`` backs off from the fold point, since a face that is merely
+    *nearly* folded still makes a bad prism.
+
+    The field is then **smoothed**, which matters as much as measuring it. Left
+    raw it steps from 0.03 to 1.0 between neighbouring nodes, and a layer whose
+    height collapses across one edge is as distorted as one that folds.
+    Smoothing spreads each constraint over its neighbourhood; taking the
+    running minimum keeps every pass conservative, so a node's height can only
+    fall as the constraint propagates, never rise above what was measured.
+    """
+    triangles = vertices[faces]
+    cross = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    face_normal = cross / np.maximum(
+        np.linalg.norm(cross, axis=1, keepdims=True), 1e-300
+    )
+
+    accumulated = np.zeros_like(vertices)
+    area = 0.5 * np.linalg.norm(cross, axis=1)
+    for corner in range(3):
+        np.add.at(accumulated, faces[:, corner], face_normal * area[:, None])
+    vertex_normal = accumulated / np.maximum(
+        np.linalg.norm(accumulated, axis=1, keepdims=True), 1e-300
+    )
+
+    ladder = np.geomspace(
+        max(total_height, 1e-12) * 1.0e-3, max(total_height, 1e-12), int(samples)
+    )
+    safe_face = np.full(faces.shape[0], ladder[0])
+    for step in ladder:
+        moved = vertices + step * vertex_normal
+        shifted = moved[faces]
+        turned = np.cross(
+            shifted[:, 1] - shifted[:, 0], shifted[:, 2] - shifted[:, 0]
+        )
+        upright = np.einsum("ij,ij->i", turned, face_normal) > 0.0
+        safe_face = np.where(upright, step, safe_face)
+
+    safe_node = np.full(vertices.shape[0], np.inf)
+    for corner in range(3):
+        np.minimum.at(safe_node, faces[:, corner], safe_face)
+    safe_node[~np.isfinite(safe_node)] = total_height
+
+    # A node still upright at the top of the ladder is not constrained and must
+    # extrude to full height; backing it off by the safety factor as well would
+    # shorten the whole layer on account of nodes never in difficulty, which is
+    # global truncation wearing a local disguise.
+    unconstrained = safe_node >= total_height * (1.0 - 1.0e-9)
+    scaled = np.clip(safety * safe_node / max(total_height, 1e-300), floor, 1.0)
+    field = np.where(unconstrained, 1.0, scaled)
+
+    if int(smoothing_passes) > 0:
+        edges = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])
+        edges = np.concatenate([edges, edges[:, ::-1]])
+        degree = np.bincount(edges[:, 0], minlength=vertices.shape[0]).astype(np.float64)
+        degree[degree == 0.0] = 1.0
+        for _ in range(int(smoothing_passes)):
+            neighbour_sum = np.bincount(
+                edges[:, 0], weights=field[edges[:, 1]], minlength=vertices.shape[0]
+            )
+            field = np.minimum(field, neighbour_sum / degree)
+    return np.clip(field, floor, 1.0)
 
 
 def _build_viscous_domain(
@@ -862,6 +1452,10 @@ def _build_viscous_domain(
     name: str,
     wall_marker: str,
     farfield_marker: str,
+    safety: float = 0.6,
+    smoothing_passes: int = 6,
+    vector_field: bool = True,
+    aft: NDArray[np.bool_] | None = None,
 ) -> MeshResult:
     """One extrusion attempt. Separated so a failure can be retried cleanly.
 
@@ -878,16 +1472,55 @@ def _build_viscous_domain(
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.model.add(name)
 
+        # Split before extruding, not after. The prism stack has to be grown
+        # off both patches in one call so the two share the nodes along their
+        # seam; extruding them separately gives each its own copy of the rim
+        # and leaves a crack down the middle of the boundary layer.
+        base_faces = (
+            np.zeros(faces.shape[0], dtype=bool) if aft is None else np.asarray(aft)
+        )
         wall = gmsh.model.addDiscreteEntity(2)
         gmsh.model.mesh.addNodes(
             2, wall, list(range(1, vertices.shape[0] + 1)), vertices.ravel().tolist()
         )
         gmsh.model.mesh.addElementsByType(
-            wall, 2, [], (faces + 1).ravel().tolist()
+            wall, 2, [], (faces[~base_faces] + 1).ravel().tolist()
         )
+        walls = [wall]
+        if base_faces.any():
+            disc = gmsh.model.addDiscreteEntity(2)
+            gmsh.model.mesh.addElementsByType(
+                disc, 2, [], (faces[base_faces] + 1).ravel().tolist()
+            )
+            walls.append(disc)
+            # Discrete surfaces share node *tags* but no topological curve, and
+            # the extruder welds two stacks along a shared curve. Without this
+            # the two patches each grow their own copy of the rim and the mesher
+            # stops with "Could not find extruded node" at a seam coordinate.
+            gmsh.model.mesh.createTopology()
 
+        # A *vector* field, not a scalar one: gmsh reads it as the marching
+        # direction itself rather than as a multiplier on its own normals, so
+        # both the relaxed direction and the local height come from here.
+        scale = _local_height_scale(vertices, faces, heights[-1], safety=safety)
+        tags = list(range(1, vertices.shape[0] + 1))
+        view = gmsh.view.add("boundary-layer-marching")
+        if vector_field:
+            marching = (
+                _marching_vectors(vertices, faces, passes=smoothing_passes)
+                * scale[:, None]
+            )
+            gmsh.view.addHomogeneousModelData(
+                view, 0, name, "NodeData", tags, marching.ravel().tolist(),
+                numComponents=3,
+            )
+        else:
+            gmsh.view.addHomogeneousModelData(
+                view, 0, name, "NodeData", tags, scale.tolist()
+            )
         extruded = gmsh.model.geo.extrudeBoundaryLayer(
-            [(2, wall)], [1] * len(heights), heights, True
+            [(2, tag) for tag in walls], [1] * len(heights), heights, True,
+            viewIndex=view,
         )
         gmsh.model.geo.synchronize()
 
@@ -898,17 +1531,28 @@ def _build_viscous_domain(
         # fixed, so indexing into it is only right for the cases it was tried on.
         layer_volumes = [dim_tag for dim_tag in extruded if dim_tag[0] == 3]
         boundary = gmsh.model.getBoundary(layer_volumes, combined=True, oriented=False)
-        outer = [dim_tag for dim_tag in boundary if dim_tag != (2, wall)]
+        wall_entities = {(2, tag) for tag in walls}
+        outer = [dim_tag for dim_tag in boundary if dim_tag not in wall_entities]
         if not outer:
             msg = "the boundary-layer extrusion produced no outer surface"
             raise RuntimeError(msg)
 
         box = _farfield_box(gmsh, low, high, body_length, diameter, sizing)
-        loop = gmsh.model.geo.addSurfaceLoop(box + [tag for _, tag in outer])
-        volume = gmsh.model.geo.addVolume([loop])
+        # Two loops, not one. A surface loop is a single closed shell: the
+        # farfield box is one, and the boundary layer's outer surface is
+        # another that bounds a hole in the fluid. Merging them into one loop
+        # is topologically invalid — gmsh tolerates it on some geometries and
+        # rejects it on others with a PLC error that names the volume mesher,
+        # which is what made this look like a boundary-layer problem for as
+        # long as it did. The extrusion was never at fault.
+        shell = gmsh.model.geo.addSurfaceLoop(box)
+        cavity = gmsh.model.geo.addSurfaceLoop([tag for _, tag in outer])
+        volume = gmsh.model.geo.addVolume([shell, cavity])
         gmsh.model.geo.synchronize()
 
         gmsh.model.addPhysicalGroup(2, [wall], name=wall_marker)
+        if len(walls) > 1:
+            gmsh.model.addPhysicalGroup(2, [walls[1]], name=f"{wall_marker}_base")
         gmsh.model.addPhysicalGroup(2, box, name=farfield_marker)
         gmsh.model.addPhysicalGroup(
             3, [tag for _, tag in layer_volumes] + [volume], name="fluid"
@@ -1031,11 +1675,247 @@ def _apply_volume_sizing(
     gmsh.model.mesh.field.setNumber(field, "Thickness", envelope)
     gmsh.model.mesh.field.setAsBackgroundMesh(field)
 
-    # The background field is the only size authority; without this gmsh also
-    # honours the sizes attached to the box corner points and to the extruded
-    # boundary-layer nodes, and the wall's few-micron spacing would propagate
-    # out into the farfield as a size constraint.
-    gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)
+    # Sizes *are* extended from the boundary here, which looks like it should
+    # let the wall's few-micron spacing escape into the farfield and does not:
+    # the wall is interior to the prism volume, and the tetrahedral region is
+    # bounded by the boundary layer's *outer* surface, whose triangles carry
+    # the surface mesh's own sizes. Without this the tets against that surface
+    # are sized only by the background field — a jump of four to ninety times
+    # across the interface, which is what a volume mesher rejects.
+    gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 1)
     gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
     gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
     gmsh.option.setNumber("Mesh.Algorithm3D", 1)
+
+
+def inviscid_domain(
+    mesh: Any,
+    path: str | Path,
+    mach: float,
+    sizing: ViscousSizing | None = None,
+    wall_refinement: float = 0.05,
+    wall_band: float = 0.5,
+    wall_marker: str = "vehicle",
+    farfield_marker: str = "farfield",
+    split_base: bool = False,
+    base_station: float | None = None,
+    refinement: Sequence[RefinementBall] = (),
+) -> MeshResult:
+    """Isotropic tetrahedral domain around a closed body — no boundary layer.
+
+    For an Euler run, and the distinction is not an optimisation. A prism layer
+    exists to resolve a viscous wall gradient that an Euler solution does not
+    have, and extruding one anyway is actively harmful: it puts cells of
+    hundred-to-one aspect ratio where the flow has no gradient to justify them,
+    and where the body's radius of curvature is smaller than the layer is thick
+    — a 0.2 m layer on a 0.05 m nose radius — the extrusion's own normals
+    converge and the layer has to be truncated, leaving badly skewed cells
+    exactly at the stagnation region.
+
+    On this package's sphere-cone that combination diverged every Mach 8 case
+    that was tried against it, at both first and second order, in a way that
+    looked like a solver problem and was a meshing one.
+
+    Cells at the wall take their size from the **surface mesh**, which
+    :func:`~aether.geometry.brep.surface_mesh` has already refined by
+    curvature. That is what resolves a blunt nose, and it is not optional: with
+    the background field alone, near-wall size derives from the body
+    *diameter*, and a re-entry body's nose radius is an order of magnitude
+    smaller. On this package's sphere-cone — 0.05 m of nose — a three-level
+    study had near-wall cells of 0.118, 0.084 and 0.059 m, every one larger
+    than the feature. The forebody axial force then climbed monotonically
+    *past* the exact answer as the mesh refined, because refinement was still
+    discovering the nose rather than converging on it, and the Richardson
+    extrapolation of that sequence was meaningless while looking perfectly well
+    behaved.
+
+    Farther out, resolution comes from an isotropic distance field:
+    ``wall_refinement`` of the body diameter within ``wall_band`` diameters of
+    the surface. That gives the shock and the stagnation region cells small in
+    *every* direction, which is what a hyperbolic scheme with a limiter wants.
+
+    ``split_base`` divides the wall into two markers — ``<wall_marker>`` and
+    ``<wall_marker>_base`` — so the solver reports their forces separately,
+    **every iteration**. Set it on any body with a blunt base.
+
+    The division is by **outward normal**: a face is base when it faces aft.
+    That is geometric, needs no magic number, and on a blunted shoulder falls
+    where the physics does, at the widest point where the fillet's normal turns
+    aft and the flow separates. ``base_station`` overrides it with an axial cut,
+    which on a 10 mm-shouldered sphere-cone swept a band of cone into the base
+    and made the patch 1.14 times the area of the disc.
+
+    The reason is that an Euler solution has no valid base pressure: real base
+    flow is set by a separated viscous shear layer the equations do not
+    contain, so the solver returns whatever its unresolved base region settles
+    at, and that region does not settle. On a Mach 8 sphere-cone the base came
+    back at :math:`C_p = +0.34` against a physical value near :math:`-0.02`,
+    swamping a forebody worth :math:`+0.08` and turning the reported drag
+    negative — and its value moved 27 % between grid levels while the forebody
+    moved 2 %. Folded together, that unsteadiness also contaminates any
+    convergence test applied to the total force.
+
+    The split has to be made **before** the volume is meshed. Re-tagging faces
+    afterwards leaves surface elements with no adjacent volume element and SU2
+    rejects the mesh outright. Both entities share one node set, so the wall
+    stays conformal across the seam.
+    """
+    import gmsh
+
+    sizing = sizing if sizing is not None else ViscousSizing()
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    if not bool(mesh.is_closed):
+        msg = "the body must be closed to have an outside to mesh"
+        raise ValueError(msg)
+
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)
+    faces = np.asarray(mesh.faces, dtype=np.int64)
+    low, high = mesh.bounds
+    body_length = float(high[0] - low[0])
+    diameter = float(max(high[1] - low[1], high[2] - low[2]))
+
+    gmsh.initialize()
+    try:
+        gmsh.option.setNumber("General.Terminal", 0)
+        gmsh.model.add(getattr(mesh, "name", None) or "vehicle")
+        aft = _base_faces(mesh, faces.shape[0], split_base, base_station)
+
+        wall = gmsh.model.addDiscreteEntity(2)
+        # Every node goes on the first entity; the second refers to them by
+        # their global tags, which is what keeps the two patches conformal
+        # across the seam instead of each carrying its own copy of it.
+        gmsh.model.mesh.addNodes(
+            2, wall, list(range(1, vertices.shape[0] + 1)), vertices.ravel().tolist()
+        )
+        gmsh.model.mesh.addElementsByType(
+            wall, 2, [], (faces[~aft] + 1).ravel().tolist()
+        )
+        patches = [wall]
+        if aft.any():
+            disc = gmsh.model.addDiscreteEntity(2)
+            gmsh.model.mesh.addElementsByType(
+                disc, 2, [], (faces[aft] + 1).ravel().tolist()
+            )
+            patches.append(disc)
+        gmsh.model.geo.synchronize()
+
+        box = _farfield_box(gmsh, low, high, body_length, diameter, sizing)
+        outer = gmsh.model.geo.addSurfaceLoop(box)
+        inner = gmsh.model.geo.addSurfaceLoop(patches)
+        # Two loops: the body is a hole in the fluid, not a second region.
+        volume = gmsh.model.geo.addVolume([outer, inner])
+        gmsh.model.geo.synchronize()
+
+        gmsh.model.addPhysicalGroup(2, [wall], name=wall_marker)
+        if len(patches) > 1:
+            gmsh.model.addPhysicalGroup(
+                2, [patches[1]], name=f"{wall_marker}_base"
+            )
+        gmsh.model.addPhysicalGroup(2, box, name=farfield_marker)
+        gmsh.model.addPhysicalGroup(3, [volume], name="fluid")
+
+        # Nested Box fields on coordinates, not a Distance field on the wall.
+        # gmsh's Distance field samples parametric surfaces, and the wall here
+        # is a *discrete* entity built from arrays — it returns nothing usable,
+        # and a Threshold reading it silently produces no refinement at all.
+        # That failure is quiet in the worst way: the mesher succeeds, the mesh
+        # is uniform at the farfield size, and the run converges to a drag
+        # coefficient with the wrong sign.
+        near = gmsh.model.mesh.field.add("Box")
+        band = wall_band * diameter
+        gmsh.model.mesh.field.setNumber(near, "VIn", wall_refinement * diameter)
+        gmsh.model.mesh.field.setNumber(near, "VOut", sizing.farfield_size * diameter)
+        gmsh.model.mesh.field.setNumber(near, "XMin", float(low[0]) - band)
+        gmsh.model.mesh.field.setNumber(near, "XMax", float(high[0]) + band)
+        gmsh.model.mesh.field.setNumber(near, "YMin", float(low[1]) - band)
+        gmsh.model.mesh.field.setNumber(near, "YMax", float(high[1]) + band)
+        gmsh.model.mesh.field.setNumber(near, "ZMin", float(low[2]) - band)
+        gmsh.model.mesh.field.setNumber(near, "ZMax", float(high[2]) + band)
+        gmsh.model.mesh.field.setNumber(near, "Thickness", band)
+
+        # A second, wider box follows the shock envelope downstream, on the
+        # same Mach-cone argument the axisymmetric path uses.
+        envelope = (
+            1.0 / np.sqrt(max(mach**2 - 1.0, 1.0e-6)) if mach > 1.05 else 1.0
+        )
+        reach = float(np.clip(envelope * body_length, 0.5 * diameter, 4.0 * diameter))
+        wake = gmsh.model.mesh.field.add("Box")
+        gmsh.model.mesh.field.setNumber(wake, "VIn", sizing.wake_size * diameter)
+        gmsh.model.mesh.field.setNumber(wake, "VOut", sizing.farfield_size * diameter)
+        gmsh.model.mesh.field.setNumber(wake, "XMin", float(low[0]) - 0.5 * diameter)
+        gmsh.model.mesh.field.setNumber(wake, "XMax", float(high[0]) + 2.0 * body_length)
+        gmsh.model.mesh.field.setNumber(wake, "YMin", float(low[1]) - reach)
+        gmsh.model.mesh.field.setNumber(wake, "YMax", float(high[1]) + reach)
+        gmsh.model.mesh.field.setNumber(wake, "ZMin", float(low[2]) - reach)
+        gmsh.model.mesh.field.setNumber(wake, "ZMax", float(high[2]) + reach)
+        gmsh.model.mesh.field.setNumber(wake, "Thickness", reach)
+
+        # Local feature regions, each a Ball taking precedence through the Min
+        # below. These are what resolve a captured bow shock: without one the
+        # nose cell size is inherited from the body diameter, and a Mach 8
+        # sphere-cone ran with 1.5 cells across its 7.5 mm standoff, putting
+        # 8 % of its wall nodes above the Rayleigh pitot limit.
+        balls = []
+        for region in refinement:
+            ball = gmsh.model.mesh.field.add("Ball")
+            gmsh.model.mesh.field.setNumber(ball, "XCenter", float(region.center[0]))
+            gmsh.model.mesh.field.setNumber(ball, "YCenter", float(region.center[1]))
+            gmsh.model.mesh.field.setNumber(ball, "ZCenter", float(region.center[2]))
+            gmsh.model.mesh.field.setNumber(ball, "Radius", float(region.radius))
+            gmsh.model.mesh.field.setNumber(ball, "VIn", float(region.size))
+            gmsh.model.mesh.field.setNumber(ball, "VOut", sizing.farfield_size * diameter)
+            gmsh.model.mesh.field.setNumber(
+                ball,
+                "Thickness",
+                float(region.thickness if region.thickness is not None else region.radius),
+            )
+            balls.append(ball)
+
+        smallest = gmsh.model.mesh.field.add("Min")
+        gmsh.model.mesh.field.setNumbers(smallest, "FieldsList", [near, wake, *balls])
+        gmsh.model.mesh.field.setAsBackgroundMesh(smallest)
+
+        # Cells near the wall inherit the *surface* mesh's own sizes, which are
+        # already curvature-refined — 6.7 mm across a 50 mm nose radius against
+        # 33 mm along the barrel. Without this the background box overrides
+        # them with a single body-diameter-derived size, and a blunt nose is
+        # simply never resolved: on the sphere-cone the near-wall cell was
+        # larger than the nose radius at every level of a three-level study,
+        # and the forebody force climbed monotonically past the exact answer
+        # because refinement was still discovering the nose.
+        #
+        # The viscous path must *not* do this — there the wall spacing is a few
+        # microns and propagating it outward would fill the domain — which is
+        # why the two builders differ here rather than sharing a default.
+        gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 1)
+        gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
+        gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
+        gmsh.option.setNumber("Mesh.Algorithm3D", 1)
+        gmsh.option.setNumber("Mesh.Optimize", 1)
+        gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
+        gmsh.model.mesh.generate(3)
+
+        node_tags, _, _ = gmsh.model.mesh.getNodes()
+        elements = sum(
+            len(gmsh.model.mesh.getElementsByType(kind)[0])
+            for kind in gmsh.model.mesh.getElementTypes(3)
+        )
+        gmsh.write(str(target))
+    finally:
+        gmsh.finalize()
+
+    return MeshResult(
+        path=target,
+        n_nodes=len(node_tags),
+        n_elements=int(elements),
+        sizing=DomainSizing(
+            upstream=sizing.upstream, downstream=sizing.downstream,
+            transverse=sizing.transverse, farfield_size=sizing.farfield_size,
+        ),
+        mach=float(mach),
+        dimension=3,
+        n_prisms=0,
+        first_cell_height=float(wall_refinement * diameter),
+    )

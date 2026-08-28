@@ -31,7 +31,7 @@ __all__ = [
     "SurfaceGrid",
     "TrimSolution",
     "blunted_multiconic",
-    "caret_waverider",
+    "caret_lifting_body",
     "curved_lifting_body",
     "exact_mitered_bent_biconic",
     "smooth_bent_biconic",
@@ -140,7 +140,7 @@ class PanelModel:
     surface: SurfaceGrid | None = field(repr=False, default=None)
     """The net the panels were cut from, when the generator had one.
 
-    Optional because it is not always available — :func:`caret_waverider` and
+    Optional because it is not always available — :func:`caret_lifting_body` and
     :func:`sphere_cone` assemble triangles directly and :func:`curved_lifting_body`
     is an open two-sheet surface with no inside — and because nothing in the
     panel integration needs it. It exists for the mesh generator, which does.
@@ -602,7 +602,7 @@ def sphere_cone(
     )
 
 
-def caret_waverider(
+def caret_lifting_body(
     length: float = 4.0,
     semi_span: float = 1.2,
     keel_depth: float = 0.32,
@@ -611,7 +611,31 @@ def caret_waverider(
     reference_fraction: float = 0.50,
     include_base: bool = True,
 ) -> PanelModel:
-    """Caret waverider: the high-L/D counterpart to :func:`sphere_cone`.
+    """Caret-form lifting body: the high-L/D counterpart to :func:`sphere_cone`.
+
+    .. warning::
+
+       **Not on-design, and not the same shape as**
+       :func:`aether.geometry.bodies.caret_lifting_body`. This one is
+       parameterised by span and keel depth directly, which means its leading
+       edges do not generally lie on the shock its own compression surface
+       makes: at the defaults, the implied deflection is 4.57 degrees, the
+       Mach 8 shock angle is 10.49 degrees, and the edges sit 0.74 m *above*
+       the shock. Flow spills around them, so the lift-to-drag ratio is not
+       representative of a real waverider.
+
+       That is deliberate. This function is the panel method's *lifting
+       exemplar* — the shape used in Paper I §6 to exercise objects an
+       axisymmetric body cannot, because a cone trims at zero incidence where
+       it makes no lift. It needs to lift and to have a shoulder line that
+       sweeps through zero deflection; it does not need to be on-design.
+
+       For a body whose numbers are meant to represent the waverider *class* —
+       anything fed to CFD, or quoted in a comparison — use
+       :func:`aether.geometry.bodies.caret_lifting_body`, which solves the
+       oblique-shock relation and places the leading edges in the shock plane
+       by construction.
+
 
     A waverider rides its own attached shock --- the leading edges lie *on*
     the shock surface, so the high pressure behind it cannot spill around
