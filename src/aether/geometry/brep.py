@@ -158,8 +158,8 @@ class Loft:
         module note on sharp edges.
     """
 
-    section: Callable[[float], _FloatArray] = field(repr=False)
     stations: _FloatArray
+    section: Callable[[float], _FloatArray] | None = field(default=None, repr=False)
     section_contour: Callable[[float], Contour] | None = field(default=None, repr=False)
     """Exact outline at a station, preferred over :attr:`section` when given.
 
@@ -193,9 +193,16 @@ class Loft:
         if np.any(np.diff(u) <= 0.0):
             msg = "stations must be strictly increasing"
             raise ValueError(msg)
+        if self.section is None and self.section_contour is None:
+            msg = (
+                "a loft needs its cross-sections: give section_contour for an "
+                "exact outline, or section for a sampled one"
+            )
+            raise ValueError(msg)
 
     def _build(self, gmsh: Any) -> int:
         wires = []
+        sampled = self.section
         for u in np.asarray(self.stations, dtype=np.float64):
             if self.section_contour is not None:
                 wires.append(
@@ -204,7 +211,8 @@ class Loft:
                     )
                 )
                 continue
-            points = np.asarray(self.section(float(u)), dtype=np.float64)
+            assert sampled is not None  # guaranteed by __post_init__
+            points = np.asarray(sampled(float(u)), dtype=np.float64)
             if points.ndim != 2 or points.shape[1] != 3 or points.shape[0] < 3:
                 msg = (
                     f"section({u:g}) must return (n >= 3, 3) points, got "

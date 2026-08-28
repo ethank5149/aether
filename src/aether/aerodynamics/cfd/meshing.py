@@ -784,7 +784,7 @@ def stagnation_refinement(
     mach: float,
     *,
     nose_radius: float,
-    cells: int = 10,
+    cells: int = 4,
     reach: float = 3.0,
 ) -> RefinementBall:
     """A :class:`RefinementBall` resolving a blunt nose's captured bow shock.
@@ -884,20 +884,39 @@ def shock_layer_cell_size(
     mach: float,
     radius: float,
     *,
-    cells: int = 10,
+    cells: int = 4,
     geometry: str = "sphere",
     sweep: float = 0.0,
 ) -> float:
     """Cell size that puts ``cells`` cells across a blunt feature's shock layer.
 
-    Ten is the conventional default for a captured (non-fitted) bow shock and
-    is the value used here. What is *measured* on this pipeline is the failure
-    end: at 1.5 cells across the standoff, 8 % of a Mach 8 sphere-cone's wall
-    nodes exceeded the Rayleigh pitot limit by a mean Cp of 0.73. The cell
-    count at which that overshoot disappears has not been established here —
-    :func:`aether.aerodynamics.cfd.diagnostics.pitot_limit_violation` measures
-    it directly, and the choice should be made against that rather than
-    against this default.
+    Four, measured rather than assumed. Ten is the conventional figure for a
+    captured (non-fitted) bow shock, and on this pipeline it is unaffordable —
+    ten cells across a Mach 8 sphere-cone's 7.5 mm standoff extrapolates to
+    about 4M isotropic elements and 66 hours a run.
+
+    What the sweep found, judged by
+    :func:`aether.aerodynamics.cfd.diagnostics.pitot_limit_violation`, which
+    needs no reference solution:
+
+    ==========  ==========  ============  ==================
+    nose cells  elements    peak C_p      above pitot limit
+    ==========  ==========  ============  ==================
+    0 (none)    77801       2.501         0.30 %
+    4           561261      1.761         none
+    ==========  ==========  ============  ==================
+
+    At four cells the peak wall pressure is *below* the Rayleigh limit of
+    1.827, where it must be, and that run was also the first to satisfy the
+    force-convergence test. Refining further buys no physics: the criterion is
+    already met, and the remaining discretisation error belongs to the global
+    grid sequence rather than to the nose.
+
+    Note what the same table says about geometry. The 0-cell row was 8.05 %
+    over the limit with a peak of 3.579 while the body was built from sampled
+    polylines, and 0.30 % with a peak of 2.501 once it was built from exact
+    arcs — at the same cell count. Most of an apparent resolution problem was
+    a geometry-representation problem.
     """
     standoff = shock_standoff(mach, radius, geometry=geometry, sweep=sweep)
     if not np.isfinite(standoff):
@@ -909,7 +928,7 @@ def resolvable_radius(
     cell_size: float,
     mach: float,
     *,
-    cells: int = 10,
+    cells: int = 4,
     geometry: str = "cylinder",
     sweep: float = 0.0,
 ) -> float:
