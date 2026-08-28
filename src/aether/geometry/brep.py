@@ -54,6 +54,7 @@ from typing import Any, TypeVar
 import numpy as np
 from numpy.typing import NDArray
 
+from aether.geometry.edges import Contour, Segment
 from aether.geometry.mesh import VehicleMesh, _weld
 
 __all__ = [
@@ -98,6 +99,43 @@ class SolidProperties:
         return float(max(high[1] - low[1], high[2] - low[2]))
 
 
+def _contour_curves(gmsh: Any, contour: Contour) -> tuple[list[int], int, int]:
+    """Create OCC curves for an exact outline and return their tags.
+
+    Endpoints are shared between consecutive primitives rather than created
+    twice, so the wire closes on identical vertices instead of on a pair a
+    tolerance apart — which is where micro-edges come from.
+
+    Returns ``(curves, first_point, last_point)``; the endpoint tags let an
+    open outline be closed against the axis by the caller.
+    """
+
+    def point(value: _FloatArray) -> int:
+        coordinates = np.zeros(3)
+        coordinates[: value.shape[0]] = value
+        return int(gmsh.model.occ.addPoint(*coordinates))
+
+    primitives = contour.primitives
+    count = len(primitives)
+    starts = [point(item.start) for item in primitives]
+    curves: list[int] = []
+    last = starts[0]
+    for index, item in enumerate(primitives):
+        begin = starts[index]
+        if index + 1 < count:
+            finish = starts[index + 1]
+        else:
+            finish = starts[0] if contour.closed else point(item.end)
+        if isinstance(item, Segment):
+            curves.append(int(gmsh.model.occ.addLine(begin, finish)))
+        else:
+            curves.append(
+                int(gmsh.model.occ.addCircleArc(begin, point(item.centre), finish))
+            )
+        last = finish
+    return curves, starts[0], last
+
+
 @dataclass(frozen=True)
 class Loft:
     """A solid lofted through closed cross-sections along the body axis.
@@ -122,6 +160,14 @@ class Loft:
 
     section: Callable[[float], _FloatArray] = field(repr=False)
     stations: _FloatArray
+    section_contour: Callable[[float], Contour] | None = field(default=None, repr=False)
+    """Exact outline at a station, preferred over :attr:`section` when given.
+
+    Supplying this is what keeps the loft's faces proportional to the *shape*
+    rather than to the sampling: a filleted triangular section is six
+    primitives, so the solid has six longitudinal faces, against the hundreds
+    of chord-edges a sampled outline produces. See :class:`Contour`.
+    """
     smooth: bool = True
     ruled: bool = False
     """Rule the surface between adjacent sections instead of lofting through them.
@@ -151,6 +197,13 @@ class Loft:
     def _build(self, gmsh: Any) -> int:
         wires = []
         for u in np.asarray(self.stations, dtype=np.float64):
+            if self.section_contour is not None:
+                wires.append(
+                    gmsh.model.occ.addWire(
+                        _contour_curves(gmsh, self.section_contour(float(u)))[0]
+                    )
+                )
+                continue
             points = np.asarray(self.section(float(u)), dtype=np.float64)
             if points.ndim != 2 or points.shape[1] != 3 or points.shape[0] < 3:
                 msg = (
@@ -200,6 +253,13 @@ class Revolve:
 
     station: _FloatArray
     radius: _FloatArray
+    contour: Contour | None = None
+    """Exact meridian outline, preferred over the sampled ``station``/``radius``.
+
+    A spherically blunted cone's meridian is three primitives — cap arc, cone
+    line, shoulder arc — and sampling it into 110 points gives the revolved
+    solid 107 faces instead of 4. See :class:`Contour`.
+    """
     name: str = "body"
 
     def __post_init__(self) -> None:
@@ -220,15 +280,25 @@ class Revolve:
         r = np.asarray(self.radius, dtype=np.float64)
         # A meridian outline plus its closing segments on the axis: revolve the
         # closed face, not the open curve, or OCC returns a shell with no inside.
-        points = [gmsh.model.occ.addPoint(float(xi), float(ri), 0.0)
-                  for xi, ri in zip(x, r, strict=True)]
-        segments = [gmsh.model.occ.addLine(a, b) for a, b in itertools.pairwise(points)]
+        if self.contour is not None:
+            segments, head, tail = _contour_curves(gmsh, self.contour)
+            first = self.contour.primitives[0].start
+            final = self.contour.primitives[-1].end
+            x = np.array([float(first[0]), float(final[0])])
+            r = np.array([float(first[1]), float(final[1])])
+        else:
+            points = [gmsh.model.occ.addPoint(float(xi), float(ri), 0.0)
+                      for xi, ri in zip(x, r, strict=True)]
+            segments = [
+                gmsh.model.occ.addLine(a, b) for a, b in itertools.pairwise(points)
+            ]
+            head, tail = points[0], points[-1]
         base = gmsh.model.occ.addPoint(float(x[-1]), 0.0, 0.0)
         nose = gmsh.model.occ.addPoint(float(x[0]), 0.0, 0.0)
-        closing = [gmsh.model.occ.addLine(points[-1], base)] if r[-1] > 0.0 else []
+        closing = [gmsh.model.occ.addLine(tail, base)] if r[-1] > 0.0 else []
         closing.append(gmsh.model.occ.addLine(base, nose))
         if r[0] > 0.0:
-            closing.append(gmsh.model.occ.addLine(nose, points[0]))
+            closing.append(gmsh.model.occ.addLine(nose, head))
         loop = gmsh.model.occ.addCurveLoop(segments + closing)
         face = gmsh.model.occ.addPlaneSurface([loop])
         made = gmsh.model.occ.revolve(
@@ -269,9 +339,22 @@ def solid_properties(body: Body) -> SolidProperties:
     """Volume, wetted area, centroid and bounding box of the exact solid."""
 
     def read(gmsh: Any, volume: int) -> SolidProperties:
-        low_x, low_y, low_z, high_x, high_y, high_z = gmsh.model.occ.getBoundingBox(
-            3, volume
-        )
+        # Bounds from a coarse tessellation, not from OCC's box. OCC bounds a
+        # curved face by its control polygon, which is a *loose* enclosure: on
+        # the sphere-cone here it returned a diameter of 0.8501 m for a body
+        # whose meridian reaches 0.78538 m, an 8 % overestimate. That was
+        # invisible while the solid was still built from sampled polylines,
+        # because a body faceted into near-planar strips has a tight control
+        # polygon — exact arcs are what expose it. The number feeds domain
+        # extents and refinement sizes, so it has to be the real one.
+        gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 12.0)
+        gmsh.model.mesh.generate(2)
+        _, coordinates, _ = gmsh.model.mesh.getNodes()
+        nodes = np.asarray(coordinates, dtype=np.float64).reshape(-1, 3)
+        low = nodes.min(axis=0)
+        high = nodes.max(axis=0)
+        low_x, low_y, low_z = (float(value) for value in low)
+        high_x, high_y, high_z = (float(value) for value in high)
         area = sum(
             gmsh.model.occ.getMass(2, tag)
             for _, tag in gmsh.model.getBoundary(

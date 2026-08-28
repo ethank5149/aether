@@ -29,7 +29,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from aether.geometry.brep import Loft, Revolve
-from aether.geometry.edges import round_corners
+from aether.geometry.edges import Arc, Contour, Segment, round_corners, rounded_contour
 
 __all__ = [
     "blunted_multiconic",
@@ -78,6 +78,34 @@ def _shoulder(
     phi = np.linspace(0.5 * np.pi + half_angle, 0.0, max(3, int(samples)))
     return np.column_stack([centre_x + fillet * np.cos(phi),
                             centre_r + fillet * np.sin(phi)])
+
+
+def _shoulder_arc(
+    station: float, radius_at_corner: float, half_angle: float, fillet: float
+) -> Arc:
+    """The shoulder fillet of :func:`_shoulder`, as one exact arc.
+
+    Same centre and same endpoints; what changes is that the revolved solid
+    gets a single toroidal face instead of one conical face per sample.
+    """
+    if fillet <= 0.0:
+        raise ValueError("shoulder fillet must be positive")
+    offset = fillet * (1.0 + np.sin(half_angle)) / np.cos(half_angle)
+    centre_r = radius_at_corner - offset
+    centre_x = station - fillet
+    if centre_r <= 0.0:
+        msg = (
+            f"shoulder radius {fillet:g} is too large for a base radius of "
+            f"{radius_at_corner:g} at a {np.rad2deg(half_angle):.1f} degree cone"
+        )
+        raise ValueError(msg)
+    centre = np.array([centre_x, centre_r])
+    begin = 0.5 * np.pi + half_angle
+    return Arc(
+        start=centre + fillet * np.array([np.cos(begin), np.sin(begin)]),
+        end=centre + fillet * np.array([1.0, 0.0]),
+        centre=centre,
+    )
 
 
 def spatular_wedge(
@@ -275,7 +303,29 @@ def caret_waverider(
     # a curve. Clustered forward, where the compression surface does its work.
     fraction = np.linspace(0.0, 1.0, int(n_sections)) ** 1.3
     stations = nose_station + (1.0 - nose_station) * fraction
-    return Loft(section=section, stations=stations, smooth=False, name=name)
+    def section_contour(u: float) -> Contour:
+        """The same section, as arcs and lines rather than chords."""
+        x = u * length
+        shock_depth = x * shock_slope
+        corners = np.array([
+            [x, +span_fraction * shock_depth, -shock_depth],
+            [x, -span_fraction * shock_depth, -shock_depth],
+            [x, 0.0, -x * ridge_slope],
+        ])
+        return rounded_contour(
+            corners,
+            u * np.array([leading_edge_radius, leading_edge_radius, ridge_radius]),
+            closed=True,
+        )
+
+    sharp = leading_edge_radius <= 0.0 and ridge_radius <= 0.0
+    return Loft(
+        section=section,
+        stations=stations,
+        section_contour=None if sharp else section_contour,
+        smooth=False,
+        name=name,
+    )
 
 
 def sphere_cone(
@@ -318,7 +368,26 @@ def sphere_cone(
         keep = station < arc[0, 0]
         station = np.concatenate([station[keep], arc[:, 0]])
         radius = np.concatenate([radius[keep], arc[:, 1]])
-    return Revolve(station=station, radius=radius, name=name)
+
+    # The exact meridian: cap arc, cone, and the shoulder fillet if there is
+    # one. The sampled arrays above are kept because they are the profile the
+    # panel and sizing code reads; the contour is what the solid is built from.
+    cap = Arc(
+        start=np.array([0.0, 0.0]),
+        end=np.array([x_tangent, r_tangent]),
+        centre=np.array([nose_radius, 0.0]),
+    )
+    base_radius = r_tangent + (length - x_tangent) * np.tan(half_angle)
+    primitives: tuple[Arc | Segment, ...]
+    if shoulder_radius > 0.0:
+        fillet = _shoulder_arc(length, base_radius, half_angle, float(shoulder_radius))
+        primitives = (cap, Segment(cap.end, fillet.start), fillet)
+    else:
+        primitives = (cap, Segment(cap.end, np.array([length, base_radius])))
+    return Revolve(
+        station=station, radius=radius,
+        contour=Contour(primitives, closed=False), name=name,
+    )
 
 
 def blunted_multiconic(
@@ -355,6 +424,15 @@ def blunted_multiconic(
     station = list(nose_radius * (1.0 - np.cos(phi)))
     radius = list(nose_radius * np.sin(phi))
 
+    # Built alongside the sampled profile: same geometry, exact primitives.
+    cap = Arc(
+        start=np.array([0.0, 0.0]),
+        end=np.array([station[-1], radius[-1]]),
+        centre=np.array([nose_radius, 0.0]),
+    )
+    prims: list[Arc | Segment] = [cap]
+    here = cap.end
+
     x_current, r_current = station[-1], radius[-1]
     for index, (segment_length, theta) in enumerate(
         zip(lengths, half_angles, strict=True)
@@ -365,6 +443,8 @@ def blunted_multiconic(
             r_end = r_current + float(segment_length) * np.tan(theta)
             station += list(np.linspace(x_current, x_end, int(n_segment))[1:])
             radius += list(np.linspace(r_current, r_end, int(n_segment))[1:])
+            prims.append(Segment(here, np.array([x_end, r_end])))
+            here = np.array([x_end, r_end])
             continue
 
         theta_next = float(half_angles[index + 1])
@@ -389,6 +469,13 @@ def blunted_multiconic(
         x_current = x_corner + tangent * np.cos(theta_next)
         r_current = r_corner + tangent * np.sin(theta_next)
 
+        stop = np.array([x_stop, r_stop])
+        if float(np.linalg.norm(stop - here)) > 1e-12:
+            prims.append(Segment(here, stop))
+        here = np.array([x_current, r_current])
+        if tangent > 0.0:
+            prims.append(Arc(stop, here, np.array([centre_x, centre_r])))
+
     station_array = np.asarray(station, dtype=np.float64)
     radius_array = np.asarray(radius, dtype=np.float64)
     if shoulder_radius > 0.0:
@@ -397,4 +484,14 @@ def blunted_multiconic(
         keep = station_array < arc[0, 0]
         station_array = np.concatenate([station_array[keep], arc[:, 0]])
         radius_array = np.concatenate([radius_array[keep], arc[:, 1]])
-    return Revolve(station=station_array, radius=radius_array, name=name)
+        shoulder = _shoulder_arc(float(here[0]), float(here[1]),
+                                 float(half_angles[-1]), float(shoulder_radius))
+        # Trim the final cone back to where the shoulder picks it up.
+        trimmed = prims[-1]
+        if isinstance(trimmed, Segment):
+            prims[-1] = Segment(trimmed.start, shoulder.start)
+        prims.append(shoulder)
+    return Revolve(
+        station=station_array, radius=radius_array,
+        contour=Contour(tuple(prims), closed=False), name=name,
+    )
