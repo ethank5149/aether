@@ -138,3 +138,117 @@ def test_over_and_under_specifying_the_closure_is_refused() -> None:
         sphere_cone_closure(1.75, 0.277, 0.0286, np.radians(8.2))
     with pytest.raises(ValueError, match="exactly three"):
         sphere_cone_closure(1.75, 0.277, None, None)
+
+
+# ---------------------------------------------------------- the multiconic
+
+
+def _multiconic(cap: int = 40, segment: int = 40, fillet: int = 20):
+    from aether.geometry.profiles import multiconic_meridian
+
+    return multiconic_meridian(
+        0.05,
+        [1.0, 1.5],
+        [np.radians(12.0), np.radians(7.0)],
+        [0.1],
+        cap_intervals=cap - 1,
+        segment_intervals=segment - 1,
+        fillet_intervals=fillet - 1,
+    )
+
+
+def test_the_multiconic_profile_never_folds_back() -> None:
+    """The failure the tangent-length formula guards against.
+
+    A fillet of radius :math:`R_f` blending two lines meeting at deflection
+    :math:`\\delta` stands off the corner by :math:`R_f\\tan(\\delta/2)`. The
+    reciprocal form diverges as the cones become parallel -- the usual case --
+    and pushes both tangency points outside their own frusta, folding the
+    profile back through the nose. A panel integration sums unordered faces
+    and cannot see that; a mesh generator sees overlapping facets.
+    """
+    station, radius, _ = _multiconic()
+    assert np.all(np.diff(station) > 0.0), "profile folded back on itself"
+    assert np.all(np.diff(radius) > 0.0), "profile folded back on itself"
+    # The nose is a point, so only the tip sits on the axis.
+    assert radius[0] == pytest.approx(0.0)
+    assert np.all(radius[1:] > 0.0)
+
+
+def test_the_fillet_is_tangent_to_both_cones() -> None:
+    """C1 at the junction, which is what a tangent fillet means.
+
+    Measured as the perpendicular distance from the arc's centre to each cone
+    line: both must equal the fillet radius, or the blend is merely near the
+    corner rather than tangent to it.
+    """
+    _, _, junctions = _multiconic()
+    (junction,) = junctions
+    for angle, point in (
+        (np.radians(12.0), junction.stop),
+        (np.radians(7.0), junction.resume),
+    ):
+        along = np.array([np.cos(angle), np.sin(angle)])
+        offset = junction.centre - point
+        assert offset @ along == pytest.approx(0.0, abs=1e-12), "arc not tangent"
+        assert np.linalg.norm(offset) == pytest.approx(junction.radius, rel=1e-12)
+
+
+def test_the_junctions_lie_on_the_sampled_profile() -> None:
+    """The two representations must not disagree about where the blend is."""
+    station, radius, junctions = _multiconic()
+    points = np.column_stack([station, radius])
+    for junction in junctions:
+        for corner in (junction.stop, junction.resume):
+            assert np.linalg.norm(points - corner, axis=1).min() < 1e-9
+
+
+def test_a_single_segment_multiconic_is_a_sphere_cone() -> None:
+    """The family contains the simpler shape, so it had better reproduce it."""
+    from aether.geometry.profiles import multiconic_meridian, sphere_cone_meridian
+
+    station, radius, junctions = multiconic_meridian(
+        0.05,
+        [2.0],
+        [np.radians(10.0)],
+        [],
+        cap_intervals=39,
+        segment_intervals=39,
+        fillet_intervals=19,
+    )
+    assert junctions == ()
+    tangency, _ = sphere_cone_tangency(0.05, np.radians(10.0))
+    plain_x, plain_r = sphere_cone_meridian(tangency + 2.0, 0.05, np.radians(10.0), 39, 39)
+    assert station == pytest.approx(plain_x)
+    assert radius == pytest.approx(plain_r)
+
+
+def test_the_panel_multiconic_and_the_solid_multiconic_are_one_curve() -> None:
+    """The consolidation, through the two public entry points."""
+    from aether.aerodynamics.panels import blunted_multiconic as panel_body
+    from aether.geometry.bodies import blunted_multiconic as solid_body
+
+    shared = {
+        "nose_radius": 0.05,
+        "lengths": [1.0, 1.5],
+        "half_angles": [np.radians(12.0), np.radians(7.0)],
+        "fillet_radii": [0.1],
+    }
+    net = panel_body(**shared, n_axial_per_segment=60).surface.vertices
+    panel_station = net[:, 0, 0]
+    panel_radius = np.linalg.norm(net[:, 0, 1:], axis=1)
+
+    solid = solid_body(**{k: tuple(v) if isinstance(v, list) else v for k, v in shared.items()})
+    stations = np.linspace(0.2, 2.4, 80)
+    assert np.interp(stations, panel_station, panel_radius) == pytest.approx(
+        np.interp(stations, np.asarray(solid.station), np.asarray(solid.radius)), rel=1e-3
+    )
+
+
+def test_a_mismatched_multiconic_specification_is_refused() -> None:
+    from aether.geometry.profiles import multiconic_meridian
+
+    with pytest.raises(ValueError, match="lengths for"):
+        multiconic_meridian(0.05, [1.0, 1.5], [np.radians(10.0)], [0.1], 10, 10, 5)
+    with pytest.raises(ValueError, match="one fillet radius per junction"):
+        multiconic_meridian(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [], 10, 10, 5)

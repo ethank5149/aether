@@ -5,6 +5,12 @@ panels for impact theory, an exact solid for meshing, a sizing profile for the
 axisymmetric CFD path -- is a *representation* of that curve. The curve itself
 should therefore exist once.
 
+The multiconic makes the point sharply. Its junctions are blended by fillets,
+and the solid needs those as exact arcs while the panel method needs them
+sampled. That is not two curves; it is one curve and two things to do with it,
+so :func:`multiconic_meridian` returns the sampling *and* the junction
+geometry the arcs are built from.
+
 For a while it did not. :func:`aether.aerodynamics.panels.sphere_cone` and
 :func:`aether.geometry.bodies.sphere_cone` each derived the blunted-cone
 meridian from scratch, with the same algebra written twice and sampled by two
@@ -16,19 +22,6 @@ meant different things depending on which module you imported it from.
 This module holds the curves. It imports nothing from
 :mod:`aether.aerodynamics`, so the aerodynamic and geometric layers can both
 depend on it without either depending on the other.
-
-Not yet here: the multiconic
-----------------------------
-
-:func:`aether.aerodynamics.panels.blunted_multiconic` and
-:func:`aether.geometry.bodies.blunted_multiconic` are still separate
-derivations, deliberately. Their duplication is not the same shape as the
-sphere-cone's was: the solid builds its junction **fillets** as exact arcs
-interleaved with the sampled profile, so the two are not a curve and a
-sampling of it but a curve and a *different* curve that agrees away from the
-junctions. Factoring that needs the fillet geometry moved here first, which is
-its own change with its own verification, and a shared function that matched
-neither caller would be worse than the duplication it replaced.
 
 Sampling convention
 -------------------
@@ -43,6 +36,9 @@ assumes.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+
 import numpy as np
 import scipy.optimize
 from numpy.typing import NDArray
@@ -50,6 +46,8 @@ from numpy.typing import NDArray
 _FloatArray = NDArray[np.float64]
 
 __all__ = [
+    "MulticonicJunction",
+    "multiconic_meridian",
     "sphere_cone_closure",
     "sphere_cone_meridian",
     "sphere_cone_tangency",
@@ -172,3 +170,112 @@ def sphere_cone_meridian(
     cone_r = r_tangent + span * (length - x_tangent) * np.tan(half_angle)
 
     return np.concatenate([cap_x, cone_x]), np.concatenate([cap_r, cone_r])
+
+
+@dataclass(frozen=True)
+class MulticonicJunction:
+    """Where one cone hands over to the next, through a tangent fillet.
+
+    The sampled profile passes through these points, and the exact solid is
+    built from them -- a straight segment up to :attr:`stop`, an arc about
+    :attr:`centre` to :attr:`resume`. Returning them is what lets the two
+    representations share a derivation instead of each computing the blend
+    from the same formula and hoping.
+    """
+
+    stop: _FloatArray
+    """``(x, r)`` where the frustum ends and the fillet begins."""
+
+    centre: _FloatArray
+    """``(x, r)`` centre of the fillet arc."""
+
+    resume: _FloatArray
+    """``(x, r)`` where the fillet ends and the next frustum begins."""
+
+    radius: float
+    """Fillet radius; zero when the two cones are parallel and there is no blend."""
+
+
+def multiconic_meridian(
+    nose_radius: float,
+    lengths: Sequence[float],
+    half_angles: Sequence[float],
+    fillet_radii: Sequence[float],
+    cap_intervals: int,
+    segment_intervals: int,
+    fillet_intervals: int,
+) -> tuple[_FloatArray, _FloatArray, tuple[MulticonicJunction, ...]]:
+    """A blunted cone of one or more segments, blended at each junction.
+
+    ``lengths`` are measured **along the axis from the previous segment's
+    start**, not as absolute stations, and the first is measured from the cap
+    tangency. Junction fillets are tangent to both cones, so the profile is
+    :math:`C^1` everywhere.
+
+    The tangent length
+    ------------------
+
+    A circular arc of radius :math:`R_f` blending two lines that meet at
+    deflection :math:`\\delta` stands off the corner by
+    :math:`T = R_f\\tan(\\delta/2)`. The reciprocal form,
+    :math:`R_f/\\tan(\\delta/2)`, is the one that looks equally plausible and
+    is wrong: it *diverges* as the cones become parallel, which is the usual
+    case, since consecutive cone angles differ by a few degrees. At the
+    twelve-to-seven-degree junction these functions default to, it returns
+    2.29 m of tangent for a 1.0 m segment, so both tangency points land
+    outside their own frusta and the profile folds back through the nose.
+    That fold is invisible to a panel integration, which sums unordered
+    faces, and fatal to a mesh generator, which sees overlapping facets.
+    """
+    lengths = list(lengths)
+    half_angles = list(half_angles)
+    fillet_radii = list(fillet_radii)
+    if len(lengths) != len(half_angles):
+        raise ValueError(f"got {len(lengths)} lengths for {len(half_angles)} half-angles")
+    if len(fillet_radii) != len(lengths) - 1:
+        raise ValueError(
+            f"need one fillet radius per junction: {len(lengths) - 1}, got {len(fillet_radii)}"
+        )
+    if not lengths:
+        raise ValueError("a multiconic needs at least one segment")
+
+    phi_tangent = 0.5 * np.pi - half_angles[0]
+    phi = np.linspace(0.0, phi_tangent, cap_intervals + 1)
+    station = [nose_radius * (1.0 - np.cos(phi))]
+    radius = [nose_radius * np.sin(phi)]
+
+    here = np.array(sphere_cone_tangency(nose_radius, half_angles[0]))
+    junctions: list[MulticonicJunction] = []
+
+    for index, (length, angle) in enumerate(zip(lengths, half_angles, strict=True)):
+        corner = here + float(length) * np.array([1.0, np.tan(angle)])
+        if index == len(lengths) - 1:
+            station.append(np.linspace(here[0], corner[0], segment_intervals + 1)[1:])
+            radius.append(np.linspace(here[1], corner[1], segment_intervals + 1)[1:])
+            here = corner
+            continue
+
+        following = half_angles[index + 1]
+        fillet = float(fillet_radii[index])
+        half_delta = abs(angle - following) / 2.0
+        tangent = fillet * np.tan(half_delta) if half_delta > 1e-6 else 0.0
+
+        stop = corner - tangent * np.array([np.cos(angle), np.sin(angle)])
+        centre = stop + fillet * np.array([np.sin(angle), -np.cos(angle)])
+        resume = corner + tangent * np.array([np.cos(following), np.sin(following)])
+
+        station.append(np.linspace(here[0], stop[0], segment_intervals + 1)[1:])
+        radius.append(np.linspace(here[1], stop[1], segment_intervals + 1)[1:])
+
+        sweep = np.linspace(
+            0.5 * np.pi - angle, 0.5 * np.pi - following, max(4, fillet_intervals + 1)
+        )[1:]
+        station.append(centre[0] - fillet * np.cos(sweep))
+        radius.append(centre[1] + fillet * np.sin(sweep))
+
+        junctions.append(
+            MulticonicJunction(stop=stop, centre=centre, resume=resume, radius=tangent and fillet)
+        )
+        here = resume
+
+    return np.concatenate(station), np.concatenate(radius), tuple(junctions)

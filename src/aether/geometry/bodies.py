@@ -30,7 +30,11 @@ from numpy.typing import NDArray
 
 from aether.geometry.brep import Loft, Revolve
 from aether.geometry.edges import Arc, Contour, Segment, round_corners, rounded_contour
-from aether.geometry.profiles import sphere_cone_meridian, sphere_cone_tangency
+from aether.geometry.profiles import (
+    multiconic_meridian,
+    sphere_cone_meridian,
+    sphere_cone_tangency,
+)
 
 __all__ = [
     "blunted_multiconic",
@@ -437,64 +441,38 @@ def blunted_multiconic(
         msg = f"need one fillet radius per junction: {len(lengths) - 1}, got {len(fillet_radii)}"
         raise ValueError(msg)
 
-    theta_0 = float(half_angles[0])
-    phi = np.linspace(0.0, 0.5 * np.pi - theta_0, int(n_cap))
-    station = list(nose_radius * (1.0 - np.cos(phi)))
-    radius = list(nose_radius * np.sin(phi))
+    # One derivation of the meridian, shared with the panel generator; the
+    # junctions come back with it so the exact arcs below are built from the
+    # same blend the sampled profile passes through, not a second computation
+    # of it.
+    station_array, radius_array, junctions = multiconic_meridian(
+        nose_radius,
+        [float(value) for value in lengths],
+        [float(value) for value in half_angles],
+        [float(value) for value in fillet_radii],
+        cap_intervals=int(n_cap) - 1,
+        segment_intervals=int(n_segment) - 1,
+        fillet_intervals=int(n_fillet) - 1,
+    )
 
-    # Built alongside the sampled profile: same geometry, exact primitives.
     cap = Arc(
         start=np.array([0.0, 0.0]),
-        end=np.array([station[-1], radius[-1]]),
+        end=np.array(sphere_cone_tangency(nose_radius, float(half_angles[0]))),
         centre=np.array([nose_radius, 0.0]),
     )
     prims: list[Arc | Segment] = [cap]
     here = cap.end
+    for junction in junctions:
+        if float(np.linalg.norm(junction.stop - here)) > 1e-12:
+            prims.append(Segment(here, junction.stop))
+        here = junction.resume
+        if junction.radius > 0.0:
+            prims.append(Arc(junction.stop, here, junction.centre))
+    final = np.array([station_array[-1], radius_array[-1]])
+    if float(np.linalg.norm(final - here)) > 1e-12:
+        prims.append(Segment(here, final))
+    here = final
 
-    x_current, r_current = station[-1], radius[-1]
-    for index, (segment_length, theta) in enumerate(zip(lengths, half_angles, strict=True)):
-        theta = float(theta)
-        if index == len(lengths) - 1:
-            x_end = x_current + float(segment_length)
-            r_end = r_current + float(segment_length) * np.tan(theta)
-            station += list(np.linspace(x_current, x_end, int(n_segment))[1:])
-            radius += list(np.linspace(r_current, r_end, int(n_segment))[1:])
-            prims.append(Segment(here, np.array([x_end, r_end])))
-            here = np.array([x_end, r_end])
-            continue
-
-        theta_next = float(half_angles[index + 1])
-        fillet = float(fillet_radii[index])
-        half_delta = abs(theta - theta_next) / 2.0
-        tangent = fillet * np.tan(half_delta) if half_delta > 1e-6 else 0.0
-
-        x_corner = x_current + float(segment_length)
-        r_corner = r_current + float(segment_length) * np.tan(theta)
-        x_stop = x_corner - tangent * np.cos(theta)
-        r_stop = r_corner - tangent * np.sin(theta)
-        station += list(np.linspace(x_current, x_stop, int(n_segment))[1:])
-        radius += list(np.linspace(r_current, r_stop, int(n_segment))[1:])
-
-        centre_x = x_stop + fillet * np.sin(theta)
-        centre_r = r_stop - fillet * np.cos(theta)
-        angles = np.linspace(0.5 * np.pi - theta, 0.5 * np.pi - theta_next, max(4, int(n_fillet)))[
-            1:
-        ]
-        station += list(centre_x - fillet * np.cos(angles))
-        radius += list(centre_r + fillet * np.sin(angles))
-
-        x_current = x_corner + tangent * np.cos(theta_next)
-        r_current = r_corner + tangent * np.sin(theta_next)
-
-        stop = np.array([x_stop, r_stop])
-        if float(np.linalg.norm(stop - here)) > 1e-12:
-            prims.append(Segment(here, stop))
-        here = np.array([x_current, r_current])
-        if tangent > 0.0:
-            prims.append(Arc(stop, here, np.array([centre_x, centre_r])))
-
-    station_array = np.asarray(station, dtype=np.float64)
-    radius_array = np.asarray(radius, dtype=np.float64)
     if shoulder_radius > 0.0:
         arc = _shoulder(
             float(station_array[-1]),

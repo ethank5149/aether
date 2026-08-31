@@ -26,6 +26,7 @@ from numpy.typing import NDArray
 
 from aether.aerodynamics.closure import blended_pressure_coefficient
 from aether.geometry.profiles import (
+    multiconic_meridian,
     sphere_cone_closure,
     sphere_cone_meridian,
     sphere_cone_tangency,
@@ -730,78 +731,21 @@ def blunted_multiconic(
     if len(fillet_radii) != len(lengths) - 1:
         raise ValueError("Must provide exactly one fillet radius per junction.")
 
-    n_segments = len(lengths)
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
 
-    x_profile, r_profile = [], []
-
-    theta_0 = half_angles[0]
-    phi_tangent = 0.5 * np.pi - theta_0
-    for phi in np.linspace(0, phi_tangent, n_axial_per_segment):
-        x_profile.append(nose_radius * (1.0 - np.cos(phi)))
-        r_profile.append(nose_radius * np.sin(phi))
-
-    x_current = nose_radius * (1.0 - np.sin(theta_0))
-    r_current = nose_radius * np.cos(theta_0)
-
-    for i in range(n_segments):
-        theta = half_angles[i]
-
-        if i < n_segments - 1:
-            theta_next = half_angles[i + 1]
-            R_f = fillet_radii[i]
-
-            L_seg = lengths[i]
-            x_int = x_current + L_seg
-            r_int = r_current + L_seg * np.tan(theta)
-
-            half_delta = abs(theta - theta_next) / 2.0
-            # Tangent length of a circular arc of radius R_f blending two lines
-            # that meet at deflection angle delta: T = R tan(delta/2). The
-            # reciprocal, R/tan(delta/2), is the *cotangent* form and diverges
-            # as the cones become parallel — which is the usual case, since
-            # consecutive cone angles differ by a few degrees. At the default
-            # 12/7-degree junction it returns 2.29 m of tangent for a 1.0 m
-            # segment, so both tangency points land outside their own frusta and
-            # the profile folds back through the nose. That fold is invisible to
-            # a panel integration, which sums unordered faces, and fatal to a
-            # mesh generator, which sees overlapping facets.
-            L_tan = R_f * np.tan(half_delta) if half_delta > 1e-6 else 0.0
-
-            x_end_frustum = x_int - L_tan * np.cos(theta)
-            r_end_frustum = r_int - L_tan * np.sin(theta)
-
-            x_start_next = x_int + L_tan * np.cos(theta_next)
-            r_start_next = r_int + L_tan * np.sin(theta_next)
-
-            x_c = x_end_frustum + R_f * np.sin(theta)
-            r_c = r_end_frustum - R_f * np.cos(theta)
-
-            x_frust = np.linspace(x_current, x_end_frustum, n_axial_per_segment)[1:]
-            r_frust = np.linspace(r_current, r_end_frustum, n_axial_per_segment)[1:]
-            x_profile.extend(x_frust)
-            r_profile.extend(r_frust)
-
-            angles = np.linspace(
-                np.pi / 2 - theta,
-                np.pi / 2 - theta_next,
-                max(4, n_axial_per_segment // 2),
-            )[1:]
-            for a in angles:
-                x_profile.append(x_c - R_f * np.cos(a))
-                r_profile.append(r_c + R_f * np.sin(a))
-
-            x_current, r_current = x_start_next, r_start_next
-
-        else:
-            x_end = x_current + lengths[i]
-            r_end = r_current + lengths[i] * np.tan(theta)
-            x_frust = np.linspace(x_current, x_end, n_axial_per_segment)[1:]
-            r_frust = np.linspace(r_current, r_end, n_axial_per_segment)[1:]
-            x_profile.extend(x_frust)
-            r_profile.extend(r_frust)
-
-    x_prof, r_prof = np.array(x_profile), np.array(r_profile)
+    # The meridian comes from `geometry.profiles`, which the solid built by
+    # `geometry.bodies.blunted_multiconic` samples too, so a multiconic is one
+    # curve with two representations rather than two derivations that agree
+    # until somebody edits one of them.
+    x_prof, r_prof, _ = multiconic_meridian(
+        nose_radius,
+        lengths,
+        half_angles,
+        fillet_radii,
+        cap_intervals=n_axial_per_segment - 1,
+        segment_intervals=n_axial_per_segment - 1,
+        fillet_intervals=max(4, n_axial_per_segment // 2) - 1,
+    )
     vertices = np.zeros((len(x_prof), len(psi), 3))
 
     for i, (x, r) in enumerate(zip(x_prof, r_prof, strict=True)):
