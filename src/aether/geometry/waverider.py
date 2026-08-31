@@ -60,7 +60,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from aether.aerodynamics.panels import SurfaceGrid
-from aether.geometry.mesh import VehicleMesh
+from aether.geometry.mesh import VehicleMesh, _weld
 
 _FloatArray = NDArray[np.float64]
 _IntArray = NDArray[np.int64]
@@ -97,11 +97,39 @@ def circular_shock_curve(radius: float) -> Callable[[_FloatArray], _FloatArray]:
 def power_shock_curve(
     depth: float, half_span: float, exponent: float = 2.0
 ) -> Callable[[_FloatArray], _FloatArray]:
-    """A power-law SPC: :math:`z_s = d\\,(|y|/b)^{n}`, flat-bottomed for ``n > 2``.
+    """A power-law SPC: :math:`z_s = d\\,(|y|/b)^{n}`, with varying curvature.
 
-    Curvature varies along the span, which is the case the osculating-cone
-    method exists for -- the local cone is a different cone at every station.
+    The case the osculating-cone method exists for -- the local cone is a
+    different cone at every station -- and the reason the exponent is bounded
+    above by two.
+
+    Why :math:`n \\le 2`
+    ------------------
+
+    The construction puts each osculating plane's cone axis at the SPC's local
+    **centre of curvature**, so it needs a curvature to put it at. For this
+    family
+
+    .. math:: z_s'' = \\frac{d\\,n(n-1)}{b^{n}}\\,|y|^{\\,n-2},
+
+    which **vanishes at the centreline for** :math:`n > 2`. The osculating
+    radius there is therefore unbounded, the local apex runs away upstream --
+    :math:`x_{apex} = L - R/\\tan\\beta` -- and the body grows a longer and
+    longer centreline chord the more finely the span is sampled. It still
+    closes, still meshes, and still looks like a waverider; it is simply not a
+    convergent design. At :math:`n = 2.6` and a 0.55 m half-span the apex sits
+    6.5 m *ahead* of a 4 m body, and at :math:`n = 3` it sits 30 m ahead.
+
+    :math:`n = 2` is the natural bound rather than an arbitrary one: the
+    parabola is the flattest member of the family whose centreline curvature
+    is still finite and non-zero, :math:`z_s'' = 2d/b^2`.
     """
+    if not 0.0 < exponent <= 2.0:
+        raise ValueError(
+            f"exponent must lie in (0, 2], got {exponent}: above two the curve is flat at "
+            "the centreline, so its osculating radius is unbounded there and the local "
+            "cone has no apex to sit at -- the design does not converge under refinement"
+        )
 
     def curve(y: _FloatArray) -> _FloatArray:
         return np.asarray(depth * (np.abs(y) / half_span) ** exponent)
@@ -134,84 +162,146 @@ class OsculatingConeWaverider:
     """The cone half-angle whose attached shock sits at :attr:`shock_angle`."""
     length: float
 
-    def to_mesh(self, name: str = "osculating-cone-waverider") -> VehicleMesh:
+    def to_mesh(
+        self,
+        name: str = "osculating-cone-waverider",
+        thickness_divisions: int | None = None,
+        weld_tolerance: float = 1.0e-9,
+    ) -> VehicleMesh:
         """Stitch the design into a watertight, outward-wound triangle mesh.
 
-        Built from patches rather than from the ring net, because the ring is
-        the wrong topology for this body. A structured ring assumes every
-        station is a closed loop, and a waverider's first station is not a
-        loop -- it is the leading edge, where the two surfaces *meet*. Handed
-        that, the weld collapses the row onto itself and leaves the edges
-        along it shared by three faces: no open boundary, and still not a
-        solid.
+        Built from patches rather than a ring net, because the ring is the
+        wrong topology for this body: a structured ring assumes every station
+        is a closed loop, and a waverider's first station is not a loop -- it
+        is the leading edge, where the two surfaces *meet*.
 
         Five patches close it: the compression surface, the freestream
         surface, the base, and a flat panel at each span tip where the two
         surfaces separate downstream of the edge they share.
+
+        Why the base and tips are subdivided
+        ------------------------------------
+
+        Because closing them with a single strip guarantees slivers. The base
+        spans the body's whole thickness -- half a metre on the default design
+        -- while neighbouring planes are forty millimetres apart, so one strip
+        of triangles across it is thirteen to one before any geometry is
+        considered. That, and not the surfaces, was where the worst cell on
+        this body lived. ``thickness_divisions`` cuts both the base and the
+        tips into bands; left as ``None`` it is chosen so the bands are about
+        as tall as the spanwise spacing is wide.
         """
-        n_axial, n_span = self.lower.shape[:2]
-        edge = self.lower[0]
-        lower_rows, upper_rows = self.lower[1:], self.upper[1:]
-        vertices = np.concatenate([edge, lower_rows.reshape(-1, 3), upper_rows.reshape(-1, 3)])
-        lower_base, upper_base = n_span, n_span + (n_axial - 1) * n_span
+        n_span = self.lower.shape[1]
+        if thickness_divisions is None:
+            thickness = float(np.median(np.linalg.norm(self.upper[-1] - self.lower[-1], axis=1)))
+            across = float(np.median(np.linalg.norm(np.diff(self.lower[-1], axis=0), axis=1)))
+            thickness_divisions = int(np.clip(round(thickness / max(across, 1e-12)), 1, 64))
+        divisions = max(1, int(thickness_divisions))
 
-        def node(row: int, column: int, upper: bool) -> _IntArray:
-            if row == 0:
-                return np.asarray(column, dtype=np.int64)
-            offset = upper_base if upper else lower_base
-            return np.asarray(offset + (row - 1) * n_span + column, dtype=np.int64)
+        def quads(grid: _FloatArray) -> list[_FloatArray]:
+            """Triangulate a structured patch, dropping degenerate corners."""
+            faces: list[_FloatArray] = []
+            rows, columns = grid.shape[:2]
+            for row in range(rows - 1):
+                for column in range(columns - 1):
+                    a, b = grid[row, column], grid[row, column + 1]
+                    c, d = grid[row + 1, column + 1], grid[row + 1, column]
+                    for corners in ((a, b, c), (a, c, d)):
+                        triangle = np.asarray(corners)
+                        edges = triangle[[1, 2, 0]] - triangle
+                        if np.linalg.norm(np.cross(edges[0], edges[1])) <= 0.0:
+                            continue
+                        faces.append(triangle)
+            return faces
 
-        faces: list[list[int]] = []
-        for row in range(n_axial - 1):
-            for column in range(n_span - 1):
-                a, b = node(row, column, False), node(row, column + 1, False)
-                c, d = node(row + 1, column + 1, False), node(row + 1, column, False)
-                faces += [[int(a), int(c), int(b)], [int(a), int(d), int(c)]]
-                a, b = node(row, column, True), node(row, column + 1, True)
-                c, d = node(row + 1, column + 1, True), node(row + 1, column, True)
-                faces += [[int(a), int(b), int(c)], [int(a), int(c), int(d)]]
+        bands = np.linspace(0.0, 1.0, divisions + 1)[:, None]
+        triangles: list[_FloatArray] = []
+        triangles += quads(self.lower)
+        triangles += quads(self.upper)
+        # Base: lower edge to upper edge, in bands across the thickness.
+        base = self.lower[-1] + bands[:, :, None] * (self.upper[-1] - self.lower[-1])
+        triangles += quads(base)
+        # Tips: the same interpolation, run along the body instead of across it.
+        for column in (0, n_span - 1):
+            tip = self.lower[:, column] + bands[:, :, None] * (
+                self.upper[:, column] - self.lower[:, column]
+            )
+            triangles += quads(np.transpose(tip, (1, 0, 2)))
 
-        # The base, closing the two surfaces at x = L. Wound against the
-        # compression surface's direction, so that its outward normal points
-        # aft rather than back into the body -- which is what makes the shell
-        # consistently oriented and not merely closed.
-        last = n_axial - 1
-        for column in range(n_span - 1):
-            a, b = node(last, column, False), node(last, column + 1, False)
-            c, d = node(last, column + 1, True), node(last, column, True)
-            faces += [[int(a), int(c), int(b)], [int(a), int(d), int(c)]]
-
-        for column, flip in ((0, True), (n_span - 1, False)):
-            for row in range(n_axial - 1):
-                a, b = node(row, column, False), node(row + 1, column, False)
-                c, d = node(row + 1, column, True), node(row, column, True)
-                # At the leading edge the two surfaces share their vertex, so
-                # the tip panel is a triangle there and not a quadrilateral.
-                # Emitting the quad anyway leaves a face with a repeated
-                # corner: zero area, invisible, and enough to make the solid
-                # non-manifold along the one edge that matters.
-                quad = (
-                    [[int(a), int(b), int(c)]]
-                    if row == 0
-                    else [[int(a), int(b), int(c)], [int(a), int(c), int(d)]]
-                )
-                faces += [face[::-1] for face in quad] if flip else quad
-
-        mesh = VehicleMesh(vertices=vertices, faces=np.asarray(faces, dtype=np.int64), name=name)
-        triangles = mesh.triangles
+        vertices, faces = _weld(np.asarray(triangles, dtype=np.float64), weld_tolerance)
+        # Degeneracy has to be removed *after* welding, not before. A patch
+        # whose corners differ by less than the weld tolerance has a non-zero
+        # area as coordinates and a repeated vertex as indices, so dropping on
+        # area first leaves faces that collapse a moment later -- and a face
+        # with a repeated corner is a self-edge, which makes the shell
+        # non-manifold at exactly the point it looks closed. The span tip's
+        # leading edge is where that happens here: the two surfaces meet, and
+        # the panel between them has nowhere to go.
+        distinct = (
+            (faces[:, 0] != faces[:, 1])
+            & (faces[:, 1] != faces[:, 2])
+            & (faces[:, 2] != faces[:, 0])
+        )
+        faces = _orient(faces[distinct])
+        mesh = VehicleMesh(vertices=vertices, faces=faces, name=name)
+        corners = mesh.triangles
         volume = float(
             np.einsum(
                 "ij,ij->i",
-                triangles[:, 0],
-                np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]),
+                corners[:, 0],
+                np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0]),
             ).sum()
             / 6.0
         )
         if volume < 0.0:
-            mesh = VehicleMesh(
-                vertices=vertices, faces=np.asarray(faces, dtype=np.int64)[:, ::-1], name=name
-            )
+            mesh = VehicleMesh(vertices=vertices, faces=faces[:, ::-1], name=name)
         return mesh
+
+
+def _orient(faces: _IntArray) -> _IntArray:
+    """Make every face agree with its neighbours about which way is out.
+
+    Four patches meet on this body -- two surfaces, a base and two tips --
+    and each is built in whatever order its own indices run, so their windings
+    do not line up. Flipping them by hand is guesswork that has to be redone
+    whenever a patch is added, and a single wrong guess leaves a shell that
+    still closes and reports a nonsense volume.
+
+    So it is done by propagation instead: start anywhere, walk the shared
+    edges, and require that each edge be traversed once in each direction --
+    which is what a consistently oriented manifold means. The caller still has
+    to decide whether the result points out or in; that is one global sign,
+    settled by the enclosed volume.
+    """
+    faces = np.asarray(faces, dtype=np.int64).copy()
+    neighbours: dict[tuple[int, int], list[int]] = {}
+    for index, triangle in enumerate(faces):
+        corners = [int(v) for v in triangle]
+        for a, b in zip(corners, corners[1:] + corners[:1], strict=True):
+            neighbours.setdefault((min(a, b), max(a, b)), []).append(index)
+
+    seen = np.zeros(len(faces), dtype=bool)
+    for seed in range(len(faces)):
+        if seen[seed]:
+            continue
+        seen[seed] = True
+        queue = [seed]
+        while queue:
+            index = queue.pop()
+            corners = [int(v) for v in faces[index]]
+            directed = set(zip(corners, corners[1:] + corners[:1], strict=True))
+            for a, b in directed:
+                for other in neighbours.get((min(a, b), max(a, b)), ()):
+                    if other == index or seen[other]:
+                        continue
+                    seen[other] = True
+                    theirs = [int(v) for v in faces[other]]
+                    # Sharing a directed edge means the two disagree: a
+                    # consistent pair traverses the edge in opposite senses.
+                    if (a, b) in set(zip(theirs, theirs[1:] + theirs[:1], strict=True)):
+                        faces[other] = faces[other][::-1]
+                    queue.append(other)
+    return faces
 
 
 def _curvature(y: _FloatArray, z: _FloatArray) -> tuple[_FloatArray, _FloatArray]:

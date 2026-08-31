@@ -78,7 +78,16 @@ MeshProgress = Callable[[str, float], None]
 # Reporting a work fraction would mean inventing one -- gmsh does not expose
 # its internal progress through the API -- so the stage name is the honest
 # signal and is what a display should show.
-_STAGES = ("surface", "farfield", "sizing", "mesh 1D", "mesh 2D", "mesh 3D", "write")
+_STAGES = (
+    "surface",
+    "farfield",
+    "sizing",
+    "mesh 1D",
+    "mesh 2D",
+    "mesh 3D",
+    "quality",
+    "write",
+)
 
 
 def console_progress(
@@ -162,6 +171,7 @@ __all__ = [
     "BoundaryLayerTruncated",
     "DomainSizing",
     "MeshProgress",
+    "MeshQuality",
     "MeshResult",
     "RefinementBall",
     "ViscousSizing",
@@ -348,6 +358,72 @@ class DomainSizing:
 
 
 @dataclass(frozen=True)
+class MeshQuality:
+    """Element shape quality of a written volume mesh.
+
+    Sizing decides whether a feature is *resolved*; quality decides whether the
+    solver can integrate over the cells at all, and the two fail
+    independently. A mesh can be fine everywhere it matters and still carry a
+    handful of inverted tetrahedra, and SU2 reports those as non-physical
+    points before its first iteration rather than as a meshing problem -- so
+    the cheapest place to learn about them is here, next to the build that
+    made them.
+
+    The measure is gmsh's ``minSICN``: the sampled minimum signed inverse
+    condition number, 1 for a perfect element and **at or below zero for an
+    inverted one**. The sign is what makes it the right default -- a merely
+    stretched cell is survivable and an inverted cell is not, and no
+    single-sided measure distinguishes them.
+    """
+
+    measure: str
+    minimum: float
+    first_percentile: float
+    median: float
+    inverted: int
+    """Elements at or below zero quality: geometrically invalid, not merely poor."""
+
+    poor: int
+    """Elements below :attr:`threshold`, inverted ones included."""
+
+    threshold: float
+    elements: int
+
+    @property
+    def usable(self) -> bool:
+        """No inverted elements. Poor ones are a warning; inverted are a stop."""
+        return self.inverted == 0
+
+    def summary(self) -> str:
+        """One line, for a log or a caption."""
+        verdict = "ok" if self.usable else f"{self.inverted} INVERTED"
+        return (
+            f"{self.measure} min {self.minimum:+.4f}  p1 {self.first_percentile:+.4f}  "
+            f"median {self.median:+.4f}  below {self.threshold:g}: {self.poor}  [{verdict}]"
+        )
+
+
+def _measure_quality(gmsh: Any, threshold: float, measure: str = "minSICN") -> MeshQuality:
+    """Quality of every volume element gmsh currently holds."""
+    tags: list[int] = []
+    for kind in gmsh.model.mesh.getElementTypes(3):
+        tags.extend(int(tag) for tag in gmsh.model.mesh.getElementsByType(kind)[0])
+    if not tags:
+        return MeshQuality(measure, float("nan"), float("nan"), float("nan"), 0, 0, threshold, 0)
+    values = np.asarray(gmsh.model.mesh.getElementQualities(tags, measure), dtype=np.float64)
+    return MeshQuality(
+        measure=measure,
+        minimum=float(values.min()),
+        first_percentile=float(np.percentile(values, 1.0)),
+        median=float(np.median(values)),
+        inverted=int((values <= 0.0).sum()),
+        poor=int((values < threshold).sum()),
+        threshold=float(threshold),
+        elements=int(values.size),
+    )
+
+
+@dataclass(frozen=True)
 class MeshResult:
     """A written ``.su2`` mesh and what it cost."""
 
@@ -362,6 +438,9 @@ class MeshResult:
     """Boundary-layer cells, when the mesh has a boundary layer. Zero otherwise."""
     first_cell_height: float = float("nan")
     """Wall-normal size of the first cell (m), or NaN for an inviscid mesh."""
+
+    quality: MeshQuality | None = None
+    """Element shape quality, where it was measured."""
 
     @property
     def representative_size(self) -> float:
@@ -1959,6 +2038,8 @@ def inviscid_domain(
     base_station: float | None = None,
     refinement: Sequence[RefinementBall] = (),
     progress: MeshProgress | None = None,
+    optimize: bool = True,
+    quality_threshold: float = 0.1,
 ) -> MeshResult:
     """Isotropic tetrahedral domain around a closed body — no boundary layer.
 
@@ -2156,8 +2237,13 @@ def inviscid_domain(
         gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
         gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
         gmsh.option.setNumber("Mesh.Algorithm3D", 1)
-        gmsh.option.setNumber("Mesh.Optimize", 1)
-        gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
+        # Optimisation on by default and exposed rather than hard-coded: it is
+        # what removes the slivers a Delaunay fill leaves behind, and turning
+        # it off is a legitimate thing to want when bisecting a bad mesh --
+        # the difference between "the mesher made this" and "the optimiser
+        # made this" is otherwise unobservable.
+        gmsh.option.setNumber("Mesh.Optimize", int(optimize))
+        gmsh.option.setNumber("Mesh.OptimizeNetgen", int(optimize))
         # One dimension at a time. `generate(3)` runs the same three passes
         # internally and returns only when all of them are done, so calling
         # them separately costs nothing and is the difference between a
@@ -2166,6 +2252,9 @@ def inviscid_domain(
         for dimension in (1, 2, 3):
             report(f"mesh {dimension}D")
             gmsh.model.mesh.generate(dimension)
+
+        report("quality")
+        quality = _measure_quality(gmsh, quality_threshold)
 
         report("write")
         node_tags, _, _ = gmsh.model.mesh.getNodes()
@@ -2193,5 +2282,6 @@ def inviscid_domain(
         mach=float(mach),
         dimension=3,
         n_prisms=0,
+        quality=quality,
         first_cell_height=float(wall_refinement * diameter),
     )

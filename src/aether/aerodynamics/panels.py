@@ -26,6 +26,8 @@ from numpy.typing import NDArray
 
 from aether.aerodynamics.closure import blended_pressure_coefficient
 from aether.geometry.profiles import (
+    arc_length_intervals,
+    multiconic_arcs,
     multiconic_meridian,
     sphere_cone_closure,
     sphere_cone_meridian,
@@ -737,14 +739,23 @@ def blunted_multiconic(
     # `geometry.bodies.blunted_multiconic` samples too, so a multiconic is one
     # curve with two representations rather than two derivations that agree
     # until somebody edits one of them.
+    # Points are shared out by arc length, with a floor on the curved pieces
+    # so each stays resolved as a curve. Giving every piece the same count
+    # regardless of its length is what used to put needles at the junction:
+    # the fillet is a three-hundredth of the meridian and was taking a seventh
+    # of the points, for cells 74 times longer around the body than along it
+    # and 14 % of the wall classed as slivers.
+    arcs, turns = multiconic_arcs(nose_radius, lengths, half_angles, fillet_radii)
+    budget = int(n_axial_per_segment) * (len(lengths) + 1)
     x_prof, r_prof, _ = multiconic_meridian(
         nose_radius,
         lengths,
         half_angles,
         fillet_radii,
-        cap_intervals=n_axial_per_segment - 1,
-        segment_intervals=n_axial_per_segment - 1,
-        fillet_intervals=max(4, n_axial_per_segment // 2) - 1,
+        cap_intervals=0,
+        segment_intervals=0,
+        fillet_intervals=0,
+        intervals=arc_length_intervals(arcs, budget, turns=turns),
     )
     vertices = np.zeros((len(x_prof), len(psi), 3))
 

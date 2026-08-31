@@ -43,7 +43,7 @@ def variable():
         shock_angle=_BETA,
         length=_LENGTH,
         half_span=0.55,
-        shock_curve=power_shock_curve(0.35, 0.55, 2.6),
+        shock_curve=power_shock_curve(0.35, 0.55, 2.0),
     )
 
 
@@ -193,3 +193,138 @@ def test_a_shock_the_flow_cannot_support_is_refused() -> None:
 def test_a_span_wider_than_its_own_arc_is_refused() -> None:
     with pytest.raises(ValueError, match="must stay inside the arc"):
         osculating_cone_waverider(design_mach=8.0, shock_angle=_BETA, length=_LENGTH, half_span=5.0)
+
+
+def test_a_shock_curve_flat_at_the_centreline_is_refused() -> None:
+    """The design degenerates there, quietly, and still produces a body.
+
+    For :math:`z_s = d(|y|/b)^n` the second derivative goes as
+    :math:`|y|^{n-2}`, so above :math:`n = 2` the centreline curvature is zero
+    and the osculating radius unbounded. The local apex then runs away
+    upstream and the centreline chord grows with every refinement of the span:
+    the body still closes and still meshes, it just is not a convergent
+    design. At :math:`n = 2.6` the apex sat 6.5 m ahead of a 4 m body.
+    """
+    for exponent in (2.6, 3.0, 4.0):
+        with pytest.raises(ValueError, match="osculating radius is unbounded"):
+            power_shock_curve(0.35, 0.55, exponent)
+    for exponent in (0.0, -1.0):
+        with pytest.raises(ValueError, match="exponent must lie"):
+            power_shock_curve(0.35, 0.55, exponent)
+
+
+def test_the_parabola_keeps_the_body_downstream_of_its_apex(variable) -> None:
+    """The consequence of that bound, at the default the study now uses.
+
+    Every leading-edge station is downstream of the nose, and the osculating
+    radius varies by a bounded factor rather than an unbounded one -- which is
+    what keeps the chord, and therefore the cell aspect ratio, in hand.
+    """
+    assert variable.leading_edge[:, 0].min() > 0.0
+    radius = variable.osculating_radius
+    assert radius.max() / radius.min() < 6.0
+
+
+# ------------------------------------------------------- closing the body
+
+
+def test_the_base_is_banded_rather_than_bridged(cone_derived) -> None:
+    """A single strip across the base guarantees slivers, whatever the shape.
+
+    The base spans the body's whole thickness -- half a metre on the default
+    design -- while neighbouring planes are forty millimetres apart, so one
+    row of triangles across it is thirteen to one before any geometry is
+    considered. That, not the compression surface, was where the worst cell on
+    this body lived.
+    """
+    mesh = cone_derived.to_mesh()
+    base = np.abs(mesh.vertices[:, 0] - cone_derived.length) < 1e-9
+    corners = mesh.faces[base[mesh.faces].all(axis=1)]
+    assert len(corners) > 0
+
+    triangles = mesh.vertices[corners]
+    edges = np.stack(
+        [
+            np.linalg.norm(triangles[:, 1] - triangles[:, 0], axis=1),
+            np.linalg.norm(triangles[:, 2] - triangles[:, 1], axis=1),
+            np.linalg.norm(triangles[:, 0] - triangles[:, 2], axis=1),
+        ],
+        axis=1,
+    )
+    assert (edges.max(axis=1) / edges.min(axis=1)).max() < 8.0
+
+
+def test_the_thickness_banding_can_be_set_and_changes_the_count(cone_derived) -> None:
+    coarse = cone_derived.to_mesh(thickness_divisions=1)
+    fine = cone_derived.to_mesh(thickness_divisions=8)
+    assert len(fine.faces) > len(coarse.faces)
+    for mesh in (coarse, fine):
+        assert mesh.is_closed
+
+
+def test_banding_the_base_does_not_move_the_body(cone_derived) -> None:
+    """More faces across the base, the same solid: the volume is the check."""
+    volumes = []
+    for divisions in (1, 4, 12):
+        mesh = cone_derived.to_mesh(thickness_divisions=divisions)
+        triangles = mesh.triangles
+        volumes.append(
+            float(
+                np.einsum(
+                    "ij,ij->i",
+                    triangles[:, 0],
+                    np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]),
+                ).sum()
+                / 6.0
+            )
+        )
+    assert volumes[0] == pytest.approx(volumes[1], rel=1e-9)
+    assert volumes[0] == pytest.approx(volumes[2], rel=1e-9)
+
+
+def test_the_shell_is_oriented_by_propagation_not_by_guesswork(variable) -> None:
+    """Four patches meet here and none of them agrees on winding by luck.
+
+    Flipping each by hand is guesswork that must be redone whenever a patch is
+    added, and one wrong guess leaves a shell that still closes and reports a
+    nonsense volume -- which is what happened: 242 directed edges traversed
+    twice, and a volume three times the truth.
+    """
+    mesh = variable.to_mesh()
+    directed: Counter = Counter()
+    for triangle in mesh.faces:
+        corners = [int(v) for v in triangle]
+        for a, b in zip(corners, corners[1:] + corners[:1], strict=True):
+            directed[(a, b)] += 1
+    assert all(count == 1 for count in directed.values())
+
+
+def test_a_face_that_collapses_in_the_weld_is_dropped(variable) -> None:
+    """Degeneracy has to be removed after welding, not before.
+
+    A patch whose corners differ by less than the weld tolerance has area as
+    coordinates and a repeated vertex as indices. Dropping on area first
+    leaves a face that collapses a moment later, and a face with a repeated
+    corner is a self-edge -- non-manifold at exactly the point the shell looks
+    closed. The span tip's leading edge is where that happens: the two
+    surfaces meet and the panel between them has nowhere to go.
+    """
+    faces = variable.to_mesh().faces
+    assert np.all(faces[:, 0] != faces[:, 1])
+    assert np.all(faces[:, 1] != faces[:, 2])
+    assert np.all(faces[:, 2] != faces[:, 0])
+
+
+def test_the_chord_follows_the_osculating_radius(variable) -> None:
+    """Why this shape is intrinsically harder to mesh evenly than a cone.
+
+    :math:`\\text{chord} = (1-f)\\,R/\\tan\\beta`, so a shock curve whose
+    curvature varies *must* give a chord that varies with it -- the cell size
+    along the body follows the design, not the mesher. Only a circular shock
+    curve, which is the cone-derived case, has a constant chord.
+    """
+    chord = variable.length - variable.leading_edge[:, 0]
+    radius = variable.osculating_radius
+    ratio = chord / radius
+    assert np.allclose(ratio, ratio[0], rtol=1e-6)
+    assert chord.max() / chord.min() == pytest.approx(radius.max() / radius.min(), rel=1e-6)

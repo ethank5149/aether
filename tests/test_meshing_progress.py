@@ -145,14 +145,20 @@ def test_the_main_thread_keeps_running_while_gmsh_works() -> None:
 
 
 def test_the_stage_list_puts_the_expensive_pass_where_it_belongs() -> None:
-    """3D is the pass that dominates, and it must not be the last thing shown.
+    """3D dominates the wall time, so it must not be the last stage shown.
 
-    If ``write`` did not follow it, a display would sit at 100 % through the
-    longest part of the build.
+    If nothing followed it, a display would sit at 100 % through the longest
+    part of the build -- which is the hang this machinery exists to disprove,
+    reintroduced at the last moment. Stated as "something comes after it"
+    rather than as an index, so adding a stage does not fail a test whose
+    point it does not touch.
     """
     assert _STAGES[-1] == "write"
-    assert _STAGES.index("mesh 3D") == len(_STAGES) - 2
+    assert "mesh 3D" in _STAGES
+    assert _STAGES.index("mesh 3D") < len(_STAGES) - 1
     assert list(_STAGES).count("mesh 3D") == 1
+    # The passes run in order, cheapest first.
+    assert _STAGES.index("mesh 1D") < _STAGES.index("mesh 2D") < _STAGES.index("mesh 3D")
 
 
 def test_a_real_build_reports_every_stage(tmp_path) -> None:
@@ -215,3 +221,85 @@ def test_the_bar_stops_ticking_once_the_build_is_done() -> None:
     time.sleep(0.2)
     assert stream.getvalue() == settled
     assert settled.endswith("\n")
+
+
+# --------------------------------------------------------------- quality
+
+
+def _quality(values: list[float], threshold: float = 0.1):
+    """A :class:`MeshQuality` over a given set of element qualities."""
+    from aether.aerodynamics.cfd.meshing import MeshQuality
+
+    array = np.asarray(values, dtype=np.float64)
+    return MeshQuality(
+        measure="minSICN",
+        minimum=float(array.min()),
+        first_percentile=float(np.percentile(array, 1.0)),
+        median=float(np.median(array)),
+        inverted=int((array <= 0.0).sum()),
+        poor=int((array < threshold).sum()),
+        threshold=threshold,
+        elements=int(array.size),
+    )
+
+
+def test_an_inverted_element_is_a_stop_and_a_poor_one_is_a_warning() -> None:
+    """The distinction the signed measure exists to make.
+
+    A stretched cell is survivable and an inverted cell is not -- SU2 reports
+    the second as a non-physical point before its first iteration. A
+    single-sided quality measure cannot tell them apart, which is why the
+    default is the *signed* inverse condition number.
+    """
+    poor = _quality([0.05, 0.4, 0.9, 0.95])
+    assert poor.poor == 1
+    assert poor.inverted == 0
+    assert poor.usable
+
+    inverted = _quality([-0.2, 0.4, 0.9, 0.95])
+    assert inverted.inverted == 1
+    assert not inverted.usable
+    assert "INVERTED" in inverted.summary()
+
+
+def test_zero_quality_counts_as_inverted() -> None:
+    """A flat element has no volume to integrate over; it is not merely poor."""
+    assert not _quality([0.0, 0.5, 0.9]).usable
+
+
+def test_the_summary_reports_the_measure_it_used() -> None:
+    """A quality number without its measure is not comparable to anything."""
+    text = _quality([0.3, 0.6, 0.9]).summary()
+    assert "minSICN" in text
+    assert "median" in text
+
+
+def test_quality_is_measured_on_a_real_mesh(tmp_path) -> None:
+    """End to end, and the optimiser must demonstrably improve it.
+
+    Not a fixed threshold -- gmsh's output varies with version -- but the
+    ordering, which is the property the default rests on: optimisation exists
+    to remove the slivers a Delaunay fill leaves behind, so a mesh built
+    without it must be measurably worse.
+    """
+    pytest.importorskip("gmsh")
+    from aether.aerodynamics.cfd.meshing import inviscid_domain
+    from aether.aerodynamics.panels import blunted_multiconic
+    from aether.geometry.mesh import VehicleMesh
+
+    body = VehicleMesh.from_surface_grid(
+        blunted_multiconic(
+            nose_radius=0.06, lengths=[2.0], half_angles=[np.radians(10.0)], fillet_radii=[]
+        ).surface,
+        name="sphere-cone",
+    )
+
+    measured = {}
+    for label, optimise in (("on", True), ("off", False)):
+        result = inviscid_domain(body, tmp_path / f"{label}.su2", mach=2.5, optimize=optimise)
+        assert result.quality is not None
+        assert result.quality.elements == result.n_elements
+        measured[label] = result.quality
+
+    assert measured["on"].poor < measured["off"].poor
+    assert measured["on"].minimum > measured["off"].minimum

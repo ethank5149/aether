@@ -47,6 +47,8 @@ _FloatArray = NDArray[np.float64]
 
 __all__ = [
     "MulticonicJunction",
+    "arc_length_intervals",
+    "multiconic_arcs",
     "multiconic_meridian",
     "sphere_cone_closure",
     "sphere_cone_meridian",
@@ -172,6 +174,104 @@ def sphere_cone_meridian(
     return np.concatenate([cap_x, cone_x]), np.concatenate([cap_r, cone_r])
 
 
+def arc_length_intervals(
+    arcs: Sequence[float],
+    total: int,
+    minimum: int = 2,
+    turns: Sequence[float] | None = None,
+    max_turn: float = np.radians(5.0),
+) -> tuple[int, ...]:
+    """Split ``total`` intervals across pieces in proportion to their length.
+
+    The alternative -- a fixed count per piece, whatever its length -- is what
+    puts needles in a multiconic. On the default biconic the junction fillet
+    is 0.3 % of the meridian's arc and was given 13.9 % of its points, so its
+    cells were 0.46 mm long against a 34 mm circumferential spacing: an aspect
+    ratio of 74 to 1, and 14 % of the wall triangulation classed as slivers.
+    Spacing varied by a factor of 84 from end to end of one profile.
+
+    Arc length alone is not the whole criterion, though, because a *curved*
+    piece has a second demand that a straight one does not: it has to be
+    resolved as a curve. The nose cap is a fiftieth of the meridian's length
+    and turns through eighty degrees, so proportional allocation alone gives
+    it five intervals -- sixteen degrees a step, and a chord that misses the
+    sphere by a percent of its radius, at the one place on the body where the
+    geometry matters most. ``turns`` supplies each piece's turning angle and
+    ``max_turn`` the coarsest step allowed on it, which floors the curved
+    pieces before the remainder is shared out by length. A straight piece has
+    zero turn and is unaffected.
+
+    Allocated by largest remainder so the pieces sum to ``total`` exactly.
+    """
+    arcs = [max(float(arc), 0.0) for arc in arcs]
+    if not arcs:
+        return ()
+    floors = [minimum] * len(arcs)
+    if turns is not None:
+        if len(turns) != len(arcs):
+            raise ValueError(f"got {len(turns)} turning angles for {len(arcs)} pieces")
+        floors = [max(minimum, int(np.ceil(abs(float(turn)) / max_turn))) for turn in turns]
+    if total < sum(floors):
+        raise ValueError(
+            f"{total} intervals cannot meet the per-piece floors {tuple(floors)}, which "
+            f"need {sum(floors)}; either raise the count or coarsen `max_turn`"
+        )
+
+    span = sum(arcs)
+    if span <= 0.0:
+        return tuple(floors)
+
+    spare = total - sum(floors)
+    exact = [spare * arc / span for arc in arcs]
+    counts = [floor + int(value) for floor, value in zip(floors, exact, strict=True)]
+    remainders = sorted(
+        range(len(arcs)), key=lambda index: exact[index] - int(exact[index]), reverse=True
+    )
+    for index in remainders[: total - sum(counts)]:
+        counts[index] += 1
+    return tuple(counts)
+
+
+def multiconic_arcs(
+    nose_radius: float,
+    lengths: Sequence[float],
+    half_angles: Sequence[float],
+    fillet_radii: Sequence[float],
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """``(arc lengths, turning angles)`` of each piece of a multiconic meridian.
+
+    Cap, then alternating frustum and fillet, ending on a frustum. Computed
+    without sampling anything, so it can be used to *decide* the sampling.
+    The turning angle is zero on a frustum and the swept angle on the cap and
+    each fillet, which is what
+    :func:`arc_length_intervals` needs to keep a curve resolved as one.
+    """
+    lengths = [float(value) for value in lengths]
+    half_angles = [float(value) for value in half_angles]
+    fillet_radii = [float(value) for value in fillet_radii]
+
+    arcs = [nose_radius * (0.5 * np.pi - half_angles[0])]
+    turns = [0.5 * np.pi - half_angles[0]]
+    here = np.array(sphere_cone_tangency(nose_radius, half_angles[0]))
+    for index, (length, angle) in enumerate(zip(lengths, half_angles, strict=True)):
+        corner = here + length * np.array([1.0, np.tan(angle)])
+        if index == len(lengths) - 1:
+            arcs.append(float(np.linalg.norm(corner - here)))
+            turns.append(0.0)
+            break
+        following = half_angles[index + 1]
+        half_delta = abs(angle - following) / 2.0
+        fillet = fillet_radii[index]
+        tangent = fillet * np.tan(half_delta) if half_delta > 1e-6 else 0.0
+        stop = corner - tangent * np.array([np.cos(angle), np.sin(angle)])
+        arcs.append(float(np.linalg.norm(stop - here)))
+        turns.append(0.0)
+        arcs.append(float(fillet * 2.0 * half_delta))
+        turns.append(float(2.0 * half_delta))
+        here = corner + tangent * np.array([np.cos(following), np.sin(following)])
+    return tuple(arcs), tuple(turns)
+
+
 @dataclass(frozen=True)
 class MulticonicJunction:
     """Where one cone hands over to the next, through a tangent fillet.
@@ -204,6 +304,7 @@ def multiconic_meridian(
     cap_intervals: int,
     segment_intervals: int,
     fillet_intervals: int,
+    intervals: Sequence[int] | None = None,
 ) -> tuple[_FloatArray, _FloatArray, tuple[MulticonicJunction, ...]]:
     """A blunted cone of one or more segments, blended at each junction.
 
@@ -211,6 +312,12 @@ def multiconic_meridian(
     start**, not as absolute stations, and the first is measured from the cap
     tangency. Junction fillets are tangent to both cones, so the profile is
     :math:`C^1` everywhere.
+
+    ``intervals`` gives a count for each piece in order -- cap, frustum,
+    fillet, frustum, ... -- and overrides the three scalar counts when
+    supplied. That is how a caller hands in an allocation from
+    :func:`arc_length_intervals` instead of spending the same number of points
+    on a two-metre frustum and an eight-millimetre fillet.
 
     The tangent length
     ------------------
@@ -239,19 +346,39 @@ def multiconic_meridian(
     if not lengths:
         raise ValueError("a multiconic needs at least one segment")
 
+    if intervals is not None:
+        expected = 2 * len(lengths)
+        if len(intervals) != expected:
+            raise ValueError(
+                f"need one interval count per piece: {expected} for {len(lengths)} "
+                f"segments (cap, then frustum and fillet alternating), got {len(intervals)}"
+            )
+        counts = [int(value) for value in intervals]
+    else:
+        counts = [cap_intervals]
+        for index in range(len(lengths)):
+            counts.append(segment_intervals)
+            if index < len(lengths) - 1:
+                counts.append(fillet_intervals)
+    if any(count < 1 for count in counts):
+        raise ValueError(f"every piece needs at least one interval, got {tuple(counts)}")
+
     phi_tangent = 0.5 * np.pi - half_angles[0]
-    phi = np.linspace(0.0, phi_tangent, cap_intervals + 1)
+    phi = np.linspace(0.0, phi_tangent, counts[0] + 1)
     station = [nose_radius * (1.0 - np.cos(phi))]
     radius = [nose_radius * np.sin(phi)]
 
     here = np.array(sphere_cone_tangency(nose_radius, half_angles[0]))
     junctions: list[MulticonicJunction] = []
+    cursor = 1
 
     for index, (length, angle) in enumerate(zip(lengths, half_angles, strict=True)):
+        frustum_count = counts[cursor]
+        cursor += 1
         corner = here + float(length) * np.array([1.0, np.tan(angle)])
         if index == len(lengths) - 1:
-            station.append(np.linspace(here[0], corner[0], segment_intervals + 1)[1:])
-            radius.append(np.linspace(here[1], corner[1], segment_intervals + 1)[1:])
+            station.append(np.linspace(here[0], corner[0], frustum_count + 1)[1:])
+            radius.append(np.linspace(here[1], corner[1], frustum_count + 1)[1:])
             here = corner
             continue
 
@@ -264,12 +391,14 @@ def multiconic_meridian(
         centre = stop + fillet * np.array([np.sin(angle), -np.cos(angle)])
         resume = corner + tangent * np.array([np.cos(following), np.sin(following)])
 
-        station.append(np.linspace(here[0], stop[0], segment_intervals + 1)[1:])
-        radius.append(np.linspace(here[1], stop[1], segment_intervals + 1)[1:])
+        station.append(np.linspace(here[0], stop[0], frustum_count + 1)[1:])
+        radius.append(np.linspace(here[1], stop[1], frustum_count + 1)[1:])
 
-        sweep = np.linspace(
-            0.5 * np.pi - angle, 0.5 * np.pi - following, max(4, fillet_intervals + 1)
-        )[1:]
+        fillet_count = counts[cursor]
+        cursor += 1
+        sweep = np.linspace(0.5 * np.pi - angle, 0.5 * np.pi - following, max(4, fillet_count + 1))[
+            1:
+        ]
         station.append(centre[0] - fillet * np.cos(sweep))
         radius.append(centre[1] + fillet * np.sin(sweep))
 

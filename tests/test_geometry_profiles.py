@@ -252,3 +252,97 @@ def test_a_mismatched_multiconic_specification_is_refused() -> None:
         multiconic_meridian(0.05, [1.0, 1.5], [np.radians(10.0)], [0.1], 10, 10, 5)
     with pytest.raises(ValueError, match="one fillet radius per junction"):
         multiconic_meridian(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [], 10, 10, 5)
+
+
+# ------------------------------------------------- how the points are spent
+
+
+def test_intervals_are_shared_out_by_arc_length() -> None:
+    """A piece twice as long gets about twice the points."""
+    from aether.geometry.profiles import arc_length_intervals
+
+    counts = arc_length_intervals([1.0, 2.0, 1.0], 40)
+    assert sum(counts) == 40
+    assert counts[1] > max(counts[0], counts[2])
+    # Equal pieces get equal shares to within the one point that cannot be
+    # split between them -- the total is met exactly, so somebody takes it.
+    assert abs(counts[0] - counts[2]) <= 1
+    assert counts[1] / counts[0] == pytest.approx(2.0, rel=0.2)
+
+
+def test_a_curved_piece_is_floored_by_its_turning_angle() -> None:
+    """Arc length alone under-resolves a short, sharply turning piece.
+
+    The nose cap is a fiftieth of a biconic's meridian and turns through
+    eighty degrees. Proportional allocation alone gives it five intervals --
+    sixteen degrees a step, and a chord that misses the sphere by a percent of
+    its radius, at the one place on the body where geometry matters most.
+    """
+    from aether.geometry.profiles import arc_length_intervals
+
+    arcs = [0.068, 1.018, 0.009, 1.511]
+    turns = [np.radians(78.0), 0.0, np.radians(5.0), 0.0]
+
+    plain = arc_length_intervals(arcs, 137)
+    floored = arc_length_intervals(arcs, 137, turns=turns, max_turn=np.radians(5.0))
+
+    assert floored[0] > plain[0]
+    assert np.degrees(turns[0] / floored[0]) <= 5.0 + 1e-9
+    assert sum(floored) == 137
+    # The straight pieces give up the difference, and keep their own spacing
+    # comparable to one another.
+    assert floored[1] / arcs[1] == pytest.approx(floored[3] / arcs[3], rel=0.05)
+
+
+def test_an_impossible_budget_is_refused_with_what_it_needed() -> None:
+    from aether.geometry.profiles import arc_length_intervals
+
+    with pytest.raises(ValueError, match="cannot meet the per-piece floors"):
+        arc_length_intervals([1.0, 1.0], 3, turns=[np.radians(90.0), 0.0])
+
+
+def test_the_multiconic_arcs_alternate_frustum_and_fillet() -> None:
+    """Cap, then frustum and fillet in turn, ending on a frustum."""
+    from aether.geometry.profiles import multiconic_arcs
+
+    arcs, turns = multiconic_arcs(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [0.1])
+    assert len(arcs) == len(turns) == 4
+    assert turns[0] == pytest.approx(np.radians(78.0))  # the cap
+    assert turns[1] == 0.0 and turns[3] == 0.0  # frustums are straight
+    assert turns[2] == pytest.approx(np.radians(5.0))  # the fillet's deflection
+    assert arcs[2] == pytest.approx(0.1 * np.radians(5.0))
+
+
+def test_the_meridian_spacing_no_longer_varies_by_two_orders() -> None:
+    """The property the whole allocation exists for.
+
+    Spending a fixed count per piece gave the default biconic a spacing that
+    varied by a factor of 84 along one profile -- 0.46 mm across the fillet
+    against 39 mm along the aft frustum -- and a 74:1 cell aspect ratio where
+    they met.
+    """
+    from aether.geometry.profiles import arc_length_intervals, multiconic_arcs
+
+    arcs, turns = multiconic_arcs(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [0.1])
+    counts = arc_length_intervals(arcs, 137, turns=turns)
+    spacings = [arc / count for arc, count in zip(arcs, counts, strict=True)]
+    assert max(spacings) / min(spacings) < 10.0
+
+
+def test_a_biconic_wall_has_no_slivers() -> None:
+    """End to end: the allocation is only worth having if this holds.
+
+    Before it, 1824 of 13056 faces were slivers, worst quality 0.023, all at
+    the junction. The repair also uses *fewer* faces, which is the same
+    trade the shoulder-fillet note in ``surface_quality`` describes.
+    """
+    from aether.aerodynamics.cfd.diagnostics import surface_quality
+    from aether.aerodynamics.panels import blunted_multiconic
+    from aether.geometry.mesh import VehicleMesh
+
+    quality = surface_quality(
+        VehicleMesh.from_surface_grid(blunted_multiconic().surface, name="biconic")
+    )
+    assert quality.usable, quality.summary()
+    assert quality.minimum > 0.1
+    assert quality.faces < 13056

@@ -31,6 +31,8 @@ from numpy.typing import NDArray
 from aether.geometry.brep import Loft, Revolve
 from aether.geometry.edges import Arc, Contour, Segment, round_corners, rounded_contour
 from aether.geometry.profiles import (
+    arc_length_intervals,
+    multiconic_arcs,
     multiconic_meridian,
     sphere_cone_meridian,
     sphere_cone_tangency,
@@ -445,14 +447,23 @@ def blunted_multiconic(
     # junctions come back with it so the exact arcs below are built from the
     # same blend the sampled profile passes through, not a second computation
     # of it.
+    spans = [float(value) for value in lengths]
+    angles = [float(value) for value in half_angles]
+    radii = [float(value) for value in fillet_radii]
+    # Shared out by arc length, with a floor on the curved pieces. A fixed
+    # count per piece spent as many points on a millimetre of fillet as on a
+    # metre of frustum, and the needles that made were 14 % of the wall.
+    arcs, turns = multiconic_arcs(nose_radius, spans, angles, radii)
+    budget = int(n_cap) + int(n_segment) * len(spans) + int(n_fillet) * (len(spans) - 1)
     station_array, radius_array, junctions = multiconic_meridian(
         nose_radius,
-        [float(value) for value in lengths],
-        [float(value) for value in half_angles],
-        [float(value) for value in fillet_radii],
-        cap_intervals=int(n_cap) - 1,
-        segment_intervals=int(n_segment) - 1,
-        fillet_intervals=int(n_fillet) - 1,
+        spans,
+        angles,
+        radii,
+        cap_intervals=0,
+        segment_intervals=0,
+        fillet_intervals=0,
+        intervals=arc_length_intervals(arcs, budget, turns=turns),
     )
 
     cap = Arc(
