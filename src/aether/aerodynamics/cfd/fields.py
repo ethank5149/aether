@@ -189,17 +189,50 @@ class VolumeField:
 
     @property
     def density(self) -> _FloatArray:
-        """Mixture density, in the solver's dimensional units."""
+        """Mixture density, in the solver's dimensional units.
+
+        A nonequilibrium solution carries one density per species and no
+        total, so the mixture is their sum -- which is a definition rather
+        than a model, and therefore available whatever the gas is doing.
+        """
+        if "Density" in self.fields:
+            return self.fields["Density"]
+        species = self.species
+        if species:
+            return np.asarray(sum(self.fields[name] for name in species), dtype=np.float64)
         self._require_perfect_gas()
         return self.fields["Density"]
 
     @property
     def momentum(self) -> _FloatArray:
         """``(N, 3)`` momentum vector."""
-        self._require_perfect_gas()
+        if not all(f"Momentum_{axis}" in self.fields for axis in "xyz"):
+            self._require_perfect_gas()
         return np.column_stack(
             [self.fields["Momentum_x"], self.fields["Momentum_y"], self.fields["Momentum_z"]]
         )
+
+    @property
+    def species(self) -> tuple[str, ...]:
+        """Per-species density fields, if this is a mixture solution."""
+        return tuple(sorted(name for name in self.fields if name.startswith("Density_")))
+
+    @property
+    def two_temperature(self) -> bool:
+        """Whether the solver carried separate heavy-particle and vibrational modes.
+
+        The signature of a thermochemical nonequilibrium run. It matters to
+        anything that says "temperature": behind a Mach 20 shock the
+        translational mode jumps first and the vibrational mode lags it by
+        orders of magnitude in relaxation length, so the two differ by
+        thousands of kelvin over a region wide enough to see.
+
+        Detected from either name it appears under: a volume file carries
+        ``Temperature_ve``, a restart carries the conserved ``Energy_ve`` and
+        no temperature at all. Looking only for the first would report a NEMO
+        restart as a single-temperature solution.
+        """
+        return bool({"Temperature_ve", "Energy_ve"} & set(self.fields))
 
     @property
     def has_primitives(self) -> bool:
@@ -208,8 +241,15 @@ class VolumeField:
         True for a volume file, false for a restart. It is the difference
         between reading a number and reconstructing one, and above about Mach
         10 it is the difference between a right number and a wrong one.
+
+        A nonequilibrium volume file satisfies this too, despite naming its
+        temperature differently -- ``Temperature_tr`` rather than
+        ``Temperature``, because in that regime there is no single one. Being
+        strict about the name here meant a Mach 20 case that had written
+        everything needed was reported as having written nothing.
         """
-        return all(name in self.fields for name in ("Pressure", "Temperature", "Mach"))
+        temperature = {"Temperature", "Temperature_tr"} & set(self.fields)
+        return bool(temperature) and {"Pressure", "Mach"} <= set(self.fields)
 
     @property
     def velocity(self) -> _FloatArray:
@@ -228,6 +268,19 @@ class VolumeField:
         """
         if "Pressure" in self.fields:
             return self.fields["Pressure"]
+        if self.species:
+            # A mixture's density is the sum of its species and is therefore
+            # always available -- but its *pressure* is not. The stored energy
+            # of a reacting, vibrationally excited gas carries chemical and
+            # internal contributions that :math:`(\\gamma-1)(E - \\tfrac12\\rho u^2)`
+            # does not account for, so that expression returns a number rather
+            # than a pressure. Refused, because a wrong pressure here is
+            # plausible-looking and propagates into every coefficient.
+            raise ValueError(
+                f"this is a {len(self.species)}-species mixture with no stored Pressure, "
+                "so pressure cannot be recovered from a single gamma; read a volume file, "
+                "which carries the solver's own"
+            )
         kinetic = 0.5 * (self.momentum**2).sum(axis=1) / self.density
         return np.asarray((gas.gamma - 1.0) * (self.fields["Energy"] - kinetic))
 
@@ -241,7 +294,22 @@ class VolumeField:
         """
         if "Temperature" in self.fields:
             return self.fields["Temperature"]
+        if "Temperature_tr" in self.fields:
+            # The heavy-particle temperature. It is the one a single-temperature
+            # reading means, the one that sets convective heating, and the one
+            # that jumps at the shock; `vibrational_temperature` is the other.
+            return self.fields["Temperature_tr"]
         return np.asarray(self.pressure(gas) / (self.density * gas.gas_constant))
+
+    def vibrational_temperature(self) -> _FloatArray | None:
+        """``Temperature_ve``, or ``None`` for a single-temperature solution.
+
+        Kept separate from :meth:`temperature` rather than averaged into it.
+        The gap between the two *is* the nonequilibrium: averaging them
+        produces a number that describes no mode of the gas and hides the one
+        thing the run was done to resolve.
+        """
+        return self.fields.get("Temperature_ve")
 
     def mach(self, gas: CaloricallyPerfect = PERFECT_AIR) -> _FloatArray:
         """Local Mach number -- the solver's own where it wrote one."""

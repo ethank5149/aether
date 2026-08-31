@@ -361,13 +361,15 @@ def test_an_unphysical_gas_model_is_refused() -> None:
         CaloricallyPerfect(gas_constant=0.0)
 
 
-def test_a_nonequilibrium_restart_is_refused_by_name_not_by_key_error() -> None:
-    """The regime the suite exists for, and the one perfect gas cannot describe.
+def test_a_nonequilibrium_restart_refuses_what_it_cannot_give(tmp_path: Path) -> None:
+    """A mixture restart yields density but not pressure, and says which.
 
-    A NEMO restart carries per-species densities and a second, vibrational
-    energy. Asking it for a perfect-gas temperature has no answer, and the
-    failure should say that rather than surfacing as ``KeyError: 'Density'``
-    from somewhere three layers down.
+    Density is the sum of the species and is a definition, so it survives into
+    any regime. Pressure does not: the stored energy of a reacting,
+    vibrationally excited gas carries chemical and internal contributions that
+    :math:`(\\gamma-1)(E - \\tfrac12\\rho u^2)` knows nothing about, so applying
+    that expression returns a number rather than a pressure. Refusing matters
+    more here than usual because the wrong answer looks entirely plausible.
     """
     from aether.aerodynamics.cfd.fields import VolumeField
 
@@ -383,10 +385,22 @@ def test_a_nonequilibrium_restart_is_refused_by_name_not_by_key_error() -> None:
         },
     )
     assert not field.is_perfect_gas
-    with pytest.raises(ValueError, match="NEMO"):
+    assert not field.has_primitives
+    assert field.two_temperature
+    assert field.density == pytest.approx(np.full(2, 0.05))
+
+    for attempt in (field.pressure, field.temperature):
+        with pytest.raises(ValueError, match="species mixture"):
+            attempt()
+
+
+def test_a_restart_missing_everything_is_refused_by_name(tmp_path: Path) -> None:
+    """The other failure: not a mixture, just not a usable solution."""
+    from aether.aerodynamics.cfd.fields import VolumeField
+
+    field = VolumeField(points=np.zeros((2, 3)), fields={"Energy": np.ones(2)})
+    with pytest.raises(ValueError, match="perfect-gas primitives do not apply"):
         _ = field.density
-    with pytest.raises(ValueError, match="nonequilibrium"):
-        _ = field.temperature()
 
 
 def test_a_single_species_restart_is_recognised_as_perfect_gas() -> None:
@@ -494,3 +508,87 @@ def test_a_short_row_is_refused_rather_than_padded(tmp_path: Path) -> None:
     path.write_text("\n".join(lines) + "\n")
     with pytest.raises(ValueError, match="values for"):
         read_volume(path)
+
+
+# ------------------------------------------- thermochemical nonequilibrium
+
+
+def _nemo_volume(path: Path, rows: int = 3) -> Path:
+    """A volume file shaped like SU2's NEMO output.
+
+    Five species densities and no total, ``Temperature_tr`` and
+    ``Temperature_ve`` and no ``Temperature`` -- because in that regime there
+    is no single one.
+    """
+    names = [
+        "x",
+        "y",
+        "z",
+        *[f"Density_{i}" for i in range(5)],
+        "Momentum_x",
+        "Momentum_y",
+        "Momentum_z",
+        "Energy",
+        "Energy_ve",
+        "Pressure",
+        "Temperature_tr",
+        "Temperature_ve",
+        "Mach",
+    ]
+    values = np.tile(np.arange(len(names), dtype=np.float64), (rows, 1))
+    _tecplot(path, names, values)
+    return path
+
+
+def test_a_nonequilibrium_volume_file_is_readable(tmp_path: Path) -> None:
+    """Being strict about ``Temperature`` reported a full field as empty.
+
+    A NEMO run writes everything needed -- pressure, a heavy-particle
+    temperature, Mach -- under different names, and requiring the singular
+    ``Temperature`` meant the Mach 20 case the volume path was built for was
+    the one case it could not read.
+    """
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    field = read_volume(_nemo_volume(tmp_path / "v.dat"))
+    assert field.has_primitives
+    assert field.two_temperature
+    assert len(field.species) == 5
+
+
+def test_the_mixture_density_is_the_sum_of_its_species(tmp_path: Path) -> None:
+    """A definition, not a model, so it holds whatever the gas is doing."""
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    field = read_volume(_nemo_volume(tmp_path / "v.dat"))
+    expected = sum(field.fields[name] for name in field.species)
+    assert field.density == pytest.approx(expected)
+
+
+def test_the_heavy_particle_temperature_is_the_one_reported(tmp_path: Path) -> None:
+    """``temperature()`` must mean something definite in a two-temperature field.
+
+    It returns the translational-rotational mode -- the one a single
+    temperature reading means and the one that jumps at the shock. The
+    vibrational mode is reachable separately rather than averaged in, because
+    an average describes no mode of the gas and hides the nonequilibrium that
+    the run existed to resolve.
+    """
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    field = read_volume(_nemo_volume(tmp_path / "v.dat"))
+    assert field.temperature() == pytest.approx(field.fields["Temperature_tr"])
+    vibrational = field.vibrational_temperature()
+    assert vibrational is not None
+    assert vibrational == pytest.approx(field.fields["Temperature_ve"])
+    assert not np.allclose(field.temperature(), vibrational)
+
+
+def test_a_single_temperature_field_reports_no_vibrational_mode(tmp_path: Path) -> None:
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    _tecplot(tmp_path / "v.dat", _VOLUME_NAMES, np.arange(21, dtype=np.float64).reshape(3, 7))
+    field = read_volume(tmp_path / "v.dat")
+    assert not field.two_temperature
+    assert field.vibrational_temperature() is None
+    assert field.species == ()
