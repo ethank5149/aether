@@ -48,6 +48,7 @@ over the solver's own.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -71,6 +72,7 @@ __all__ = [
     "read_case",
     "read_restart",
     "read_su2_mesh",
+    "read_volume",
     "surface_cut",
 ]
 
@@ -200,31 +202,51 @@ class VolumeField:
         )
 
     @property
-    def velocity(self) -> _FloatArray:
-        """``(N, 3)`` velocity.
+    def has_primitives(self) -> bool:
+        """Whether the solver wrote pressure, temperature and Mach itself.
 
-        The one primitive here that survives into the nonequilibrium regime
-        unchanged -- momentum over density is a definition, not a gas model --
-        though it still needs a restart that carries a mixture density.
+        True for a volume file, false for a restart. It is the difference
+        between reading a number and reconstructing one, and above about Mach
+        10 it is the difference between a right number and a wrong one.
         """
+        return all(name in self.fields for name in ("Pressure", "Temperature", "Mach"))
+
+    @property
+    def velocity(self) -> _FloatArray:
+        """``(N, 3)`` velocity."""
+        if all(f"Velocity_{axis}" in self.fields for axis in "xyz"):
+            return np.column_stack([self.fields[f"Velocity_{axis}"] for axis in "xyz"])
         return self.momentum / self.density[:, None]
 
     def pressure(self, gas: CaloricallyPerfect = PERFECT_AIR) -> _FloatArray:
-        """Static pressure from the ideal-gas equation of state."""
+        """Static pressure -- the solver's own where it wrote one.
+
+        ``gas`` is used only to reconstruct pressure from the conservative
+        variables of a restart. Where the field carries ``Pressure`` it is
+        returned untouched and the gas model is not consulted, which is what
+        lets one code path serve a perfect-gas run and a nonequilibrium one.
+        """
+        if "Pressure" in self.fields:
+            return self.fields["Pressure"]
         kinetic = 0.5 * (self.momentum**2).sum(axis=1) / self.density
         return np.asarray((gas.gamma - 1.0) * (self.fields["Energy"] - kinetic))
 
     def temperature(self, gas: CaloricallyPerfect = PERFECT_AIR) -> _FloatArray:
-        """Static temperature.
+        """Static temperature -- the solver's own where it wrote one.
 
-        The primitive that degrades first and worst as speed rises: it is the
-        one that dissociation buys down, so at reentry speeds a perfect-gas
-        value here is not a small error but a several-fold one.
+        The primitive that degrades first and worst as speed rises, because it
+        is the one dissociation buys down: a perfect-gas value at reentry
+        speeds is wrong by a factor, not a few percent. Which is the whole
+        argument for preferring the solver's.
         """
+        if "Temperature" in self.fields:
+            return self.fields["Temperature"]
         return np.asarray(self.pressure(gas) / (self.density * gas.gas_constant))
 
     def mach(self, gas: CaloricallyPerfect = PERFECT_AIR) -> _FloatArray:
-        """Local Mach number."""
+        """Local Mach number -- the solver's own where it wrote one."""
+        if "Mach" in self.fields:
+            return self.fields["Mach"]
         speed = np.linalg.norm(self.velocity, axis=1)
         sound = np.sqrt(gas.gamma * gas.gas_constant * self.temperature(gas))
         return np.asarray(speed / sound)
@@ -903,3 +925,67 @@ def surface_cut(mesh: Mesh, tags: Sequence[str], origin: _Point, normal: _Point)
         basis=basis,
         segments=np.arange(2 * faces.shape[0], dtype=np.int64).reshape(-1, 2),
     )
+
+
+def read_volume(path: Path | str) -> VolumeField:
+    """Read an SU2 Tecplot-ASCII volume file (``volume_flow.dat``).
+
+    The reason to want one. A restart carries conservative variables and
+    nothing else, so pressure, temperature and Mach have to be reconstructed
+    from it -- and reconstructing them needs a gas model, which is exactly the
+    thing that stops being simple above about Mach 10. A volume file carries
+    ``Pressure``, ``Temperature`` and ``Mach`` as the solver computed them,
+    under whatever gas model was actually running: perfect gas, equilibrium,
+    or five-species nonequilibrium. Reading those is how the post-processing
+    stops having an opinion about the thermodynamics.
+
+    Only the nodal block is read. SU2 writes the connectivity after it as
+    ``FEBRICK`` cells -- every element padded to eight nodes, tetrahedra
+    included -- which is a lossy shape to recover a mesh from and unnecessary
+    here, because the ``.su2`` file already has the real connectivity and its
+    node order is the same. That last property is checked by
+    :func:`read_case` rather than assumed.
+
+    Written to be tolerant of the variable list rather than positional: SU2's
+    ``VOLUME_OUTPUT`` is configurable, so the columns present depend on the
+    case, and a reader that indexed them by position would misread a case that
+    asked for one field more.
+    """
+    path = Path(path)
+    with path.open() as handle:
+        header: list[str] = []
+        for line in handle:
+            header.append(line)
+            if "ZONE" in line.upper():
+                break
+        else:
+            raise ValueError(f"{path} has no ZONE record; is it a Tecplot volume file?")
+
+        text = "".join(header)
+        names = re.findall(r'"([^"]*)"', text[text.upper().index("VARIABLES") :])
+        if not names:
+            raise ValueError(f"{path} declares no VARIABLES")
+        match = re.search(r"NODES\s*=\s*(\d+)", text, re.IGNORECASE)
+        if match is None:
+            raise ValueError(f"{path} does not say how many nodes its zone has")
+        count = int(match.group(1))
+        if "POINT" not in text.upper():
+            raise ValueError(
+                f"{path} is not DATAPACKING=POINT; this reader does not handle block packing"
+            )
+
+        rows = np.empty((count, len(names)), dtype=np.float64)
+        for index in range(count):
+            values = handle.readline().split()
+            if len(values) != len(names):
+                raise ValueError(
+                    f"{path}: node {index} has {len(values)} values for {len(names)} variables"
+                )
+            rows[index] = values
+
+    named = {name: np.ascontiguousarray(rows[:, i]) for i, name in enumerate(names)}
+    missing = [axis for axis in ("x", "y", "z") if axis not in named]
+    if missing:
+        raise ValueError(f"{path} lacks coordinate variables {missing}")
+    coordinates = np.column_stack([named.pop("x"), named.pop("y"), named.pop("z")])
+    return VolumeField(points=coordinates, fields=named)

@@ -34,17 +34,24 @@ from aether.geometry.edges import Arc, Contour, Segment, round_corners, rounded_
 __all__ = [
     "blunted_multiconic",
     "caret_waverider",
+    "power_law_body",
+    "sears_haack",
+    "sears_haack_volume",
+    "sears_haack_wave_drag_area",
     "spatular_wedge",
     "sphere_cone",
+    "von_karman_ogive",
 ]
 
 _FloatArray = NDArray[np.float64]
 
 
-
 def _shoulder(
-    station: float, radius_at_corner: float, half_angle: float,
-    fillet: float, samples: int = 8,
+    station: float,
+    radius_at_corner: float,
+    half_angle: float,
+    fillet: float,
+    samples: int = 8,
 ) -> _FloatArray:
     r"""Meridian points rounding the corner where a cone meets its base disc.
 
@@ -76,13 +83,10 @@ def _shoulder(
         )
         raise ValueError(msg)
     phi = np.linspace(0.5 * np.pi + half_angle, 0.0, max(3, int(samples)))
-    return np.column_stack([centre_x + fillet * np.cos(phi),
-                            centre_r + fillet * np.sin(phi)])
+    return np.column_stack([centre_x + fillet * np.cos(phi), centre_r + fillet * np.sin(phi)])
 
 
-def _shoulder_arc(
-    station: float, radius_at_corner: float, half_angle: float, fillet: float
-) -> Arc:
+def _shoulder_arc(station: float, radius_at_corner: float, half_angle: float, fillet: float) -> Arc:
     """The shoulder fillet of :func:`_shoulder`, as one exact arc.
 
     Same centre and same endpoints; what changes is that the revolved solid
@@ -151,11 +155,13 @@ def spatular_wedge(
         exponent = n_power_nose + (n_power_base - n_power_nose) * u**p_n_exp
         psi = np.linspace(0.0, 2.0 * np.pi, int(n_perimeter), endpoint=False)
         cos, sin = np.cos(psi), np.sin(psi)
-        return np.column_stack([
-            np.full(psi.size, u * length),
-            a * np.abs(cos) ** (2.0 / exponent) * np.sign(cos),
-            b * np.abs(sin) ** (2.0 / exponent) * np.sign(sin),
-        ])
+        return np.column_stack(
+            [
+                np.full(psi.size, u * length),
+                a * np.abs(cos) ** (2.0 / exponent) * np.sign(cos),
+                b * np.abs(sin) ** (2.0 / exponent) * np.sign(sin),
+            ]
+        )
 
     # Clustered toward the nose, where both the semi-axes and the exponent
     # move fastest: u^0.5 has infinite slope at the origin, so uniform
@@ -252,8 +258,12 @@ def caret_waverider(
     """
     from aether.aerodynamics.conical import wedge_shock_angle
 
-    for label, value in (("length", length), ("design_mach", design_mach),
-                         ("wedge_angle", wedge_angle), ("span_fraction", span_fraction)):
+    for label, value in (
+        ("length", length),
+        ("design_mach", design_mach),
+        ("wedge_angle", wedge_angle),
+        ("span_fraction", span_fraction),
+    ):
         if not (np.isfinite(value) and value > 0.0):
             msg = f"{label} must be finite and > 0, got {value}"
             raise ValueError(msg)
@@ -271,8 +281,10 @@ def caret_waverider(
     shock_slope = np.tan(beta)
     ridge_slope = np.tan(float(wedge_angle))
 
-    for label, value in (("leading_edge_radius", leading_edge_radius),
-                         ("ridge_radius", ridge_radius)):
+    for label, value in (
+        ("leading_edge_radius", leading_edge_radius),
+        ("ridge_radius", ridge_radius),
+    ):
         if not (np.isfinite(value) and value >= 0.0):
             msg = f"{label} must be finite and >= 0, got {value}"
             raise ValueError(msg)
@@ -280,11 +292,13 @@ def caret_waverider(
     def section(u: float) -> _FloatArray:
         x = u * length
         shock_depth = x * shock_slope
-        corners = np.array([
-            [x, +span_fraction * shock_depth, -shock_depth],  # starboard edge, on the shock
-            [x, -span_fraction * shock_depth, -shock_depth],  # port edge, on the shock
-            [x, 0.0, -x * ridge_slope],                       # ridge, inside the shock layer
-        ])
+        corners = np.array(
+            [
+                [x, +span_fraction * shock_depth, -shock_depth],  # starboard edge, on the shock
+                [x, -span_fraction * shock_depth, -shock_depth],  # port edge, on the shock
+                [x, 0.0, -x * ridge_slope],  # ridge, inside the shock layer
+            ]
+        )
         if leading_edge_radius <= 0.0 and ridge_radius <= 0.0:
             return corners
         # Radii scale with the station: the section shrinks to a point at the
@@ -303,15 +317,18 @@ def caret_waverider(
     # a curve. Clustered forward, where the compression surface does its work.
     fraction = np.linspace(0.0, 1.0, int(n_sections)) ** 1.3
     stations = nose_station + (1.0 - nose_station) * fraction
+
     def section_contour(u: float) -> Contour:
         """The same section, as arcs and lines rather than chords."""
         x = u * length
         shock_depth = x * shock_slope
-        corners = np.array([
-            [x, +span_fraction * shock_depth, -shock_depth],
-            [x, -span_fraction * shock_depth, -shock_depth],
-            [x, 0.0, -x * ridge_slope],
-        ])
+        corners = np.array(
+            [
+                [x, +span_fraction * shock_depth, -shock_depth],
+                [x, -span_fraction * shock_depth, -shock_depth],
+                [x, 0.0, -x * ridge_slope],
+            ]
+        )
         return rounded_contour(
             corners,
             u * np.array([leading_edge_radius, leading_edge_radius, ridge_radius]),
@@ -363,8 +380,13 @@ def sphere_cone(
     station = np.concatenate([cap_x, cone_x])
     radius = np.concatenate([cap_r, cone_r])
     if shoulder_radius > 0.0:
-        arc = _shoulder(float(station[-1]), float(radius[-1]), half_angle,
-                        float(shoulder_radius), int(n_shoulder))
+        arc = _shoulder(
+            float(station[-1]),
+            float(radius[-1]),
+            half_angle,
+            float(shoulder_radius),
+            int(n_shoulder),
+        )
         keep = station < arc[0, 0]
         station = np.concatenate([station[keep], arc[:, 0]])
         radius = np.concatenate([radius[keep], arc[:, 1]])
@@ -385,8 +407,10 @@ def sphere_cone(
     else:
         primitives = (cap, Segment(cap.end, np.array([length, base_radius])))
     return Revolve(
-        station=station, radius=radius,
-        contour=Contour(primitives, closed=False), name=name,
+        station=station,
+        radius=radius,
+        contour=Contour(primitives, closed=False),
+        name=name,
     )
 
 
@@ -434,9 +458,7 @@ def blunted_multiconic(
     here = cap.end
 
     x_current, r_current = station[-1], radius[-1]
-    for index, (segment_length, theta) in enumerate(
-        zip(lengths, half_angles, strict=True)
-    ):
+    for index, (segment_length, theta) in enumerate(zip(lengths, half_angles, strict=True)):
         theta = float(theta)
         if index == len(lengths) - 1:
             x_end = x_current + float(segment_length)
@@ -461,8 +483,9 @@ def blunted_multiconic(
 
         centre_x = x_stop + fillet * np.sin(theta)
         centre_r = r_stop - fillet * np.cos(theta)
-        angles = np.linspace(0.5 * np.pi - theta, 0.5 * np.pi - theta_next,
-                             max(4, int(n_fillet)))[1:]
+        angles = np.linspace(0.5 * np.pi - theta, 0.5 * np.pi - theta_next, max(4, int(n_fillet)))[
+            1:
+        ]
         station += list(centre_x - fillet * np.cos(angles))
         radius += list(centre_r + fillet * np.sin(angles))
 
@@ -479,19 +502,148 @@ def blunted_multiconic(
     station_array = np.asarray(station, dtype=np.float64)
     radius_array = np.asarray(radius, dtype=np.float64)
     if shoulder_radius > 0.0:
-        arc = _shoulder(float(station_array[-1]), float(radius_array[-1]),
-                        float(half_angles[-1]), float(shoulder_radius), int(n_shoulder))
+        arc = _shoulder(
+            float(station_array[-1]),
+            float(radius_array[-1]),
+            float(half_angles[-1]),
+            float(shoulder_radius),
+            int(n_shoulder),
+        )
         keep = station_array < arc[0, 0]
         station_array = np.concatenate([station_array[keep], arc[:, 0]])
         radius_array = np.concatenate([radius_array[keep], arc[:, 1]])
-        shoulder = _shoulder_arc(float(here[0]), float(here[1]),
-                                 float(half_angles[-1]), float(shoulder_radius))
+        shoulder = _shoulder_arc(
+            float(here[0]), float(here[1]), float(half_angles[-1]), float(shoulder_radius)
+        )
         # Trim the final cone back to where the shoulder picks it up.
         trimmed = prims[-1]
         if isinstance(trimmed, Segment):
             prims[-1] = Segment(trimmed.start, shoulder.start)
         prims.append(shoulder)
     return Revolve(
-        station=station_array, radius=radius_array,
-        contour=Contour(tuple(prims), closed=False), name=name,
+        station=station_array,
+        radius=radius_array,
+        contour=Contour(tuple(prims), closed=False),
+        name=name,
     )
+
+
+def power_law_body(
+    exponent: float = 0.75,
+    length: float = 2.0,
+    base_radius: float = 0.4,
+    n_station: int = 120,
+    name: str | None = None,
+) -> Revolve:
+    r"""Power-law body of revolution, :math:`r = R(x/L)^n`.
+
+    The family that contains both classical slender-body optima, which is why
+    it is parameterised by the exponent rather than split into two functions:
+
+    ``exponent = 3/4``
+        The **Newtonian optimum**. Under impact theory, at fixed length and
+        base radius, :math:`n = 3/4` minimises pressure drag. That is a
+        statement about a hypersonic pressure law rather than about linearised
+        wave drag, and it is checkable directly against this package's own
+        Newtonian closure -- which is what the tests do, by sweeping the
+        exponent and finding the minimum rather than by asserting the number.
+
+    ``exponent = 2/3``
+        The **blast-wave analogy** result. A slender hypersonic body's shock
+        layer behaves like the cylindrical blast wave from a line charge, and
+        the body that grows as :math:`x^{2/3}` matches that self-similar
+        growth. It falls out of a different argument from the Newtonian one
+        and gives a different shape, which is the point of carrying both.
+
+    :math:`n = 1` is a cone and :math:`n = 1/2` a parabolic ogive, so the
+    family also spans the shapes the rest of this module builds by other
+    means.
+    """
+    if not 0.0 < exponent <= 1.0:
+        msg = f"exponent must lie in (0, 1], got {exponent}"
+        raise ValueError(msg)
+    if length <= 0.0 or base_radius <= 0.0:
+        msg = f"length and base_radius must be positive, got {length}, {base_radius}"
+        raise ValueError(msg)
+
+    station = np.linspace(0.0, length, int(n_station))
+    radius = base_radius * (station / length) ** exponent
+    return Revolve(
+        station=station,
+        radius=radius,
+        name=name or f"power-law-n{exponent:g}",
+    )
+
+
+def sears_haack(
+    length: float = 2.0,
+    max_radius: float = 0.25,
+    n_station: int = 160,
+    name: str = "sears-haack",
+) -> Revolve:
+    r"""Sears--Haack body: minimum wave drag for a given length and volume.
+
+    .. math::
+
+        r(x) = R_{\max}\left[4\frac{x}{L}\left(1 - \frac{x}{L}\right)\right]^{3/4}
+
+    Closed at both ends, which is what the "given volume" constraint implies
+    and what makes it a body rather than a forebody. Its volume is exactly
+    :math:`V = \tfrac{3}{16}\pi^2 R_{\max}^2 L`, and its slender-body wave
+    drag is :math:`D/q = 128V^2/(\pi L^4)`, equivalently
+    :math:`9\pi^3R_{\max}^4/(2L^2)`.
+
+    Both are analytic, and the first is the more useful check here because it
+    can be measured on the solid rather than derived from the same formula
+    that built it: OpenCASCADE reports the revolved volume independently, so
+    agreement tests the geometry pipeline and not just the arithmetic.
+    """
+    if length <= 0.0 or max_radius <= 0.0:
+        msg = f"length and max_radius must be positive, got {length}, {max_radius}"
+        raise ValueError(msg)
+    station = np.linspace(0.0, length, int(n_station))
+    fraction = station / length
+    radius = max_radius * np.clip(4.0 * fraction * (1.0 - fraction), 0.0, None) ** 0.75
+    return Revolve(station=station, radius=radius, name=name)
+
+
+def sears_haack_volume(length: float, max_radius: float) -> float:
+    """:math:`V = \tfrac{3}{16}\\pi^2 R_{\\max}^2 L` -- the closed form."""
+    return float(3.0 * np.pi**2 * max_radius**2 * length / 16.0)
+
+
+def sears_haack_wave_drag_area(length: float, max_radius: float) -> float:
+    r""":math:`D/q = 9\pi^3R_{\max}^4/(2L^2)` -- slender-body wave drag, as an area."""
+    return float(9.0 * np.pi**3 * max_radius**4 / (2.0 * length**2))
+
+
+def von_karman_ogive(
+    length: float = 2.0,
+    base_radius: float = 0.3,
+    n_station: int = 160,
+    name: str = "von-karman-ogive",
+) -> Revolve:
+    r"""Von Karman (LV-Haack) ogive: minimum wave drag for length and base radius.
+
+    .. math::
+
+        \theta = \arccos\!\left(1 - \frac{2x}{L}\right), \qquad
+        r = \frac{R}{\sqrt{\pi}}\sqrt{\theta - \tfrac{1}{2}\sin 2\theta}
+
+    The same variational problem as :func:`sears_haack` under a different
+    constraint: Sears--Haack fixes the volume and closes both ends, the ogive
+    fixes the base radius and leaves the base open. So it is a forebody where
+    the other is a body, and the pair is worth having for exactly that reason
+    -- a nose fairing and a fuselage are not the same optimisation.
+
+    The nose is sharp and its slope is infinite there, which is real rather
+    than a sampling artefact: the optimum has no blunting, and any practical
+    version of it is a truncation.
+    """
+    if length <= 0.0 or base_radius <= 0.0:
+        msg = f"length and base_radius must be positive, got {length}, {base_radius}"
+        raise ValueError(msg)
+    station = np.linspace(0.0, length, int(n_station))
+    theta = np.arccos(np.clip(1.0 - 2.0 * station / length, -1.0, 1.0))
+    radius = base_radius / np.sqrt(np.pi) * np.sqrt(theta - 0.5 * np.sin(2.0 * theta))
+    return Revolve(station=station, radius=radius, name=name)

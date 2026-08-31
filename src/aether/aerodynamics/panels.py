@@ -134,9 +134,7 @@ class PanelModel:
     centroids: _FloatArray = field(repr=False)
     normals: _FloatArray = field(repr=False)
     areas: _FloatArray = field(repr=False)
-    reference_point: _FloatArray = field(
-        repr=False, default_factory=lambda: np.zeros(3)
-    )
+    reference_point: _FloatArray = field(repr=False, default_factory=lambda: np.zeros(3))
     surface: SurfaceGrid | None = field(repr=False, default=None)
     """The net the panels were cut from, when the generator had one.
 
@@ -179,9 +177,7 @@ class PanelModel:
         normalized.
         """
         a, b = float(incidence), float(sideslip)
-        v = np.array(
-            [np.cos(a) * np.cos(b), np.sin(b), np.sin(a) * np.cos(b)]
-        )
+        v = np.array([np.cos(a) * np.cos(b), np.sin(b), np.sin(a) * np.cos(b)])
         return np.asarray(v / np.linalg.norm(v))
 
     def incidences(self, incidence: float, sideslip: float = 0.0) -> _FloatArray:
@@ -217,9 +213,7 @@ class PanelModel:
             ``(force, moment)``, each shape ``(3,)``, in N and N·m.
         """
         if not (np.isfinite(dynamic_pressure) and dynamic_pressure > 0.0):
-            raise ValueError(
-                f"dynamic_pressure must be finite and > 0, got {dynamic_pressure}"
-            )
+            raise ValueError(f"dynamic_pressure must be finite and > 0, got {dynamic_pressure}")
         delta = self.incidences(incidence, sideslip)
         cp = blended_pressure_coefficient(
             delta, mach, gamma=gamma, blend_width=blend_width, cp_max=cp_max
@@ -283,9 +277,7 @@ class PanelModel:
         alpha, info = scipy.optimize.brentq(
             moment, lo, hi, xtol=1e-12, rtol=8.9e-16, full_output=True
         )
-        force, mom = self.loads(
-            alpha, mach, dynamic_pressure, gamma=gamma, blend_width=blend_width
-        )
+        force, mom = self.loads(alpha, mach, dynamic_pressure, gamma=gamma, blend_width=blend_width)
         return TrimSolution(
             incidence=float(alpha),
             normal_force=float(force[2]),
@@ -406,11 +398,13 @@ def sphere_cone_closure(
     n_given = sum(v is not None for v in given)
     if n_given != 3:
         raise ValueError(
-            f"supply exactly three of (length, base_radius, nose_radius, "
-            f"half_angle); got {n_given}"
+            f"supply exactly three of (length, base_radius, nose_radius, half_angle); got {n_given}"
         )
-    for name, value in (("length", length), ("base_radius", base_radius),
-                        ("nose_radius", nose_radius)):
+    for name, value in (
+        ("length", length),
+        ("base_radius", base_radius),
+        ("nose_radius", nose_radius),
+    ):
         if value is not None and not (np.isfinite(value) and value > 0.0):
             raise ValueError(f"{name} must be finite and > 0, got {value}")
     if half_angle is not None and not (0.0 < half_angle < 0.5 * np.pi):
@@ -437,17 +431,12 @@ def sphere_cone_closure(
 
         def residual(theta: float) -> float:
             return float(
-                span_base / np.tan(theta)
-                - span_nose / np.sin(theta)
-                + span_nose
-                - span_len
+                span_base / np.tan(theta) - span_nose / np.sin(theta) + span_nose - span_len
             )
 
         lo, hi = np.radians(0.05), np.radians(89.0)
         if residual(lo) * residual(hi) > 0.0:
-            raise ValueError(
-                "no half-angle closes this (length, base_radius, nose_radius)"
-            )
+            raise ValueError("no half-angle closes this (length, base_radius, nose_radius)")
         out_angle = float(scipy.optimize.brentq(residual, lo, hi, xtol=1e-14))
         out_length, out_base, out_nose = length, base_radius, nose_radius
 
@@ -573,12 +562,14 @@ def sphere_cone(
     for (x0, r0), (x1, r1) in itertools.pairwise(nodes):
         for j in range(n_circ):
             a, b = psi[j], psi[j + 1]
-            quad = np.array([
-                [x0, r0 * np.cos(a), r0 * np.sin(a)],
-                [x1, r1 * np.cos(a), r1 * np.sin(a)],
-                [x1, r1 * np.cos(b), r1 * np.sin(b)],
-                [x0, r0 * np.cos(b), r0 * np.sin(b)],
-            ])
+            quad = np.array(
+                [
+                    [x0, r0 * np.cos(a), r0 * np.sin(a)],
+                    [x1, r1 * np.cos(a), r1 * np.sin(a)],
+                    [x1, r1 * np.cos(b), r1 * np.sin(b)],
+                    [x0, r0 * np.cos(b), r0 * np.sin(b)],
+                ]
+            )
             add(quad[[0, 1, 2]])
             add(quad[[0, 2, 3]])
 
@@ -586,19 +577,39 @@ def sphere_cone(
         for j in range(n_circ):
             a, b = psi[j], psi[j + 1]
             add(
-                np.array([
-                    [length, 0.0, 0.0],
-                    [length, base_radius * np.cos(b), base_radius * np.sin(b)],
-                    [length, base_radius * np.cos(a), base_radius * np.sin(a)],
-                ]),
+                np.array(
+                    [
+                        [length, 0.0, 0.0],
+                        [length, base_radius * np.cos(b), base_radius * np.sin(b)],
+                        [length, base_radius * np.cos(a), base_radius * np.sin(a)],
+                    ]
+                ),
                 fixed_normal=np.array([1.0, 0.0, 0.0]),
             )
+
+    # The same net the panels above were cut from, kept rather than discarded.
+    # This generator predates :class:`SurfaceGrid` and used to hand back panels
+    # only, which made it the one sphere-cone in the package that could not be
+    # meshed -- so the meshable sphere-cone had to be spelled as a
+    # single-segment :func:`blunted_multiconic`, and which function to call
+    # depended on what you meant to do with the answer. There was never a
+    # reason for that beyond the order the two were written in.
+    profile = np.asarray(nodes, dtype=np.float64)
+    net = np.stack(
+        [
+            profile[:, 0][:, None] * np.ones_like(psi)[None, :],
+            profile[:, 1][:, None] * np.cos(psi)[None, :],
+            profile[:, 1][:, None] * np.sin(psi)[None, :],
+        ],
+        axis=-1,
+    )
 
     return PanelModel(
         centroids=np.asarray(centroids),
         normals=np.asarray(normals),
         areas=np.asarray(areas),
         reference_point=np.array([reference_fraction * length, 0.0, 0.0]),
+        surface=SurfaceGrid(vertices=net),
     )
 
 
@@ -673,8 +684,7 @@ def caret_lifting_body(
         Panel the blunt base. Unlike the cone the base here is a real
         area, so it is closed by default.
     """
-    for name, value in (("length", length), ("semi_span", semi_span),
-                        ("keel_depth", keel_depth)):
+    for name, value in (("length", length), ("semi_span", semi_span), ("keel_depth", keel_depth)):
         if not (np.isfinite(value) and value > 0.0):
             raise ValueError(f"{name} must be finite and > 0, got {value}")
     if n_chord < 4 or n_span < 4:
@@ -708,21 +718,21 @@ def caret_lifting_body(
 
                 def lower(u: float, v: float, side: float = sign) -> _FloatArray:
                     # ruled from keel (v=0) to leading edge (v=1)
-                    return np.array([
-                        u * length,
-                        side * u * semi_span * v,
-                        -u * keel_depth * (1.0 - v),
-                    ])
+                    return np.array(
+                        [
+                            u * length,
+                            side * u * semi_span * v,
+                            -u * keel_depth * (1.0 - v),
+                        ]
+                    )
 
                 def upper(u: float, v: float, side: float = sign) -> _FloatArray:
                     return np.array([u * length, side * u * semi_span * v, 0.0])
 
-                quad_l = np.array([lower(u0, v0), lower(u1, v0),
-                                   lower(u1, v1), lower(u0, v1)])
+                quad_l = np.array([lower(u0, v0), lower(u1, v0), lower(u1, v1), lower(u0, v1)])
                 add(quad_l[[0, 1, 2]], down)
                 add(quad_l[[0, 2, 3]], down)
-                quad_u = np.array([upper(u0, v0), upper(u1, v0),
-                                   upper(u1, v1), upper(u0, v1)])
+                quad_u = np.array([upper(u0, v0), upper(u1, v0), upper(u1, v1), upper(u0, v1)])
                 add(quad_u[[0, 1, 2]], up)
                 add(quad_u[[0, 2, 3]], up)
 
@@ -731,10 +741,8 @@ def caret_lifting_body(
         for sign in (1.0, -1.0):
             for j in range(n_span):
                 v0, v1 = span[j], span[j + 1]
-                keel_0 = np.array([length, sign * semi_span * v0,
-                                   -keel_depth * (1.0 - v0)])
-                keel_1 = np.array([length, sign * semi_span * v1,
-                                   -keel_depth * (1.0 - v1)])
+                keel_0 = np.array([length, sign * semi_span * v0, -keel_depth * (1.0 - v0)])
+                keel_1 = np.array([length, sign * semi_span * v1, -keel_depth * (1.0 - v1)])
                 top_0 = np.array([length, sign * semi_span * v0, 0.0])
                 top_1 = np.array([length, sign * semi_span * v1, 0.0])
                 add(np.array([keel_0, keel_1, top_1]), aft)
@@ -749,9 +757,7 @@ def caret_lifting_body(
 
 
 def _grid_to_panels(
-    vertices: _FloatArray,
-    reference_point: _FloatArray,
-    outward_hint: _FloatArray | None = None
+    vertices: _FloatArray, reference_point: _FloatArray, outward_hint: _FloatArray | None = None
 ) -> PanelModel:
     """Helper to convert an (N_axial, N_circ, 3) vertex grid into a PanelModel."""
     n_ax, n_circ, _ = vertices.shape
@@ -782,8 +788,8 @@ def _grid_to_panels(
 
     for i in range(n_ax - 1):
         for j in range(n_circ - 1):
-            p00, p10 = vertices[i, j], vertices[i+1, j]
-            p11, p01 = vertices[i+1, j+1], vertices[i, j+1]
+            p00, p10 = vertices[i, j], vertices[i + 1, j]
+            p11, p01 = vertices[i + 1, j + 1], vertices[i, j + 1]
 
             quad = np.array([p00, p10, p11, p01])
             add(quad[[0, 1, 2]])
@@ -797,6 +803,7 @@ def _grid_to_panels(
         surface=SurfaceGrid(vertices=np.asarray(vertices, dtype=np.float64)),
     )
 
+
 def blunted_multiconic(
     nose_radius: float = 0.05,
     lengths: Sequence[float] | None = None,
@@ -804,16 +811,14 @@ def blunted_multiconic(
     fillet_radii: Sequence[float] | None = None,
     n_axial_per_segment: int = 40,
     n_circ: int = 48,
-    reference_fraction: float = 0.5
+    reference_fraction: float = 0.5,
 ) -> PanelModel:
     """Generates a C1 continuous biconic, triconic, or n-conic with tangent fillets."""
     # Defaults built here, not in the signature: a list literal in a default
     # is shared by every call that takes it, so one caller mutating it changes
     # the geometry every later caller gets.
     lengths = [1.0, 1.5] if lengths is None else list(lengths)
-    half_angles = (
-        [np.radians(12.0), np.radians(7.0)] if half_angles is None else list(half_angles)
-    )
+    half_angles = [np.radians(12.0), np.radians(7.0)] if half_angles is None else list(half_angles)
     fillet_radii = [0.1] if fillet_radii is None else list(fillet_radii)
     if len(lengths) != len(half_angles):
         raise ValueError("Lengths and half_angles arrays must match.")
@@ -838,7 +843,7 @@ def blunted_multiconic(
         theta = half_angles[i]
 
         if i < n_segments - 1:
-            theta_next = half_angles[i+1]
+            theta_next = half_angles[i + 1]
             R_f = fillet_radii[i]
 
             L_seg = lengths[i]
@@ -873,7 +878,8 @@ def blunted_multiconic(
             r_profile.extend(r_frust)
 
             angles = np.linspace(
-                np.pi / 2 - theta, np.pi / 2 - theta_next,
+                np.pi / 2 - theta,
+                np.pi / 2 - theta_next,
                 max(4, n_axial_per_segment // 2),
             )[1:]
             for a in angles:
@@ -900,13 +906,17 @@ def blunted_multiconic(
     ref_pt = np.array([reference_fraction * np.max(x_prof), 0.0, 0.0])
     return _grid_to_panels(vertices, ref_pt)
 
+
 def exact_mitered_bent_biconic(
     nose_radius: float = 0.05,
-    L1: float = 1.0, theta1: float = np.radians(10.0),
-    L2: float = 1.5, theta2: float = np.radians(6.0),
+    L1: float = 1.0,
+    theta1: float = np.radians(10.0),
+    L2: float = 1.5,
+    theta2: float = np.radians(6.0),
     bend_angle: float = np.radians(5.0),
-    n_axial: int = 60, n_circ: int = 48,
-    reference_fraction: float = 0.5
+    n_axial: int = 60,
+    n_circ: int = 48,
+    reference_fraction: float = 0.5,
 ) -> PanelModel:
     """Watertight bent biconic using exact 3D ray-plane miter intersections."""
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
@@ -929,7 +939,7 @@ def exact_mitered_bent_biconic(
     P_junction = np.zeros((len(psi), 3))
 
     for j, p in enumerate(psi):
-        d = np.array([np.cos(theta1), np.sin(theta1)*np.cos(p), np.sin(theta1)*np.sin(p)])
+        d = np.array([np.cos(theta1), np.sin(theta1) * np.cos(p), np.sin(theta1) * np.sin(p)])
         t_junc = np.dot(hinge - v_apex, n_plane) / np.dot(d, n_plane)
         t_tan = r_tan / np.sin(theta1)
 
@@ -941,10 +951,10 @@ def exact_mitered_bent_biconic(
                 vertices[i, j] = [
                     nose_radius * (1.0 - np.cos(phi)),
                     nose_radius * np.sin(phi) * np.cos(p),
-                    nose_radius * np.sin(phi) * np.sin(p)
+                    nose_radius * np.sin(phi) * np.sin(p),
                 ]
             else:
-                u = (i - n_fwd//3 + 1) / (n_fwd - n_fwd//3)
+                u = (i - n_fwd // 3 + 1) / (n_fwd - n_fwd // 3)
                 vertices[i, j] = v_apex + (t_tan + u * (t_junc - t_tan)) * d
 
     R_nom = r_tan + L1 * np.tan(theta1)
@@ -964,14 +974,18 @@ def exact_mitered_bent_biconic(
 
     return _grid_to_panels(vertices, ref_pt)
 
+
 def smooth_bent_biconic(
     nose_radius: float = 0.05,
-    L1: float = 1.0, theta1: float = np.radians(10.0),
-    L2: float = 1.5, theta2: float = np.radians(6.0),
+    L1: float = 1.0,
+    theta1: float = np.radians(10.0),
+    L2: float = 1.5,
+    theta2: float = np.radians(6.0),
     bend_angle: float = np.radians(5.0),
     spine_bend_radius: float = 0.5,
-    n_axial: int = 80, n_circ: int = 48,
-    reference_fraction: float = 0.5
+    n_axial: int = 80,
+    n_circ: int = 48,
+    reference_fraction: float = 0.5,
 ) -> PanelModel:
     """Watertight C1 continuous bent biconic utilizing a planar Bishop frame loft."""
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
@@ -1024,11 +1038,13 @@ def smooth_bent_biconic(
 
         elif s <= s_arc_end:
             theta_local = (s - s_fwd_end) / spine_bend_radius
-            gamma = np.array([
-                x_apex + s_fwd_end + spine_bend_radius * np.sin(theta_local),
-                0.0,
-                spine_bend_radius - spine_bend_radius * np.cos(theta_local)
-            ])
+            gamma = np.array(
+                [
+                    x_apex + s_fwd_end + spine_bend_radius * np.sin(theta_local),
+                    0.0,
+                    spine_bend_radius - spine_bend_radius * np.cos(theta_local),
+                ]
+            )
             N_vec = np.array([-np.sin(theta_local), 0.0, np.cos(theta_local)])
 
             u_arc = (s - s_fwd_end) / arc_length
@@ -1041,11 +1057,13 @@ def smooth_bent_biconic(
 
         else:
             s_local = s - s_arc_end
-            gamma_arc_end = np.array([
-                x_apex + s_fwd_end + spine_bend_radius * np.sin(bend_angle),
-                0.0,
-                spine_bend_radius - spine_bend_radius * np.cos(bend_angle)
-            ])
+            gamma_arc_end = np.array(
+                [
+                    x_apex + s_fwd_end + spine_bend_radius * np.sin(bend_angle),
+                    0.0,
+                    spine_bend_radius - spine_bend_radius * np.cos(bend_angle),
+                ]
+            )
             T_vec = np.array([np.cos(bend_angle), 0.0, np.sin(bend_angle)])
             N_vec = np.array([-np.sin(bend_angle), 0.0, np.cos(bend_angle)])
 
@@ -1064,6 +1082,7 @@ def smooth_bent_biconic(
     ref_pt = np.array([reference_fraction * vertices[-1, 0, 0], 0.0, 0.0])
     return _grid_to_panels(vertices, ref_pt)
 
+
 def spatular_wedge(
     length: float = 3.0,
     nose_radius_y: float = 0.1,
@@ -1077,7 +1096,7 @@ def spatular_wedge(
     p_n_exp: float = 2.0,
     n_axial: int = 60,
     n_circ: int = 48,
-    reference_fraction: float = 0.5
+    reference_fraction: float = 0.5,
 ) -> PanelModel:
     """Exact power-law blended lifting body using rigorous Lamé curve transitions."""
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
@@ -1088,9 +1107,9 @@ def spatular_wedge(
     for i, u in enumerate(u_vals):
         x = u * length
 
-        a = nose_radius_y + (base_half_span - nose_radius_y) * (u ** p_span)
-        b = nose_radius_z + (base_half_thickness - nose_radius_z) * (u ** p_thickness)
-        n_exp = n_power_nose + (n_power_base - n_power_nose) * (u ** p_n_exp)
+        a = nose_radius_y + (base_half_span - nose_radius_y) * (u**p_span)
+        b = nose_radius_z + (base_half_thickness - nose_radius_z) * (u**p_thickness)
+        n_exp = n_power_nose + (n_power_base - n_power_nose) * (u**p_n_exp)
 
         for j, p in enumerate(psi):
             cos_p = np.cos(p)
@@ -1099,7 +1118,7 @@ def spatular_wedge(
             y = a * (np.abs(cos_p) ** (2.0 / n_exp)) * np.sign(cos_p)
             z = b * (np.abs(sin_p) ** (2.0 / n_exp)) * np.sign(sin_p)
 
-            rad_fraction = (y/a)**2 + (z/b)**2
+            rad_fraction = (y / a) ** 2 + (z / b) ** 2
             x_offset = nose_radius_y * (1.0 - np.sqrt(max(0.0, 1.0 - rad_fraction)))
 
             x_local = x + x_offset * (1.0 - u)

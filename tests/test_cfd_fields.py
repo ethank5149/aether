@@ -392,3 +392,105 @@ def test_a_nonequilibrium_restart_is_refused_by_name_not_by_key_error() -> None:
 def test_a_single_species_restart_is_recognised_as_perfect_gas() -> None:
     field = _field(np.array([0.05]), np.array([[2400.0, 0.0, 0.0]]), np.array([1197.0]), 1.4)
     assert field.is_perfect_gas
+
+
+# ------------------------------------------------ the solver's own primitives
+
+
+def _tecplot(path: Path, names: list[str], rows: np.ndarray, packing: str = "POINT") -> None:
+    """Write a file in SU2's Tecplot-ASCII volume layout."""
+    variables = ",".join(f'"{name}"' for name in names)
+    path.write_text(
+        'TITLE = "Visualization of the solution"\n'
+        f"VARIABLES = {variables}\n"
+        f"ZONE NODES= {rows.shape[0]}, ELEMENTS= 1, DATAPACKING={packing}, ZONETYPE=FEBRICK\n"
+        + "".join("\t".join(f"{v:.6e}" for v in row) + "\t\n" for row in rows)
+    )
+
+
+_VOLUME_NAMES = ["x", "y", "z", "Density", "Pressure", "Temperature", "Mach"]
+
+
+def test_a_volume_file_round_trips(tmp_path: Path) -> None:
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    rows = np.arange(21, dtype=np.float64).reshape(3, 7)
+    _tecplot(tmp_path / "v.dat", _VOLUME_NAMES, rows)
+    field = read_volume(tmp_path / "v.dat")
+    assert field.size == 3
+    assert field.points == pytest.approx(rows[:, :3])
+    assert field.has_primitives
+    assert field.pressure() == pytest.approx(rows[:, 4])
+    assert field.temperature() == pytest.approx(rows[:, 5])
+    assert field.mach() == pytest.approx(rows[:, 6])
+
+
+def test_the_solver_primitives_win_over_the_gas_model(tmp_path: Path) -> None:
+    """The whole reason the volume path exists.
+
+    The stored values are deliberately inconsistent with what a perfect gas
+    would give, so that a reader which quietly re-derived them would produce a
+    different number and fail here. Above Mach 10 that difference is the
+    difference between right and wrong.
+    """
+    from aether.aerodynamics.cfd.fields import CaloricallyPerfect, read_volume
+
+    names = [*_VOLUME_NAMES, "Momentum_x", "Momentum_y", "Momentum_z", "Energy"]
+    rows = np.array([[0.0, 0.0, 0.0, 0.05, 4321.0, 1234.0, 17.5, 120.0, 0.0, 0.0, 9.9e5]])
+    _tecplot(tmp_path / "v.dat", names, rows)
+    field = read_volume(tmp_path / "v.dat")
+
+    assert field.pressure() == pytest.approx(4321.0)
+    assert field.temperature() == pytest.approx(1234.0)
+    assert field.mach() == pytest.approx(17.5)
+    # And they do not move when a different gas model is handed in, because
+    # the gas model is not consulted at all when the solver said so.
+    exotic = CaloricallyPerfect(gamma=1.15, gas_constant=190.0)
+    assert field.pressure(exotic) == pytest.approx(4321.0)
+    assert field.temperature(exotic) == pytest.approx(1234.0)
+    assert field.mach(exotic) == pytest.approx(17.5)
+
+
+def test_a_restart_without_primitives_still_derives_them(tmp_path: Path) -> None:
+    """The old path has to keep working; it is what the archive is in."""
+    from aether.aerodynamics.cfd.fields import PERFECT_AIR
+
+    field = _field(np.array([0.05]), np.array([[2400.0, 0.0, 0.0]]), np.array([1197.0]), 1.4)
+    assert not field.has_primitives
+    assert field.pressure(PERFECT_AIR) == pytest.approx(1197.0)
+
+
+def test_velocity_is_read_rather_than_divided_when_the_solver_wrote_it(tmp_path: Path) -> None:
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    names = [*_VOLUME_NAMES, "Velocity_x", "Velocity_y", "Velocity_z"]
+    rows = np.array([[0.0, 0.0, 0.0, 0.05, 1197.0, 226.5, 8.0, 2400.0, -3.0, 7.0]])
+    _tecplot(tmp_path / "v.dat", names, rows)
+    velocity = read_volume(tmp_path / "v.dat").velocity
+    assert velocity == pytest.approx(np.array([[2400.0, -3.0, 7.0]]))
+
+
+def test_block_packed_and_headerless_files_are_refused(tmp_path: Path) -> None:
+    """Refused by name: silently misreading a block file gives a plausible field."""
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    rows = np.zeros((2, 7))
+    _tecplot(tmp_path / "block.dat", _VOLUME_NAMES, rows, packing="BLOCK")
+    with pytest.raises(ValueError, match="DATAPACKING=POINT"):
+        read_volume(tmp_path / "block.dat")
+
+    (tmp_path / "none.dat").write_text('TITLE = "x"\nVARIABLES = "x","y","z"\n')
+    with pytest.raises(ValueError, match="no ZONE record"):
+        read_volume(tmp_path / "none.dat")
+
+
+def test_a_short_row_is_refused_rather_than_padded(tmp_path: Path) -> None:
+    from aether.aerodynamics.cfd.fields import read_volume
+
+    path = tmp_path / "v.dat"
+    _tecplot(path, _VOLUME_NAMES, np.zeros((2, 7)))
+    lines = path.read_text().splitlines()
+    lines[3] = "1.0\t2.0\t3.0"
+    path.write_text("\n".join(lines) + "\n")
+    with pytest.raises(ValueError, match="values for"):
+        read_volume(path)

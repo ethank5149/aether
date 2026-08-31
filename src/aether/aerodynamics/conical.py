@@ -40,15 +40,22 @@ integration begins.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import scipy.integrate
 import scipy.optimize
+from numpy.typing import NDArray
+
+_FloatArray = NDArray[np.float64]
+_FloatLike = float | NDArray[np.float64]
 
 __all__ = [
     "ConeSolution",
+    "ConicalField",
     "ObliqueShock",
+    "conical_field",
     "mach_angle",
     "oblique_shock",
     "solve_cone",
@@ -99,16 +106,9 @@ def oblique_shock(mach: float, angle: float, gamma: float = 1.4) -> ObliqueShock
         raise ValueError(msg)
     normal2 = normal * normal
     deflection = float(
-        np.arctan(
-            2.0
-            / np.tan(beta)
-            * (normal2 - 1.0)
-            / (m1 * m1 * (g + np.cos(2.0 * beta)) + 2.0)
-        )
+        np.arctan(2.0 / np.tan(beta) * (normal2 - 1.0) / (m1 * m1 * (g + np.cos(2.0 * beta)) + 2.0))
     )
-    downstream_normal = np.sqrt(
-        (1.0 + 0.5 * (g - 1.0) * normal2) / (g * normal2 - 0.5 * (g - 1.0))
-    )
+    downstream_normal = np.sqrt((1.0 + 0.5 * (g - 1.0) * normal2) / (g * normal2 - 0.5 * (g - 1.0)))
     pressure_ratio = 1.0 + 2.0 * g / (g + 1.0) * (normal2 - 1.0)
     density_ratio = (g + 1.0) * normal2 / ((g - 1.0) * normal2 + 2.0)
     return ObliqueShock(
@@ -180,11 +180,7 @@ class ConeSolution:
     @property
     def pressure_coefficient(self) -> float:
         """:math:`C_p = \\frac{2}{\\gamma M^2}(p_c/p_\\infty - 1)` on the cone."""
-        return float(
-            2.0
-            / (self.gamma * self.mach**2)
-            * (self.surface_pressure_ratio - 1.0)
-        )
+        return float(2.0 / (self.gamma * self.mach**2) * (self.surface_pressure_ratio - 1.0))
 
     @property
     def wave_drag_coefficient(self) -> float:
@@ -212,12 +208,19 @@ def _mach_from_velocity_ratio(ratio: float, gamma: float) -> float:
 
 def _integrate_from_shock(
     mach: float, shock_angle: float, gamma: float
-) -> tuple[float, float, bool]:
+) -> tuple[float, float, bool, Any]:
     """Integrate inward from a shock; return the surface angle and velocity.
 
-    Returns ``(theta_surface, f_surface, found)``. ``found`` is False when the
-    integration reached the axis without :math:`f'` changing sign, which is
-    what happens for a shock angle too weak to support any cone.
+    Returns ``(theta_surface, f_surface, found, solution)``. ``found`` is False
+    when the integration reached the axis without :math:`f'` changing sign,
+    which is what happens for a shock angle too weak to support any cone.
+
+    The dense solution is returned rather than discarded because it *is* the
+    conical flowfield -- the whole thing, between shock and cone surface --
+    and it has already been paid for. Streamline tracing through that field
+    is what an osculating-cone waverider is built from, and for a long time
+    the only thing standing between this package and one was that these three
+    lines threw the answer away and kept the boundary value.
     """
     jump = oblique_shock(mach, shock_angle, gamma)
     ratio = _velocity_ratio(jump.downstream_mach, gamma)
@@ -257,10 +260,10 @@ def _integrate_from_shock(
         method="DOP853",
     )
     if solution.t_events[0].size == 0:
-        return 0.0, 0.0, False
+        return 0.0, 0.0, False, solution
     theta_surface = float(solution.t_events[0][0])
     f_surface = float(solution.y_events[0][0][0])
-    return theta_surface, f_surface, True
+    return theta_surface, f_surface, True, solution
 
 
 def maximum_cone_angle(mach: float, gamma: float = 1.4) -> tuple[float, float]:
@@ -339,13 +342,9 @@ def solve_cone(
         )
         raise ValueError(msg)
 
-    bracket = (
-        (mu + 1e-12, detached_shock)
-        if weak
-        else (detached_shock, 0.5 * np.pi - 1e-9)
-    )
+    bracket = (mu + 1e-12, detached_shock) if weak else (detached_shock, 0.5 * np.pi - 1e-9)
     beta = float(scipy.optimize.brentq(residual, *bracket, xtol=1e-13, rtol=1e-14))
-    theta_surface, f_surface, found = _integrate_from_shock(m, beta, g)
+    theta_surface, f_surface, found, _ = _integrate_from_shock(m, beta, g)
     jump = oblique_shock(m, beta, g)
     surface_mach = _mach_from_velocity_ratio(f_surface, g)
     # Isentropic from just behind the shock to the surface: the flow is
@@ -363,4 +362,161 @@ def solve_cone(
         surface_pressure_ratio=float(jump.pressure_ratio * isentropic),
         gamma=g,
         converged=found and abs(theta_surface - theta_c) < 1e-9,
+    )
+
+
+@dataclass(frozen=True)
+class ConicalField:
+    """The whole Taylor--Maccoll flowfield between a conical shock and its cone.
+
+    :func:`solve_cone` answers what the surface does. This answers what every
+    streamline between the shock and the surface does, which is a different
+    question and the one an osculating-cone waverider is designed from: that
+    method builds a body by tracing streamlines through exactly this field and
+    stitching the traces into a compression surface.
+
+    Velocities are normalised by :math:`V_{\\max} = \\sqrt{2h_0}`, the speed the
+    flow would reach expanded to vacuum, which is the natural scale for the
+    Taylor--Maccoll equation and is constant across the shock.
+    """
+
+    mach: float
+    cone_angle: float
+    shock_angle: float
+    gamma: float
+    _solution: Any = field(repr=False, compare=False, default=None)
+
+    def velocity(self, theta: _FloatLike) -> tuple[_FloatArray, _FloatArray]:
+        """``(V_r, V_theta)/V_max`` at polar angle(s) ``theta`` (rad).
+
+        ``theta`` is measured from the cone axis, so it runs from
+        :attr:`cone_angle` at the surface out to :attr:`shock_angle` at the
+        shock. Outside that range the conical solution does not exist and
+        asking for it is refused rather than extrapolated.
+        """
+        angles = np.atleast_1d(np.asarray(theta, dtype=np.float64))
+        low, high = self.cone_angle - 1e-9, self.shock_angle + 1e-9
+        if np.any(angles < low) or np.any(angles > high):
+            raise ValueError(
+                f"theta must lie between the cone surface ({self.cone_angle:.6f} rad) "
+                f"and the shock ({self.shock_angle:.6f} rad); got "
+                f"[{angles.min():.6f}, {angles.max():.6f}]"
+            )
+        state = self._solution.sol(np.clip(angles, self.cone_angle, self.shock_angle))
+        return np.asarray(state[0]), np.asarray(state[1])
+
+    def mach_at(self, theta: _FloatLike) -> _FloatArray:
+        """Local Mach number at polar angle(s) ``theta``."""
+        radial, polar = self.velocity(theta)
+        speed = np.sqrt(radial**2 + polar**2)
+        return np.asarray(
+            [_mach_from_velocity_ratio(float(value), self.gamma) for value in np.atleast_1d(speed)]
+        )
+
+    def streamline(
+        self, shock_radius: float = 1.0, end_angle: float | None = None, samples: int = 400
+    ) -> tuple[_FloatArray, _FloatArray]:
+        """Trace one streamline inward from the shock. Returns ``(theta, r)``.
+
+        Conical flow is self-similar in spherical radius, so a streamline obeys
+
+        .. math:: \\frac{\\mathrm{d}\\ln r}{\\mathrm{d}\\theta} = \\frac{V_r}{V_\\theta}
+
+        and every streamline is a scaled copy of every other; ``shock_radius``
+        picks which copy by setting where this one crosses the shock.
+
+        **The cone surface is an asymptote, not an endpoint.** :math:`V_\\theta`
+        vanishes at the wall -- that is what "the flow is parallel to the
+        cone there" means -- so the integrand diverges and :math:`r \\to \\infty`
+        as :math:`\\theta \\to \\theta_c`. A streamline approaches the surface
+        and never lands on it. Tracing to the wall therefore has no answer,
+        and asking for one gets a refusal rather than an overflow; a
+        waverider is traced to its **base plane** instead, which is what
+        :meth:`streamline_to_station` does.
+        """
+        if shock_radius <= 0.0:
+            raise ValueError(f"shock_radius must be positive, got {shock_radius}")
+        if end_angle is None:
+            end_angle = self.cone_angle + 0.02 * (self.shock_angle - self.cone_angle)
+        if not self.cone_angle < end_angle <= self.shock_angle:
+            raise ValueError(
+                f"end_angle must lie in ({self.cone_angle:.6f}, {self.shock_angle:.6f}] rad -- "
+                "strictly outside the cone surface, which a streamline only reaches at "
+                "infinite radius"
+            )
+        angles = np.linspace(self.shock_angle, float(end_angle), int(samples))
+        radial, polar = self.velocity(angles)
+        log_radius = np.concatenate(
+            [[0.0], scipy.integrate.cumulative_trapezoid(radial / polar, angles)]
+        )
+        return angles, np.asarray(shock_radius * np.exp(log_radius))
+
+    def streamline_to_station(
+        self, shock_radius: float = 1.0, station: float = 1.0, samples: int = 2000
+    ) -> tuple[_FloatArray, _FloatArray]:
+        """Trace from the shock to an axial station. Returns ``(x, y)``.
+
+        The trace an osculating-cone waverider is built from: a leading-edge
+        point sits on the shock, and its streamline is followed downstream to
+        the base plane, where it stops because the body stops -- not because
+        the flow did anything. Stitching those traces across the osculating
+        planes gives the compression surface.
+
+        ``x`` increases along the trace. The cone apex is the origin and the
+        axis is :math:`+x`.
+        """
+        # Approach the asymptote only as closely as the station requires. The
+        # radius grows without bound near the wall, so integrating to a fixed
+        # tiny offset overflows for no benefit -- the trace is truncated at the
+        # station long before it gets there anyway.
+        width = self.shock_angle - self.cone_angle
+        x = y = None
+        for fraction in (0.3, 0.1, 0.03, 1e-2, 1e-3, 1e-4, 1e-6, 1e-8, 1e-10):
+            angles, radius = self.streamline(
+                shock_radius, self.cone_angle + fraction * width, samples
+            )
+            x, y = radius * np.cos(angles), radius * np.sin(angles)
+            if x[-1] >= station:
+                break
+        assert x is not None and y is not None
+        if station <= x[0]:
+            raise ValueError(
+                f"station {station} is not downstream of where this streamline crosses "
+                f"the shock, at x = {x[0]:.6f}"
+            )
+        if station > x[-1]:
+            raise ValueError(
+                f"station {station} is unreachable: this streamline is still at "
+                f"x = {x[-1]:.6g} where it meets the cone surface asymptotically"
+            )
+        stop = int((x <= station).sum())
+        span = (station - x[stop - 1]) / (x[stop] - x[stop - 1])
+        return (
+            np.concatenate([x[:stop], [station]]),
+            np.concatenate([y[:stop], [y[stop - 1] + span * (y[stop] - y[stop - 1])]]),
+        )
+
+
+def conical_field(
+    mach: float, cone_angle: float, gamma: float = 1.4, weak: bool = True
+) -> ConicalField:
+    """The flowfield behind the conical shock over a sharp cone.
+
+    Same solve as :func:`solve_cone` -- the shock angle is found by the same
+    root find over the same integration -- but the field is kept rather than
+    reduced to its boundary values.
+    """
+    solution = solve_cone(mach, cone_angle, gamma, weak)
+    _, _, found, dense = _integrate_from_shock(float(mach), solution.shock_angle, float(gamma))
+    if not found:
+        raise ValueError(
+            f"no attached conical solution at Mach {mach} for a {np.degrees(cone_angle):.3f} "
+            "degree cone"
+        )
+    return ConicalField(
+        mach=float(mach),
+        cone_angle=float(solution.cone_angle),
+        shock_angle=float(solution.shock_angle),
+        gamma=float(gamma),
+        _solution=dense,
     )
