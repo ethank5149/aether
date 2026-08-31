@@ -31,29 +31,92 @@ and knows nothing about what the body is for, which is why it lives here.
 
 from __future__ import annotations
 
-from aether.geometry import bodies
-from aether.geometry.brep import (
-    Loft,
-    Revolve,
-    SolidProperties,
-    solid_properties,
-    surface_mesh,
-    write_step,
-)
-from aether.geometry.columns import (
-    WallColumnGrid,
-    graded_widths,
-    solve_growth,
-    wall_columns,
-)
-from aether.geometry.mesh import VehicleMesh, load_stl, write_stl
-from aether.geometry.prep import (
-    ConditionReport,
-    condition,
-    export_master,
-    measure,
-    sha256_of,
-)
+from typing import TYPE_CHECKING, Any
+
+#: Where each public name lives. Resolved on first access rather than at
+#: import, which is what keeps this package importable from
+#: :mod:`aether.aerodynamics`.
+#:
+#: The cycle it breaks is real and was load-bearing:
+#: :mod:`aether.geometry.mesh` imports ``PanelModel`` from
+#: :mod:`aether.aerodynamics.panels`, so eagerly importing ``mesh`` here meant
+#: that any module in ``aerodynamics`` which touched ``geometry`` re-entered
+#: ``panels`` while it was still initialising. Nothing depended on the eager
+#: import except the habit of writing one, and deferring it also stops
+#: ``import aether.geometry`` from loading OpenCASCADE for callers that only
+#: wanted a meridian profile.
+_EXPORTS: dict[str, str] = {
+    "Loft": "aether.geometry.brep",
+    "Revolve": "aether.geometry.brep",
+    "SolidProperties": "aether.geometry.brep",
+    "solid_properties": "aether.geometry.brep",
+    "surface_mesh": "aether.geometry.brep",
+    "write_step": "aether.geometry.brep",
+    "WallColumnGrid": "aether.geometry.columns",
+    "graded_widths": "aether.geometry.columns",
+    "solve_growth": "aether.geometry.columns",
+    "wall_columns": "aether.geometry.columns",
+    "VehicleMesh": "aether.geometry.mesh",
+    "load_stl": "aether.geometry.mesh",
+    "write_stl": "aether.geometry.mesh",
+    "ConditionReport": "aether.geometry.prep",
+    "condition": "aether.geometry.prep",
+    "export_master": "aether.geometry.prep",
+    "measure": "aether.geometry.prep",
+    "sha256_of": "aether.geometry.prep",
+    "sphere_cone_closure": "aether.geometry.profiles",
+    "sphere_cone_meridian": "aether.geometry.profiles",
+    "sphere_cone_tangency": "aether.geometry.profiles",
+}
+
+if TYPE_CHECKING:  # pragma: no cover - for type checkers, not at runtime
+    from aether.geometry import bodies, profiles
+    from aether.geometry.brep import (
+        Loft,
+        Revolve,
+        SolidProperties,
+        solid_properties,
+        surface_mesh,
+        write_step,
+    )
+    from aether.geometry.columns import (
+        WallColumnGrid,
+        graded_widths,
+        solve_growth,
+        wall_columns,
+    )
+    from aether.geometry.mesh import VehicleMesh, load_stl, write_stl
+    from aether.geometry.prep import (
+        ConditionReport,
+        condition,
+        export_master,
+        measure,
+        sha256_of,
+    )
+    from aether.geometry.profiles import (
+        sphere_cone_closure,
+        sphere_cone_meridian,
+        sphere_cone_tangency,
+    )
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve a public name to the module that defines it, on first use."""
+    if name in ("bodies", "profiles"):
+        import importlib
+
+        return importlib.import_module(f"aether.geometry.{name}")
+    module = _EXPORTS.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    return getattr(importlib.import_module(module), name)
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)
+
 
 __all__ = [
     "ConditionReport",
@@ -68,9 +131,13 @@ __all__ = [
     "graded_widths",
     "load_stl",
     "measure",
+    "profiles",
     "sha256_of",
     "solid_properties",
     "solve_growth",
+    "sphere_cone_closure",
+    "sphere_cone_meridian",
+    "sphere_cone_tangency",
     "surface_mesh",
     "wall_columns",
     "write_step",

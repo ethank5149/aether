@@ -25,6 +25,11 @@ import scipy.optimize
 from numpy.typing import NDArray
 
 from aether.aerodynamics.closure import blended_pressure_coefficient
+from aether.geometry.profiles import (
+    sphere_cone_closure,
+    sphere_cone_meridian,
+    sphere_cone_tangency,
+)
 
 __all__ = [
     "PanelModel",
@@ -362,94 +367,6 @@ def curved_lifting_body(
     )
 
 
-def sphere_cone_closure(
-    length: float | None = None,
-    base_radius: float | None = None,
-    nose_radius: float | None = None,
-    half_angle: float | None = None,
-) -> tuple[float, float, float, float]:
-    """Close the sphere--cone geometry from any three of its four parameters.
-
-    A spherical nose cap tangent to a conical frustum has one relation
-    among its four defining lengths,
-
-    .. math::
-
-        L = R_b\\cot\\theta_c - R_n\\csc\\theta_c + R_n ,
-
-    obtained by walking the axis from nose to base through the tangency
-    station. Supplying three parameters therefore determines the fourth,
-    and this function solves for whichever is left out. Over-specifying is
-    rejected rather than silently resolved: a mesh built from four
-    mutually inconsistent numbers is not the shape any of them describe.
-
-    Parameters
-    ----------
-    length, base_radius, nose_radius:
-        Metres. ``half_angle`` is in radians.
-
-    Returns
-    -------
-    tuple
-        ``(length, base_radius, nose_radius, half_angle)``, all four
-        consistent.
-    """
-    given = [length, base_radius, nose_radius, half_angle]
-    n_given = sum(v is not None for v in given)
-    if n_given != 3:
-        raise ValueError(
-            f"supply exactly three of (length, base_radius, nose_radius, half_angle); got {n_given}"
-        )
-    for name, value in (
-        ("length", length),
-        ("base_radius", base_radius),
-        ("nose_radius", nose_radius),
-    ):
-        if value is not None and not (np.isfinite(value) and value > 0.0):
-            raise ValueError(f"{name} must be finite and > 0, got {value}")
-    if half_angle is not None and not (0.0 < half_angle < 0.5 * np.pi):
-        raise ValueError(f"half_angle must lie in (0, pi/2), got {half_angle}")
-
-    if length is None:
-        assert base_radius is not None and nose_radius is not None
-        assert half_angle is not None
-        cot, csc = 1.0 / np.tan(half_angle), 1.0 / np.sin(half_angle)
-        out_length = base_radius * cot - nose_radius * csc + nose_radius
-        out_base, out_nose, out_angle = base_radius, nose_radius, half_angle
-    elif base_radius is None:
-        assert nose_radius is not None and half_angle is not None
-        csc = 1.0 / np.sin(half_angle)
-        out_base = (length + nose_radius * csc - nose_radius) * np.tan(half_angle)
-        out_length, out_nose, out_angle = length, nose_radius, half_angle
-    elif nose_radius is None:
-        assert half_angle is not None
-        cot, csc = 1.0 / np.tan(half_angle), 1.0 / np.sin(half_angle)
-        out_nose = (base_radius * cot - length) / (csc - 1.0)
-        out_length, out_base, out_angle = length, base_radius, half_angle
-    else:
-        span_base, span_nose, span_len = base_radius, nose_radius, length
-
-        def residual(theta: float) -> float:
-            return float(
-                span_base / np.tan(theta) - span_nose / np.sin(theta) + span_nose - span_len
-            )
-
-        lo, hi = np.radians(0.05), np.radians(89.0)
-        if residual(lo) * residual(hi) > 0.0:
-            raise ValueError("no half-angle closes this (length, base_radius, nose_radius)")
-        out_angle = float(scipy.optimize.brentq(residual, lo, hi, xtol=1e-14))
-        out_length, out_base, out_nose = length, base_radius, nose_radius
-
-    if not (np.isfinite(out_length) and out_length > 0.0):
-        raise ValueError(f"closure gave a non-physical length {out_length}")
-    if not (np.isfinite(out_nose) and 0.0 < out_nose <= out_base):
-        raise ValueError(
-            f"closure gave a non-physical nose radius {out_nose}; the nose "
-            f"cannot be blunter than the base ({out_base})"
-        )
-    return float(out_length), float(out_base), float(out_nose), float(out_angle)
-
-
 def sphere_cone(
     length: float | None = 1.75,
     base_radius: float | None = 0.277,
@@ -503,8 +420,7 @@ def sphere_cone(
         raise ValueError(f"need n_axial >= 4, n_circ >= 8, got ({n_axial}, {n_circ})")
 
     phi_tangent = 0.5 * np.pi - half_angle
-    x_tangent = nose_radius * (1.0 - np.sin(half_angle))
-    r_tangent = nose_radius * np.cos(half_angle)
+    x_tangent, _ = sphere_cone_tangency(nose_radius, half_angle)
     if length <= x_tangent:
         raise ValueError("length must exceed the sphere--cone tangency station")
 
@@ -515,19 +431,8 @@ def sphere_cone(
     n_cap = max(2, round(n_axial * cap_arc / (cap_arc + cone_arc)))
     n_cone = max(2, n_axial - n_cap)
 
-    def meridian(i: int, k: int) -> tuple[float, float]:
-        """Axial station and local radius of meridian node ``k`` of ``i``."""
-        if i == 0:
-            phi = phi_tangent * k / n_cap
-            return nose_radius * (1.0 - np.cos(phi)), nose_radius * np.sin(phi)
-        u = k / n_cone
-        return (
-            x_tangent + u * (length - x_tangent),
-            r_tangent + u * (length - x_tangent) * np.tan(half_angle),
-        )
-
-    nodes = [meridian(0, k) for k in range(n_cap + 1)]
-    nodes += [meridian(1, k) for k in range(1, n_cone + 1)]
+    station, profile = sphere_cone_meridian(length, nose_radius, half_angle, n_cap, n_cone)
+    nodes = list(zip(station, profile, strict=True))
     psi = np.linspace(0.0, 2.0 * np.pi, n_circ + 1)
 
     centroids: list[_FloatArray] = []

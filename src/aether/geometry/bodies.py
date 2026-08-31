@@ -30,6 +30,7 @@ from numpy.typing import NDArray
 
 from aether.geometry.brep import Loft, Revolve
 from aether.geometry.edges import Arc, Contour, Segment, round_corners, rounded_contour
+from aether.geometry.profiles import sphere_cone_meridian, sphere_cone_tangency
 
 __all__ = [
     "blunted_multiconic",
@@ -365,20 +366,13 @@ def sphere_cone(
         msg = f"half_angle must lie in (0, pi/2), got {half_angle}"
         raise ValueError(msg)
 
-    phi = np.linspace(0.0, 0.5 * np.pi - half_angle, int(n_cap))
-    cap_x = nose_radius * (1.0 - np.cos(phi))
-    cap_r = nose_radius * np.sin(phi)
-
-    x_tangent = float(cap_x[-1])
-    r_tangent = float(cap_r[-1])
-    if length <= x_tangent:
-        msg = f"length {length} does not reach past the nose cap at {x_tangent:g}"
-        raise ValueError(msg)
-    cone_x = np.linspace(x_tangent, length, int(n_cone))[1:]
-    cone_r = r_tangent + (cone_x - x_tangent) * np.tan(half_angle)
-
-    station = np.concatenate([cap_x, cone_x])
-    radius = np.concatenate([cap_r, cone_r])
+    # The meridian itself comes from `geometry.profiles`, which is also what
+    # the panel generator samples, so the two representations of a sphere-cone
+    # are the same curve rather than two derivations that happen to agree.
+    x_tangent, r_tangent = sphere_cone_tangency(nose_radius, half_angle)
+    station, radius = sphere_cone_meridian(
+        length, nose_radius, half_angle, int(n_cap) - 1, int(n_cone) - 1
+    )
     if shoulder_radius > 0.0:
         arc = _shoulder(
             float(station[-1]),

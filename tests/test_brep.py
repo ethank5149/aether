@@ -31,10 +31,7 @@ def _enclosed_volume(mesh: VehicleMesh) -> float:
     """Volume from the divergence theorem — signed, so it also checks winding."""
     t = mesh.triangles
     return float(
-        np.einsum(
-            "ij,ij->i", t[:, 0], np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
-        ).sum()
-        / 6.0
+        np.einsum("ij,ij->i", t[:, 0], np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])).sum() / 6.0
     )
 
 
@@ -72,13 +69,10 @@ def test_refinement_converges_to_the_exact_volume() -> None:
 
     errors = []
     for size in (0.20, 0.10, 0.05):
-        mesh = brep.surface_mesh(body, size_max=size, size_min=size / 40,
-                                 curvature_nodes=24)
+        mesh = brep.surface_mesh(body, size_max=size, size_min=size / 40, curvature_nodes=24)
         errors.append(abs(_enclosed_volume(mesh) - exact) / exact)
 
-    assert all(b < a for a, b in itertools.pairwise(errors)), (
-        f"not monotone: {errors}"
-    )
+    assert all(b < a for a, b in itertools.pairwise(errors)), f"not monotone: {errors}"
     assert errors[-1] < 0.005
 
 
@@ -89,9 +83,7 @@ def test_the_frozen_triangulation_does_not_reach_the_exact_body() -> None:
     is whatever that grid gives and is unreachable by any downstream refinement.
     """
     exact = brep.solid_properties(bodies.spatular_wedge()).volume
-    sampled = abs(_enclosed_volume(
-        VehicleMesh.from_surface_grid(panels.spatular_wedge().surface)
-    ))
+    sampled = abs(_enclosed_volume(VehicleMesh.from_surface_grid(panels.spatular_wedge().surface)))
     assert abs(sampled - exact) / exact > 0.02, (
         "if this no longer holds the generators were changed and the note in "
         "aether.geometry.brep should be re-measured rather than trusted"
@@ -153,8 +145,9 @@ def test_the_leading_edge_and_ridge_blunt_independently() -> None:
     assert edge_only.surface_area != ridge_only.surface_area
 
 
-@pytest.mark.parametrize("maker", (bodies.sphere_cone, bodies.blunted_multiconic),
-                         ids=lambda f: f.__name__)
+@pytest.mark.parametrize(
+    "maker", (bodies.sphere_cone, bodies.blunted_multiconic), ids=lambda f: f.__name__
+)
 def test_the_base_shoulder_blunts(maker) -> None:
     """The second sharpest feature after the nose, and a singular expansion."""
     sharp = brep.solid_properties(maker())
@@ -167,8 +160,9 @@ def test_the_base_shoulder_blunts(maker) -> None:
 
 def test_an_over_large_shoulder_radius_is_refused() -> None:
     with pytest.raises(ValueError, match="too large"):
-        bodies.sphere_cone(half_angle=np.deg2rad(10.0), nose_radius=0.05,
-                           length=2.0, shoulder_radius=1.0)
+        bodies.sphere_cone(
+            half_angle=np.deg2rad(10.0), nose_radius=0.05, length=2.0, shoulder_radius=1.0
+        )
 
 
 def test_a_loft_refuses_a_degenerate_station_list() -> None:
@@ -253,7 +247,7 @@ class TestBasePressure:
         from aether.aerodynamics.closure import base_axial_coefficient
 
         values = [base_axial_coefficient(m, 1.0, 1.0) for m in (2.0, 4.0, 8.0, 16.0)]
-        assert all(a > b for a, b in zip(values, values[1:], strict=False))
+        assert all(a > b for a, b in itertools.pairwise(values))
         assert all(v > 0.0 for v in values), "base drag adds to axial force"
 
     def test_it_replaces_an_impossible_euler_value(self) -> None:

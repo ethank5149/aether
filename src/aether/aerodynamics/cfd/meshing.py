@@ -184,9 +184,7 @@ class BodyProfile:
         return cls(station=sampled_x, radius=sampled_r, name=name)
 
 
-def cone_profile(
-    half_angle: float, length: float = 1.0, n_stations: int = 60
-) -> BodyProfile:
+def cone_profile(half_angle: float, length: float = 1.0, n_stations: int = 60) -> BodyProfile:
     """A sharp cone — the geometry the CFD is validated on.
 
     Its exact answer is :func:`aether.aerodynamics.conical.solve_cone`, and
@@ -361,9 +359,7 @@ def axisymmetric_domain(
         top = geo.addLine(outlet_top, inlet_top)
         inlet = geo.addLine(inlet_top, inlet_bottom)
 
-        loop = geo.addCurveLoop(
-            [axis_forward, body_curve, base_line, axis_aft, outlet, top, inlet]
-        )
+        loop = geo.addCurveLoop([axis_forward, body_curve, base_line, axis_aft, outlet, top, inlet])
         surface = geo.addPlaneSurface([loop])
         geo.synchronize()
 
@@ -405,17 +401,13 @@ def _apply_sizing(
     fields: list[int] = []
 
     wall_distance = gmsh.model.mesh.field.add("Distance")
-    gmsh.model.mesh.field.setNumbers(
-        wall_distance, "CurvesList", [body_curve, base_line]
-    )
+    gmsh.model.mesh.field.setNumbers(wall_distance, "CurvesList", [body_curve, base_line])
     gmsh.model.mesh.field.setNumber(wall_distance, "Sampling", 400)
 
     wall_threshold = gmsh.model.mesh.field.add("Threshold")
     gmsh.model.mesh.field.setNumber(wall_threshold, "InField", wall_distance)
     gmsh.model.mesh.field.setNumber(wall_threshold, "SizeMin", sizing.wall_size * diameter)
-    gmsh.model.mesh.field.setNumber(
-        wall_threshold, "SizeMax", sizing.farfield_size * diameter
-    )
+    gmsh.model.mesh.field.setNumber(wall_threshold, "SizeMax", sizing.farfield_size * diameter)
     gmsh.model.mesh.field.setNumber(wall_threshold, "DistMin", 0.15 * diameter)
     gmsh.model.mesh.field.setNumber(wall_threshold, "DistMax", 6.0 * diameter)
     fields.append(wall_threshold)
@@ -427,14 +419,10 @@ def _apply_sizing(
     gmsh.model.mesh.field.setNumber(nose_ball, "XCenter", float(profile.station[0]))
     gmsh.model.mesh.field.setNumber(nose_ball, "YCenter", 0.0)
     gmsh.model.mesh.field.setNumber(nose_ball, "ZCenter", 0.0)
-    gmsh.model.mesh.field.setNumber(
-        nose_ball, "Radius", sizing.nose_refinement_length * diameter
-    )
+    gmsh.model.mesh.field.setNumber(nose_ball, "Radius", sizing.nose_refinement_length * diameter)
     gmsh.model.mesh.field.setNumber(nose_ball, "Thickness", 0.4 * diameter)
     gmsh.model.mesh.field.setNumber(nose_ball, "VIn", sizing.nose_size * diameter)
-    gmsh.model.mesh.field.setNumber(
-        nose_ball, "VOut", sizing.farfield_size * diameter
-    )
+    gmsh.model.mesh.field.setNumber(nose_ball, "VOut", sizing.farfield_size * diameter)
     fields.append(nose_ball)
 
     # Shock envelope: a wedge along the Mach cone from the nose. Subsonic
@@ -472,9 +460,7 @@ def _apply_sizing(
     gmsh.option.setNumber("Mesh.Algorithm", 5)  # Delaunay
 
 
-def profile_from_arrays(
-    station: ArrayLike, radius: ArrayLike, name: str = "body"
-) -> BodyProfile:
+def profile_from_arrays(station: ArrayLike, radius: ArrayLike, name: str = "body") -> BodyProfile:
     """Convenience wrapper so a notebook can build a profile inline."""
     return BodyProfile(
         station=np.asarray(station, dtype=np.float64),
@@ -584,10 +570,15 @@ class ViscousSizing:
             blend = (mach - 1.0) / 0.5
             factor = float(self.subsonic_growth) * (1.0 - blend) + blend
         return ViscousSizing(
-            y_plus=self.y_plus, growth_ratio=self.growth_ratio, n_layers=self.n_layers,
-            upstream=self.upstream * factor, downstream=self.downstream * factor,
-            transverse=self.transverse * factor, farfield_size=self.farfield_size * factor,
-            wake_size=self.wake_size, subsonic_growth=self.subsonic_growth,
+            y_plus=self.y_plus,
+            growth_ratio=self.growth_ratio,
+            n_layers=self.n_layers,
+            upstream=self.upstream * factor,
+            downstream=self.downstream * factor,
+            transverse=self.transverse * factor,
+            farfield_size=self.farfield_size * factor,
+            wake_size=self.wake_size,
+            subsonic_growth=self.subsonic_growth,
         )
 
     def layer_heights(self, first_cell: float) -> list[float]:
@@ -701,11 +692,7 @@ def wall_spacing_for_y_plus(
     recovery = 0.71 ** (1.0 / 3.0)
     t_recovery = temperature * (1.0 + recovery * 0.5 * (gamma - 1.0) * mach**2)
     t_wall = t_recovery if wall_temperature is None else float(wall_temperature)
-    t_star = (
-        temperature
-        + 0.5 * (t_wall - temperature)
-        + 0.22 * (t_recovery - temperature)
-    )
+    t_star = temperature + 0.5 * (t_wall - temperature) + 0.22 * (t_recovery - temperature)
 
     def sutherland(t: float) -> float:
         return float(1.716e-5 * (t / 273.15) ** 1.5 * (273.15 + 110.4) / (t + 110.4))
@@ -1031,9 +1018,7 @@ def shock_layer_sizing(
     standoff = shock_standoff(mach, nose_radius, geometry="sphere")
     if not np.isfinite(standoff):
         standoff = float(nose_radius)
-    layered = replace(
-        sizing.with_layers(int(cells)), growth_ratio=float(growth)
-    )
+    layered = replace(sizing.with_layers(int(cells)), growth_ratio=float(growth))
     return layered, layered.first_cell_for_thickness(float(span) * standoff)
 
 
@@ -1179,9 +1164,7 @@ def _base_faces(
         return aft
     normals = np.asarray(mesh.normals, dtype=np.float64)
     lengths = np.linalg.norm(normals, axis=1)
-    axial = np.divide(
-        normals[:, 0], lengths, out=np.zeros_like(lengths), where=lengths > 0.0
-    )
+    axial = np.divide(normals[:, 0], lengths, out=np.zeros_like(lengths), where=lengths > 0.0)
     aft = axial > float(np.cos(np.deg2rad(base_cone_deg)))
     if not aft.any():
         msg = (
@@ -1263,7 +1246,7 @@ def viscous_domain(
     wall_marker: str = "vehicle",
     farfield_marker: str = "farfield",
     shrink_on_failure: bool = True,
-    split_base: bool = False,
+    split_base: bool = True,
     base_station: float | None = None,
 ) -> MeshResult:
     """Wrap a closed body in a prism boundary layer and a tetrahedral farfield.
@@ -1362,18 +1345,32 @@ def viscous_domain(
     last_error: Exception | None = None
     aft = _base_faces(mesh, faces.shape[0], split_base, base_station)
     ladder = (
-        (6, 0.6, True), (2, 0.6, True), (0, 0.6, True),
-        (0, 0.6, False), (0, 0.4, False), (0, 0.25, False),
+        (6, 0.6, True),
+        (2, 0.6, True),
+        (0, 0.6, True),
+        (0, 0.6, False),
+        (0, 0.4, False),
+        (0, 0.25, False),
     )
     for attempt, (passes, safety, vector) in enumerate(ladder):
         try:
             result = _build_viscous_domain(
-                vertices=vertices, faces=faces, low=low, high=high,
-                body_length=body_length, diameter=diameter, mach=mach,
-                sizing=sizing, first_cell_height=first_cell_height, target=target,
+                vertices=vertices,
+                faces=faces,
+                low=low,
+                high=high,
+                body_length=body_length,
+                diameter=diameter,
+                mach=mach,
+                sizing=sizing,
+                first_cell_height=first_cell_height,
+                target=target,
                 name=getattr(mesh, "name", None) or "vehicle",
-                wall_marker=wall_marker, farfield_marker=farfield_marker,
-                safety=safety, smoothing_passes=passes, vector_field=vector,
+                wall_marker=wall_marker,
+                farfield_marker=farfield_marker,
+                safety=safety,
+                smoothing_passes=passes,
+                vector_field=vector,
                 aft=aft,
             )
         except Exception as error:
@@ -1410,8 +1407,11 @@ def viscous_domain(
 
 
 def _marching_vectors(
-    vertices: _FloatArray, faces: NDArray[np.int64],
-    passes: int = 6, blend: float = 0.5, max_turn_deg: float = 20.0,
+    vertices: _FloatArray,
+    faces: NDArray[np.int64],
+    passes: int = 6,
+    blend: float = 0.5,
+    max_turn_deg: float = 20.0,
     feature_deg: float = 40.0,
 ) -> _FloatArray:
     """Smoothed unit directions for the boundary layer to march along.
@@ -1447,9 +1447,7 @@ def _marching_vectors(
     accumulated = np.zeros_like(vertices)
     for corner in range(3):
         np.add.at(accumulated, faces[:, corner], face_normal * area[:, None])
-    original = accumulated / np.maximum(
-        np.linalg.norm(accumulated, axis=1, keepdims=True), 1e-300
-    )
+    original = accumulated / np.maximum(np.linalg.norm(accumulated, axis=1, keepdims=True), 1e-300)
 
     edges = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])
     owner = np.concatenate([np.arange(faces.shape[0])] * 3)
@@ -1482,7 +1480,8 @@ def _marching_vectors(
         neighbour = np.zeros_like(marching)
         for axis in range(3):
             neighbour[:, axis] = np.bincount(
-                edges[:, 0], weights=marching[edges[:, 1], axis],
+                edges[:, 0],
+                weights=marching[edges[:, 1], axis],
                 minlength=vertices.shape[0],
             )
         neighbour /= degree[:, None]
@@ -1504,8 +1503,12 @@ def _marching_vectors(
 
 
 def _local_height_scale(
-    vertices: _FloatArray, faces: NDArray[np.int64], total_height: float,
-    safety: float = 0.6, floor: float = 0.02, samples: int = 28,
+    vertices: _FloatArray,
+    faces: NDArray[np.int64],
+    total_height: float,
+    safety: float = 0.6,
+    floor: float = 0.02,
+    samples: int = 28,
     smoothing_passes: int = 8,
 ) -> _FloatArray:
     """Per-node fraction of the boundary-layer height that extrudes without folding.
@@ -1542,9 +1545,7 @@ def _local_height_scale(
     """
     triangles = vertices[faces]
     cross = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
-    face_normal = cross / np.maximum(
-        np.linalg.norm(cross, axis=1, keepdims=True), 1e-300
-    )
+    face_normal = cross / np.maximum(np.linalg.norm(cross, axis=1, keepdims=True), 1e-300)
 
     accumulated = np.zeros_like(vertices)
     area = 0.5 * np.linalg.norm(cross, axis=1)
@@ -1554,16 +1555,12 @@ def _local_height_scale(
         np.linalg.norm(accumulated, axis=1, keepdims=True), 1e-300
     )
 
-    ladder = np.geomspace(
-        max(total_height, 1e-12) * 1.0e-3, max(total_height, 1e-12), int(samples)
-    )
+    ladder = np.geomspace(max(total_height, 1e-12) * 1.0e-3, max(total_height, 1e-12), int(samples))
     safe_face = np.full(faces.shape[0], ladder[0])
     for step in ladder:
         moved = vertices + step * vertex_normal
         shifted = moved[faces]
-        turned = np.cross(
-            shifted[:, 1] - shifted[:, 0], shifted[:, 2] - shifted[:, 0]
-        )
+        turned = np.cross(shifted[:, 1] - shifted[:, 0], shifted[:, 2] - shifted[:, 0])
         upright = np.einsum("ij,ij->i", turned, face_normal) > 0.0
         safe_face = np.where(upright, step, safe_face)
 
@@ -1661,9 +1658,7 @@ def _build_viscous_domain(
         gmsh.model.mesh.addNodes(
             2, wall, list(range(1, vertices.shape[0] + 1)), vertices.ravel().tolist()
         )
-        gmsh.model.mesh.addElementsByType(
-            wall, 2, [], (faces + 1).ravel().tolist()
-        )
+        gmsh.model.mesh.addElementsByType(wall, 2, [], (faces + 1).ravel().tolist())
 
         # A *vector* field, not a scalar one: gmsh reads it as the marching
         # direction itself rather than as a multiplier on its own normals, so
@@ -1672,18 +1667,18 @@ def _build_viscous_domain(
         tags = list(range(1, vertices.shape[0] + 1))
         view = gmsh.view.add("boundary-layer-marching")
         if vector_field:
-            marching = (
-                _marching_vectors(vertices, faces, passes=smoothing_passes)
-                * scale[:, None]
-            )
+            marching = _marching_vectors(vertices, faces, passes=smoothing_passes) * scale[:, None]
             gmsh.view.addHomogeneousModelData(
-                view, 0, name, "NodeData", tags, marching.ravel().tolist(),
+                view,
+                0,
+                name,
+                "NodeData",
+                tags,
+                marching.ravel().tolist(),
                 numComponents=3,
             )
         else:
-            gmsh.view.addHomogeneousModelData(
-                view, 0, name, "NodeData", tags, scale.tolist()
-            )
+            gmsh.view.addHomogeneousModelData(view, 0, name, "NodeData", tags, scale.tolist())
         extruded = gmsh.model.geo.extrudeBoundaryLayer(
             [(2, wall)], [1] * len(heights), heights, True, viewIndex=view
         )
@@ -1716,9 +1711,7 @@ def _build_viscous_domain(
 
         gmsh.model.addPhysicalGroup(2, [wall], name=wall_marker)
         gmsh.model.addPhysicalGroup(2, box, name=farfield_marker)
-        gmsh.model.addPhysicalGroup(
-            3, [tag for _, tag in layer_volumes] + [volume], name="fluid"
-        )
+        gmsh.model.addPhysicalGroup(3, [tag for _, tag in layer_volumes] + [volume], name="fluid")
 
         _apply_volume_sizing(gmsh, low, high, body_length, diameter, mach, sizing)
         gmsh.model.mesh.generate(3)
@@ -1734,8 +1727,6 @@ def _build_viscous_domain(
         gmsh.write(str(target))
     finally:
         gmsh.finalize()
-
-
 
     return MeshResult(
         path=target,
@@ -1778,22 +1769,38 @@ def _farfield_box(
     size = sizing.farfield_size * diameter
 
     corners = [
-        (x_low, y_low, z_low), (x_high, y_low, z_low),
-        (x_high, y_high, z_low), (x_low, y_high, z_low),
-        (x_low, y_low, z_high), (x_high, y_low, z_high),
-        (x_high, y_high, z_high), (x_low, y_high, z_high),
+        (x_low, y_low, z_low),
+        (x_high, y_low, z_low),
+        (x_high, y_high, z_low),
+        (x_low, y_high, z_low),
+        (x_low, y_low, z_high),
+        (x_high, y_low, z_high),
+        (x_high, y_high, z_high),
+        (x_low, y_high, z_high),
     ]
     points = [gmsh.model.geo.addPoint(x, y, z, size) for x, y, z in corners]
     edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),
-        (4, 5), (5, 6), (6, 7), (7, 4),
-        (0, 4), (1, 5), (2, 6), (3, 7),
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
     ]
     lines = [gmsh.model.geo.addLine(points[a], points[b]) for a, b in edges]
     faces = [
-        [0, 1, 2, 3], [4, 5, 6, 7],
-        [8, 4, -9, -0], [9, 5, -10, -1],
-        [10, 6, -11, -2], [11, 7, -8, -3],
+        [0, 1, 2, 3],
+        [4, 5, 6, 7],
+        [8, 4, -9, -0],
+        [9, 5, -10, -1],
+        [10, 6, -11, -2],
+        [11, 7, -8, -3],
     ]
     surfaces = []
     for face in faces:
@@ -1861,7 +1868,7 @@ def inviscid_domain(
     wall_band: float = 0.5,
     wall_marker: str = "vehicle",
     farfield_marker: str = "farfield",
-    split_base: bool = False,
+    split_base: bool = True,
     base_station: float | None = None,
     refinement: Sequence[RefinementBall] = (),
 ) -> MeshResult:
@@ -1900,7 +1907,14 @@ def inviscid_domain(
 
     ``split_base`` divides the wall into two markers — ``<wall_marker>`` and
     ``<wall_marker>_base`` — so the solver reports their forces separately,
-    **every iteration**. Set it on any body with a blunt base.
+    **every iteration**. On by default, and the default is the point: an Euler
+    solution has no valid base pressure, so folding the base into a single
+    force coefficient does not degrade the answer, it replaces it. Measured on
+    a Mach 8 sphere-cone here, the forebody contributes :math:`C_A = +0.069`
+    and the base :math:`-0.254`, for a reported drag of :math:`-0.184` — a
+    body under thrust. Nothing about that run looks wrong otherwise: it
+    converges, and the number is reported to six figures. A body with no blunt
+    base simply gets an empty second marker, which costs nothing.
 
     The division is by **outward normal**: a face is base when it faces aft.
     That is geometric, needs no magic number, and on a blunted shoulder falls
@@ -1953,15 +1967,11 @@ def inviscid_domain(
         gmsh.model.mesh.addNodes(
             2, wall, list(range(1, vertices.shape[0] + 1)), vertices.ravel().tolist()
         )
-        gmsh.model.mesh.addElementsByType(
-            wall, 2, [], (faces[~aft] + 1).ravel().tolist()
-        )
+        gmsh.model.mesh.addElementsByType(wall, 2, [], (faces[~aft] + 1).ravel().tolist())
         patches = [wall]
         if aft.any():
             disc = gmsh.model.addDiscreteEntity(2)
-            gmsh.model.mesh.addElementsByType(
-                disc, 2, [], (faces[aft] + 1).ravel().tolist()
-            )
+            gmsh.model.mesh.addElementsByType(disc, 2, [], (faces[aft] + 1).ravel().tolist())
             patches.append(disc)
         gmsh.model.geo.synchronize()
 
@@ -1974,9 +1984,7 @@ def inviscid_domain(
 
         gmsh.model.addPhysicalGroup(2, [wall], name=wall_marker)
         if len(patches) > 1:
-            gmsh.model.addPhysicalGroup(
-                2, [patches[1]], name=f"{wall_marker}_base"
-            )
+            gmsh.model.addPhysicalGroup(2, [patches[1]], name=f"{wall_marker}_base")
         gmsh.model.addPhysicalGroup(2, box, name=farfield_marker)
         gmsh.model.addPhysicalGroup(3, [volume], name="fluid")
 
@@ -2001,9 +2009,7 @@ def inviscid_domain(
 
         # A second, wider box follows the shock envelope downstream, on the
         # same Mach-cone argument the axisymmetric path uses.
-        envelope = (
-            1.0 / np.sqrt(max(mach**2 - 1.0, 1.0e-6)) if mach > 1.05 else 1.0
-        )
+        envelope = 1.0 / np.sqrt(max(mach**2 - 1.0, 1.0e-6)) if mach > 1.05 else 1.0
         reach = float(np.clip(envelope * body_length, 0.5 * diameter, 4.0 * diameter))
         wake = gmsh.model.mesh.field.add("Box")
         gmsh.model.mesh.field.setNumber(wake, "VIn", sizing.wake_size * diameter)
@@ -2071,17 +2077,17 @@ def inviscid_domain(
         gmsh.finalize()
 
     if aft is not None and bool(np.any(aft)):
-        _split_su2_marker(
-            target, wall_marker, vertices[faces].mean(axis=1), np.asarray(aft)
-        )
+        _split_su2_marker(target, wall_marker, vertices[faces].mean(axis=1), np.asarray(aft))
 
     return MeshResult(
         path=target,
         n_nodes=len(node_tags),
         n_elements=int(elements),
         sizing=DomainSizing(
-            upstream=sizing.upstream, downstream=sizing.downstream,
-            transverse=sizing.transverse, farfield_size=sizing.farfield_size,
+            upstream=sizing.upstream,
+            downstream=sizing.downstream,
+            transverse=sizing.transverse,
+            farfield_size=sizing.farfield_size,
         ),
         mach=float(mach),
         dimension=3,
