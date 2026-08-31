@@ -9,6 +9,18 @@ coefficient on the finest mesh, with a Richardson limit 0.06 % from it.
 
 from __future__ import annotations
 
+from aether.aerodynamics.cfd.fields import (
+    Mesh,
+    PlaneCut,
+    SurfaceCut,
+    VolumeField,
+    node_gradient,
+    plane_cut,
+    read_case,
+    read_restart,
+    read_su2_mesh,
+    surface_cut,
+)
 from aether.aerodynamics.cfd.meshing import (
     BodyProfile,
     BoundaryLayerTruncated,
@@ -42,19 +54,29 @@ __all__ = [
     "DomainSizing",
     "EulerSolver",
     "GridConvergence",
+    "Mesh",
     "MeshResult",
+    "PlaneCut",
     "SU2Result",
     "SU2Settings",
+    "SurfaceCut",
     "ViscousSizing",
+    "VolumeField",
     "axisymmetric_domain",
     "boundary_layer_thickness",
     "cone_profile",
     "find_su2",
     "grid_convergence",
     "inviscid_domain",
+    "node_gradient",
+    "plane_cut",
     "profile_from_arrays",
+    "read_case",
+    "read_restart",
+    "read_su2_mesh",
     "run_su2",
     "surface_axial_force",
+    "surface_cut",
     "viscous_domain",
     "wall_spacing_for_y_plus",
 ]

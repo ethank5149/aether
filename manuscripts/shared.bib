@@ -3197,3 +3197,156 @@
              arcs, boundary arcs, junction conditions --- that the measure
              relaxation does not.},
 }
+
+%% >>> MACHINE-GENERATED ENTRIES (Claude, 2026-08-28) ---------------------
+%% Bibliographic metadata assembled from the PDFs in references/ and NOT
+%% independently verified against the publishers; every entry carries a
+%% VERIFY note naming what is uncertain. The annote fields are machine
+%% analysis of the sources, pending the author's own reading.
+@article{wang2021tssos,
+  author  = {Wang, Jie and Magron, Victor and Lasserre, Jean-Bernard},
+  title   = {{TSSOS}: A Moment-{SOS} Hierarchy That Exploits Term Sparsity},
+  journal = {SIAM Journal on Optimization},
+  volume  = {31},
+  number  = {1},
+  pages   = {30--58},
+  year    = {2021},
+  note    = {The copy in references/ is the preprint arXiv:1912.08899v2, 29
+             pages, 13 May 2020. VERIFY the journal pagination before the final
+             bibliography.},
+  annote  = {The term-sparsity axis, as opposed to the correlative (variable)
+             sparsity of waki2006sums. The adjacency graphs are built from the
+             TERMS occurring in the data rather than from links between
+             variables, which is why it composes with rather than replaces
+             correlative sparsity. Has the theoretical convergence guarantee
+             that chordal-TSSOS lacks --- see wang2021chordaltssos.},
+}
+
+@article{wang2021chordaltssos,
+  author  = {Wang, Jie and Magron, Victor and Lasserre, Jean-Bernard},
+  title   = {Chordal-{TSSOS}: A Moment-{SOS} Hierarchy That Exploits Term
+             Sparsity With Chordal Extension},
+  journal = {SIAM Journal on Optimization},
+  volume  = {31},
+  number  = {1},
+  pages   = {114--141},
+  year    = {2021},
+  note    = {Preprint copy arXiv:2003.03210v1, 29 pages, 4 March 2020. VERIFY
+             journal pagination.},
+  annote  = {Abstract p1 states the trade explicitly and it is the one to quote:
+             the two hierarchies are COMPLEMENTARY --- the original TSSOS has a
+             theoretical convergence guarantee, chordal-TSSOS has superior
+             performance but LACKS it. Relevant only to the cross-check, where
+             performance may be worth the loss; never to a certified claim.},
+}
+
+@article{wang2022cstssos,
+  author  = {Wang, Jie and Magron, Victor and Lasserre, Jean B. and
+             Mai, Ngoc Hoang Anh},
+  title   = {{CS-TSSOS}: Correlative and Term Sparsity for Large-Scale
+             Polynomial Optimization},
+  journal = {ACM Transactions on Mathematical Software},
+  volume  = {48},
+  number  = {4},
+  year    = {2022},
+  note    = {Preprint copy arXiv:2005.02828v2, 28 pages, 8 June 2021. VERIFY
+             volume, issue and article number.},
+  annote  = {The configuration this project wants: correlative AND term sparsity
+             simultaneously, combining waki2006sums with wang2021tssos. Abstract
+             p1 claims (i) blocks of SDP matrices and (ii) guaranteed convergence
+             to the global optimum under stated conditions, demonstrated to six
+             thousand variables. If the cross-check is to run on the full
+             aerothermoelastic augmentation rather than the core, this is the
+             hierarchy to use.},
+}
+
+@article{wang2021exploiting,
+  author  = {Wang, Jie and Schlosser, Corbinian and Korda, Milan and
+             Magron, Victor},
+  title   = {Exploiting Term Sparsity in Moment-{SOS} Hierarchy for Dynamical
+             Systems},
+  year    = {2021},
+  note    = {7-page letter-format preprint in references/; venue not stated on
+             the copy held. VERIFY --- almost certainly IEEE (L-CSS or TAC)
+             given the format and index terms.},
+  annote  = {THE directly applicable one, and Korda is an author: term sparsity
+             for exactly the Korda-Henrion invariant-set relaxations, not for
+             static POPs. Def 3.1 p3 the maximum positively invariant set and
+             the d-th order SOS relaxation for it. Prop 3.7 p4: theta^{s,l}_d >=
+             theta_d and monotone in d, s and l --- so EVERY intermediate block
+             structure yields a VALID bound, merely more conservative, which is
+             the right direction for an outer approximation and means a cheaper
+             structure never costs soundness. Thm 3.8 p4, Lemma 3.9 p4 and Thm
+             3.10 p5: with maximal chordal extensions the iteratively
+             constructed block structure CONVERGES to the one given by the
+             system's SIGN SYMMETRIES, and then theta^{s,l}_d = theta_d exactly
+             --- lossless relative to the dense relaxation. Footnote 5 p5: the
+             required s, l are a priori unknown but "typically no greater than 3
+             in practice". Remark 3.11 p5: non-maximal chordal extensions are
+             cheaper but more conservative. BEARING ON THIS PROJECT: the vehicle
+             has an evident sign symmetry (port-starboard mirroring flips
+             v, beta, p, r_b, C_Y, C_l, C_n and fixes u, w, alpha, q, C_X, C_Z,
+             C_m), so the blocks should roughly halve --- PROVIDED the
+             augmentation of apx:embedding assigns every adjoined generator a
+             consistent parity, or our own change of variables destroys the
+             symmetry the theorem exploits. NOTE this supersedes the judgement
+             in the zheng2021chordal annote that term sparsity is "a different
+             axis of sparsity and probably not applicable here".},
+}
+
+@misc{magron2021tssoslib,
+  author  = {Magron, Victor and Wang, Jie},
+  title   = {{TSSOS}: A {Julia} Library to Exploit Sparsity for Large-Scale
+             Polynomial Optimization},
+  year    = {2021},
+  note    = {arXiv:2103.00915v1, 10 pages, 1 March 2021.
+             https://github.com/wangjie212/TSSOS},
+  annote  = {The implementation, should the cross-check be built rather than
+             hand-rolled. Exploits correlative and term sparsity together.},
+}
+
+@inproceedings{wang2019newsparse,
+  author  = {Wang, Jie and Li, Haokun and Xia, Bican},
+  title   = {A New Sparse {SOS} Decomposition Algorithm Based on Term Sparsity},
+  booktitle = {Proceedings of the International Symposium on Symbolic and
+               Algebraic Computation (ISSAC)},
+  year    = {2019},
+  note    = {Cited as [WLX19] in wang2022cstssos, which identifies it as the
+             origin of the term-sparsity idea later developed into TSSOS.
+             VERIFY pages and publisher.},
+}
+
+@misc{shaydurova2024refined,
+  author  = {Shaydurova, Daria and Kaibel, Volker and Sager, Sebastian},
+  title   = {Refined {TSSOS}},
+  year    = {2024},
+  note    = {28 pages; no arXiv identifier or venue on the copy held. VERIFY
+             year and venue before citing.},
+  annote  = {Abstract p1: TSSOS obtains block-diagonal matrices by completing
+             the connected components of adjacency graphs, and this paper
+             refines that block structure further. Unmined beyond the abstract.},
+}
+
+@techreport{sutton1971stagnation,
+  author      = {Sutton, Kenneth and Graves, Randolph A., Jr.},
+  title       = {A General Stagnation-Point Convective-Heating Equation for
+                 Arbitrary Gas Mixtures},
+  institution = {NASA Langley Research Center},
+  type        = {NASA Technical Report},
+  number      = {NASA TR R-376},
+  address     = {Hampton, Virginia},
+  year        = {1971},
+  month       = nov,
+  note        = {67 pages. The copy in references/ has an OCR-mangled filename
+                 ("Szltton \& Graues"), which is why it went unmatched in the
+                 source-to-bibliography audit; the document itself is clean.
+                 VERIFY the report number against the title page.},
+  annote      = {The stagnation-point heating correlation used by the corridor
+                 constraint of apx:constraints. Cited there for the heat-rate
+                 envelope; its stated validity range is what
+                 sub:apx_corridor_polynomial must respect rather than
+                 extrapolate past --- the same discipline
+                 sub:apx_aero_envelopes applies to the aerodynamic
+                 coefficients. Unmined beyond the title page.},
+}
+%% <<< END MACHINE-GENERATED ENTRIES
