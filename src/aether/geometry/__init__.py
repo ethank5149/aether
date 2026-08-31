@@ -67,10 +67,14 @@ _EXPORTS: dict[str, str] = {
     "sphere_cone_closure": "aether.geometry.profiles",
     "sphere_cone_meridian": "aether.geometry.profiles",
     "sphere_cone_tangency": "aether.geometry.profiles",
+    "OsculatingConeWaverider": "aether.geometry.waverider",
+    "circular_shock_curve": "aether.geometry.waverider",
+    "osculating_cone_waverider": "aether.geometry.waverider",
+    "power_shock_curve": "aether.geometry.waverider",
 }
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers, not at runtime
-    from aether.geometry import bodies, profiles
+    from aether.geometry import bodies, profiles, waverider
     from aether.geometry.brep import (
         Loft,
         Revolve,
@@ -98,11 +102,17 @@ if TYPE_CHECKING:  # pragma: no cover - for type checkers, not at runtime
         sphere_cone_meridian,
         sphere_cone_tangency,
     )
+    from aether.geometry.waverider import (
+        OsculatingConeWaverider,
+        circular_shock_curve,
+        osculating_cone_waverider,
+        power_shock_curve,
+    )
 
 
 def __getattr__(name: str) -> Any:
     """Resolve a public name to the module that defines it, on first use."""
-    if name in ("bodies", "profiles"):
+    if name in ("bodies", "profiles", "waverider"):
         import importlib
 
         return importlib.import_module(f"aether.geometry.{name}")
@@ -121,16 +131,20 @@ def __dir__() -> list[str]:
 __all__ = [
     "ConditionReport",
     "Loft",
+    "OsculatingConeWaverider",
     "Revolve",
     "SolidProperties",
     "VehicleMesh",
     "WallColumnGrid",
     "bodies",
+    "circular_shock_curve",
     "condition",
     "export_master",
     "graded_widths",
     "load_stl",
     "measure",
+    "osculating_cone_waverider",
+    "power_shock_curve",
     "profiles",
     "sha256_of",
     "solid_properties",
@@ -140,6 +154,7 @@ __all__ = [
     "sphere_cone_tangency",
     "surface_mesh",
     "wall_columns",
+    "waverider",
     "write_step",
     "write_stl",
 ]
