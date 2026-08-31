@@ -151,9 +151,7 @@ def _rhs(
     drag = qbar * _S_REF * float(_CD(np.clip(a, 0.0, _AOA[-1])))
     qdot = float(sutton_graves(rho, _R_NOSE, speed))
     gate = 1.0 / (1.0 + np.exp(-(t_wall - _T_ABL) / _DT_ABL))
-    sdot = gate * float(
-        stefan_recession_rate(qdot, t_wall, _EMISS, 0.0, _RHO_TPS, _DH_ABL)
-    )
+    sdot = gate * float(stefan_recession_rate(qdot, t_wall, _EMISS, 0.0, _RHO_TPS, _DH_ABL))
     g, cg = MU / r**2, np.cos(ga)
     return [
         speed * np.sin(ga),
@@ -161,8 +159,7 @@ def _rhs(
         speed * cg * np.cos(ps) / r,
         -drag / mass - g * np.sin(ga),
         lift * np.cos(sg) / (mass * speed) + (speed / r - g / speed) * cg,
-        lift * np.sin(sg) / (mass * speed * cg)
-        + (speed / r) * cg * np.sin(ps) * np.tan(ph),
+        lift * np.sin(sg) / (mass * speed * cg) + (speed / r) * cg * np.sin(ps) * np.tan(ph),
         _piecewise(prates, t, horizon),
         -_RHO_TPS * _A_ABL * sdot,
         sdot,
@@ -172,9 +169,7 @@ def _rhs(
     ]
 
 
-def impulse_of_pass(
-    params: _FloatArray, gamma_deg: float = _GAMMA_0
-) -> tuple[_FloatArray, Any]:
+def impulse_of_pass(params: _FloatArray, gamma_deg: float = _GAMMA_0) -> tuple[_FloatArray, Any]:
     """Net jump in the eight slow coordinates across one atmospheric pass.
 
     ``params`` is ``n`` angles of attack (deg) followed by ``n`` roll-rate
@@ -186,8 +181,19 @@ def impulse_of_pass(
     alphas = np.radians(np.clip(params[:half], 2.0, 48.0))
     prates = np.radians(np.clip(params[half:], -_P_MAX, _P_MAX))
     x0 = np.array(
-        [R_E + _H_ENTRY, 0.0, 0.0, _V_ENTRY, np.radians(gamma_deg),
-         np.radians(90.0), _SIGMA_0, _MASS0, 0.0, 0.0, 300.0]
+        [
+            R_E + _H_ENTRY,
+            0.0,
+            0.0,
+            _V_ENTRY,
+            np.radians(gamma_deg),
+            np.radians(90.0),
+            _SIGMA_0,
+            _MASS0,
+            0.0,
+            0.0,
+            300.0,
+        ]
     )
 
     def skipped_out(t: float, x: _FloatArray, *_a: Any) -> float:
@@ -196,8 +202,14 @@ def impulse_of_pass(
     skipped_out.terminal = True  # type: ignore[attr-defined]
     skipped_out.direction = 1.0  # type: ignore[attr-defined]
     sol = solve_ivp(
-        _rhs, (0.0, _T_CAP), x0, args=(alphas, prates, _T_CAP),
-        rtol=1e-10, atol=1e-12, events=skipped_out, max_step=1.0,
+        _rhs,
+        (0.0, _T_CAP),
+        x0,
+        args=(alphas, prates, _T_CAP),
+        rtol=1e-10,
+        atol=1e-12,
+        events=skipped_out,
+        max_step=1.0,
     )
     d = sol.y[:, -1] - x0
     return np.array([d[1], d[2], d[3], d[5], d[6], d[7], d[8], d[9]]), sol
@@ -217,12 +229,9 @@ def impulse_jacobian(n_seg: int) -> _FloatArray:
         hi, lo = p0.copy(), p0.copy()
         hi[j] += step[j]
         lo[j] -= step[j]
-        cols.append(
-            (impulse_of_pass(hi)[0] - impulse_of_pass(lo)[0]) / (2.0 * step[j])
-        )
+        cols.append((impulse_of_pass(hi)[0] - impulse_of_pass(lo)[0]) / (2.0 * step[j]))
     cols.append(
-        (impulse_of_pass(p0, _GAMMA_0 + 0.2)[0]
-         - impulse_of_pass(p0, _GAMMA_0 - 0.2)[0]) / 0.4
+        (impulse_of_pass(p0, _GAMMA_0 + 0.2)[0] - impulse_of_pass(p0, _GAMMA_0 - 0.2)[0]) / 0.4
     )
     return np.asarray(np.column_stack(cols) / _SCALE[:, None])
 
@@ -244,21 +253,21 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
     duration = float(sol.t[-1])
     report.add_section(
         "The nominal pass, and the width of the layer it occupies",
-        f"Entry at {_H_ENTRY/1e3:.0f} km, {_V_ENTRY:.0f} m/s, "
+        f"Entry at {_H_ENTRY / 1e3:.0f} km, {_V_ENTRY:.0f} m/s, "
         f"gamma = {_GAMMA_0:.1f} deg, bank {np.degrees(_SIGMA_0):.0f} deg. The "
-        f"pass reaches {(sol.y[0].min()-R_E)/1e3:.1f} km, peak wall temperature "
+        f"pass reaches {(sol.y[0].min() - R_E) / 1e3:.1f} km, peak wall temperature "
         f"{sol.y[10].max():.0f} K, and returns to the entry altitude after "
         f"**{duration:.1f} s**.\n\n"
-        f"That duration is {duration/_T_SLOW*100:.1f}% of `T_slow` = {_T_SLOW:g} s. "
+        f"That duration is {duration / _T_SLOW * 100:.1f}% of `T_slow` = {_T_SLOW:g} s. "
         "It should be compared against the layer width, and the comparison "
         "carries a correction. The layer is set by the phugoid period "
         "`T_phug = 2*pi*sqrt(H_s/g)`, against `T_slow = sqrt(R_e/g)`, so the "
         "ratio is `2*pi*sqrt(eps_atm)`, **not** `sqrt(eps_atm)`:\n\n"
-        f"- `sqrt(eps_atm)` = {np.sqrt(_H_S/R_E):.4f} ({np.sqrt(_H_S/R_E)*100:.1f}%)\n"
-        f"- `2*pi*sqrt(eps_atm)` = {2*np.pi*np.sqrt(_H_S/R_E):.4f} "
-        f"({2*np.pi*np.sqrt(_H_S/R_E)*100:.1f}%)\n"
-        f"- measured pass duration = {duration/_T_SLOW:.4f} "
-        f"({duration/_T_SLOW*100:.1f}%)\n\n"
+        f"- `sqrt(eps_atm)` = {np.sqrt(_H_S / R_E):.4f} ({np.sqrt(_H_S / R_E) * 100:.1f}%)\n"
+        f"- `2*pi*sqrt(eps_atm)` = {2 * np.pi * np.sqrt(_H_S / R_E):.4f} "
+        f"({2 * np.pi * np.sqrt(_H_S / R_E) * 100:.1f}%)\n"
+        f"- measured pass duration = {duration / _T_SLOW:.4f} "
+        f"({duration / _T_SLOW * 100:.1f}%)\n\n"
         "The measurement lands on the second. The functional form "
         "`rho(eps) = C_R*sqrt(eps)` is unaffected, but any numerical estimate "
         "that substitutes `sqrt(eps) = 0.034` understates the layer by a "
@@ -271,7 +280,7 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
         sv = np.linalg.svd(impulse_jacobian(n_seg), compute_uv=False)
         spectra[n_seg] = sv
         rows.append(
-            [f"{n_seg}", f"{2*n_seg+1}"]
+            [f"{n_seg}", f"{2 * n_seg + 1}"]
             + [f"{int(np.sum(sv > t * sv[0]))}" for t in (1e-4, 1e-6, 1e-9)]
         )
     report.add_table(
@@ -291,10 +300,8 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
     u16 = np.linalg.svd(impulse_jacobian(16))[0]
     rows = []
     for i in range(8):
-        comp = ", ".join(
-            f"{LABELS[k]} {u16[k,i]:+.2f}" for k in range(8) if abs(u16[k, i]) > 0.25
-        )
-        rows.append([f"u{i+1}", f"{sv16[i]/sv16[0]:.2e}", comp or "—"])
+        comp = ", ".join(f"{LABELS[k]} {u16[k, i]:+.2f}" for k in range(8) if abs(u16[k, i]) > 0.25)
+        rows.append([f"u{i + 1}", f"{sv16[i] / sv16[0]:.2e}", comp or "—"])
     report.add_table(
         "The impulse directions, strongest first (16 segments)",
         ["direction", "sigma_i / sigma_1", "dominant coordinates"],
@@ -353,18 +360,21 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
     extent_free = sampled.max(0) - sampled.min(0)
     extent_corr = kept.max(0) - kept.min(0)
     report.add_table(
-        "Size of one bubble's impulse set, as a fraction of each coordinate's "
-        "entry-wide range",
+        "Size of one bubble's impulse set, as a fraction of each coordinate's entry-wide range",
         ["coordinate", "unconstrained", "in corridor", "corridor shrink"],
         [
-            [LABELS[i], f"{100*extent_free[i]:.1f}%", f"{100*extent_corr[i]:.1f}%",
-             f"{extent_corr[i]/extent_free[i]:.2f}"]
+            [
+                LABELS[i],
+                f"{100 * extent_free[i]:.1f}%",
+                f"{100 * extent_corr[i]:.1f}%",
+                f"{extent_corr[i] / extent_free[i]:.2f}",
+            ]
             for i in range(8)
         ],
         notes=(
             f"{len(sampled)} admissible skips sampled, {len(kept)} of them inside "
-            f"qbar <= {_QBAR_MAX/1e3:.0f} kPa and "
-            f"qdot <= {_QDOT_MAX/1e4:.0f} W/cm^2. The corridor roughly halves "
+            f"qbar <= {_QBAR_MAX / 1e3:.0f} kPa and "
+            f"qdot <= {_QDOT_MAX / 1e4:.0f} W/cm^2. The corridor roughly halves "
             f"the l2 diameter, from {np.linalg.norm(extent_free):.2f} to "
             f"{np.linalg.norm(extent_corr):.2f}.\n\n"
             "**This is the finding, and it is not the rank.** The impulse set "
@@ -382,7 +392,8 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
         ),
     )
     write_csv(
-        output_dir, "r1v3-impulse-extent",
+        output_dir,
+        "r1v3-impulse-extent",
         ["coordinate", "extent_unconstrained", "extent_in_corridor"],
         [[LABELS[i], extent_free[i], extent_corr[i]] for i in range(8)],
     )

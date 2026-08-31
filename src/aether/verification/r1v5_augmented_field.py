@@ -64,7 +64,6 @@ __all__ = ["augmented_rhs", "constraint_generators", "initial_state", "run_r1v5"
 _FloatArray = NDArray[np.float64]
 
 
-
 R_E, MU, H_S, RHO_0 = 6.371e6, 3.986004418e14, 7.2e3, 1.225
 S_REF, R_NOSE, A_ABL, L_REF = 12.0, 0.30, 4.0, 6.0
 RHO_TPS, DH_ABL, CP_TPS, T_TPS = 1600.0, 2.5e7, 1200.0, 0.05
@@ -78,7 +77,9 @@ INERTIA_COLD = np.diag([1.6e3, 3.6e3, 4.2e3])
 
 _BODY = curved_lifting_body(n_chord=8, n_span=8)
 _PANEL = PanelModel(
-    centroids=_BODY.centroids, normals=_BODY.normals, areas=_BODY.areas,
+    centroids=_BODY.centroids,
+    normals=_BODY.normals,
+    areas=_BODY.areas,
     reference_point=np.array([0.35 * L_REF, 0.0, 0.0]),
 )
 _ARMS = _PANEL.centroids - _PANEL.reference_point
@@ -87,12 +88,33 @@ _ARMS = _PANEL.centroids - _PANEL.reference_point
 #: eq:apx_augmented_state with n_eta = 2; w_E and T_w are the additions
 #: discussed in the module docstring.
 INDEX = {
-    "r": 0, "phi": 1, "u": 2, "v": 3, "w": 4,
-    "q0": 5, "q1": 6, "q2": 7, "q3": 8, "p": 9, "q": 10, "r_b": 11,
-    "y": 12, "V": 13, "varrho": 14, "s_phi": 15, "c_phi": 16, "sec_phi": 17,
-    "Q_tot": 18, "mass": 19, "s": 20,
-    "eta1": 21, "eta2": 22, "eta1_dot": 23, "eta2_dot": 24,
-    "w_E": 25, "T_w": 26,
+    "r": 0,
+    "phi": 1,
+    "u": 2,
+    "v": 3,
+    "w": 4,
+    "q0": 5,
+    "q1": 6,
+    "q2": 7,
+    "q3": 8,
+    "p": 9,
+    "q": 10,
+    "r_b": 11,
+    "y": 12,
+    "V": 13,
+    "varrho": 14,
+    "s_phi": 15,
+    "c_phi": 16,
+    "sec_phi": 17,
+    "Q_tot": 18,
+    "mass": 19,
+    "s": 20,
+    "eta1": 21,
+    "eta2": 22,
+    "eta1_dot": 23,
+    "eta2_dot": 24,
+    "w_E": 25,
+    "T_w": 26,
 }
 N = 27
 
@@ -100,11 +122,13 @@ N = 27
 def _dcm(quat: _FloatArray) -> _FloatArray:
     """Local-horizon to body rotation from the attitude quaternion."""
     a, b, c, d = quat
-    return np.array([
-        [a*a + b*b - c*c - d*d, 2*(b*c + a*d), 2*(b*d - a*c)],
-        [2*(b*c - a*d), a*a - b*b + c*c - d*d, 2*(c*d + a*b)],
-        [2*(b*d + a*c), 2*(c*d - a*b), a*a - b*b - c*c + d*d],
-    ])
+    return np.array(
+        [
+            [a * a + b * b - c * c - d * d, 2 * (b * c + a * d), 2 * (b * d - a * c)],
+            [2 * (b * c - a * d), a * a - b * b + c * c - d * d, 2 * (c * d + a * b)],
+            [2 * (b * d + a * c), 2 * (c * d - a * b), a * a - b * b - c * c + d * d],
+        ]
+    )
 
 
 def _aero(
@@ -141,37 +165,32 @@ def augmented_rhs(x: _FloatArray) -> _FloatArray:
     r_dot = -v_down
     phi_dot = v_north * varrho
     # transport rate of the local frame, in NED and free of longitude
-    omega_local = np.array(
-        [v_east * varrho, -v_north * varrho, -v_east * varrho * s_phi * sec_phi]
-    )
+    omega_local = np.array([v_east * varrho, -v_north * varrho, -v_east * varrho * s_phi * sec_phi])
     rho = RHO_0 * y * y
     q_dyn = 0.5 * rho * speed * speed
     gravity = MU * varrho * varrho
     force, moment = _aero(v_body, omega, q_dyn, speed)
     inertia = INERTIA_COLD * (1.0 + recession / 0.05 * 0.05 + 0.02 * eta @ eta)
-    v_dot = (
-        force / mass + r_bl @ np.array([0.0, 0.0, gravity])
-        - np.cross(omega, v_body)
-    )
+    v_dot = force / mass + r_bl @ np.array([0.0, 0.0, gravity]) - np.cross(omega, v_body)
     omega_dot = np.linalg.solve(inertia, moment - np.cross(omega, inertia @ omega))
     rel = omega - r_bl @ omega_local
-    skew = np.array([
-        [0.0, -rel[0], -rel[1], -rel[2]],
-        [rel[0], 0.0, rel[2], -rel[1]],
-        [rel[1], -rel[2], 0.0, rel[0]],
-        [rel[2], rel[1], -rel[0], 0.0],
-    ])
+    skew = np.array(
+        [
+            [0.0, -rel[0], -rel[1], -rel[2]],
+            [rel[0], 0.0, rel[2], -rel[1]],
+            [rel[1], -rel[2], 0.0, rel[0]],
+            [rel[2], rel[1], -rel[0], 0.0],
+        ]
+    )
     q_heat = float(sutton_graves(rho, R_NOSE, speed))
     gate = 1.0 / (1.0 + np.exp(-(t_wall - T_ABL) / DT_ABL))
-    s_dot = gate * float(
-        stefan_recession_rate(q_heat, t_wall, EMISS, 0.0, RHO_TPS, DH_ABL)
+    s_dot = gate * float(stefan_recession_rate(q_heat, t_wall, EMISS, 0.0, RHO_TPS, DH_ABL))
+    t_wall_dot = (q_heat - EMISS * SIG_SB * t_wall**4 - RHO_TPS * DH_ABL * s_dot) / (
+        RHO_TPS * CP_TPS * T_TPS
     )
-    t_wall_dot = (
-        q_heat - EMISS * SIG_SB * t_wall**4 - RHO_TPS * DH_ABL * s_dot
-    ) / (RHO_TPS * CP_TPS * T_TPS)
     omega_elastic = OMEGA_COLD * np.sqrt(max(modulus, 1e-3) / E_COLD)
-    generalized = q_dyn * S_REF * (
-        np.array([1.0e-3, 4.0e-4]) - eta_dot / speed * np.array([2.0e-4, 1.0e-4])
+    generalized = (
+        q_dyn * S_REF * (np.array([1.0e-3, 4.0e-4]) - eta_dot / speed * np.array([2.0e-4, 1.0e-4]))
     )
 
     d = np.zeros(N)
@@ -180,9 +199,9 @@ def augmented_rhs(x: _FloatArray) -> _FloatArray:
     d[2:5] = v_dot
     d[5:9] = 0.5 * skew @ quat
     d[9:12] = omega_dot
-    d[12] = -(r_dot / (2.0 * H_S)) * y            # ydot proportional to y
-    d[13] = (v_body @ v_dot) / speed              # V Vdot = u udot + v vdot + w wdot
-    d[14] = -varrho * varrho * r_dot              # varrhodot = -varrho^2 rdot
+    d[12] = -(r_dot / (2.0 * H_S)) * y  # ydot proportional to y
+    d[13] = (v_body @ v_dot) / speed  # V Vdot = u udot + v vdot + w wdot
+    d[14] = -varrho * varrho * r_dot  # varrhodot = -varrho^2 rdot
     d[15] = c_phi * phi_dot
     d[16] = -s_phi * phi_dot
     d[17] = s_phi * phi_dot * sec_phi * sec_phi
@@ -190,11 +209,8 @@ def augmented_rhs(x: _FloatArray) -> _FloatArray:
     d[19] = -RHO_TPS * A_ABL * s_dot
     d[20] = s_dot
     d[21:23] = eta_dot
-    d[23:25] = (
-        generalized / M_GEN - 2.0 * ZETA * omega_elastic * eta_dot
-        - omega_elastic**2 * eta
-    )
-    d[25] = C_ARRH * modulus * t_wall_dot         # wdot = c w Tdot
+    d[23:25] = generalized / M_GEN - 2.0 * ZETA * omega_elastic * eta_dot - omega_elastic**2 * eta
+    d[25] = C_ARRH * modulus * t_wall_dot  # wdot = c w Tdot
     d[26] = t_wall_dot
     return d
 
@@ -205,15 +221,17 @@ def constraint_generators(x: _FloatArray) -> _FloatArray:
     u, v, w = x[2:5]
     quat = x[5:9]
     y, speed, varrho, s_phi, c_phi, sec_phi = x[12:18]
-    return np.array([
-        quat @ quat - 1.0,
-        speed * speed - (u * u + v * v + w * w),
-        r * varrho - 1.0,
-        y * y - np.exp(-(r - R_E) / H_S),
-        s_phi * s_phi + c_phi * c_phi - 1.0,
-        sec_phi * c_phi - 1.0,
-        s_phi - np.sin(phi),
-    ])
+    return np.array(
+        [
+            quat @ quat - 1.0,
+            speed * speed - (u * u + v * v + w * w),
+            r * varrho - 1.0,
+            y * y - np.exp(-(r - R_E) / H_S),
+            s_phi * s_phi + c_phi * c_phi - 1.0,
+            sec_phi * c_phi - 1.0,
+            s_phi - np.sin(phi),
+        ]
+    )
 
 
 def initial_state(
@@ -225,21 +243,21 @@ def initial_state(
 ) -> _FloatArray:
     a, b = np.radians(alpha_deg), np.radians(bank_deg)
     r = R_E + h
-    v_body = v_inf*np.array([np.cos(a), 0.0, np.sin(a)])
+    v_body = v_inf * np.array([np.cos(a), 0.0, np.sin(a)])
     # attitude: bank about the velocity axis, then incidence
-    ca, sa, cb, sb = np.cos(a/2), np.sin(a/2), np.cos(b/2), np.sin(b/2)
-    qv = np.array([ca*cb, ca*sb, sa*cb, -sa*sb])
+    ca, sa, cb, sb = np.cos(a / 2), np.sin(a / 2), np.cos(b / 2), np.sin(b / 2)
+    qv = np.array([ca * cb, ca * sb, sa * cb, -sa * sb])
     qv /= np.linalg.norm(qv)
     x = np.zeros(N)
     x[0], x[1] = r, phi
     x[2:5] = v_body
     x[5:9] = qv
     x[9:12] = 0.0
-    x[12] = np.exp(-h/(2*H_S))
+    x[12] = np.exp(-h / (2 * H_S))
     x[13] = v_inf
-    x[14] = 1.0/r
+    x[14] = 1.0 / r
     x[15], x[16] = np.sin(phi), np.cos(phi)
-    x[17] = 1.0/np.cos(phi)
+    x[17] = 1.0 / np.cos(phi)
     x[18], x[19], x[20] = 0.0, 1200.0, 0.0
     x[21:25] = 0.0
     x[25], x[26] = E_COLD, 1200.0
@@ -247,8 +265,13 @@ def initial_state(
 
 
 _GENERATOR_NAMES = (
-    "|q|^2 - 1", "V^2 - |v|^2", "r*varrho - 1", "y^2 - rho/rho_0",
-    "s_phi^2 + c_phi^2 - 1", "sec_phi*c_phi - 1", "s_phi - sin(phi)",
+    "|q|^2 - 1",
+    "V^2 - |v|^2",
+    "r*varrho - 1",
+    "y^2 - rho/rho_0",
+    "s_phi^2 + c_phi^2 - 1",
+    "sec_phi*c_phi - 1",
+    "s_phi - sin(phi)",
 )
 #: Failure criterion, stated in advance: the adjunctions of apx:embedding
 #: are claimed to be EXACT. If any equality generator has a non-vanishing
@@ -305,8 +328,10 @@ def run_r1v5(output_dir: Path) -> VerificationReport:
     worst = np.zeros(7)
     for _ in range(12):
         x = initial_state(
-            h=rng.uniform(45.0e3, 80.0e3), v_inf=rng.uniform(4.0e3, 7.0e3),
-            alpha_deg=rng.uniform(8.0, 35.0), bank_deg=rng.uniform(-60.0, 60.0),
+            h=rng.uniform(45.0e3, 80.0e3),
+            v_inf=rng.uniform(4.0e3, 7.0e3),
+            alpha_deg=rng.uniform(8.0, 35.0),
+            bank_deg=rng.uniform(-60.0, 60.0),
             phi=rng.uniform(-0.8, 0.8),
         )
         x[9:12] = rng.uniform(-0.05, 0.05, 3)
@@ -315,9 +340,7 @@ def run_r1v5(output_dir: Path) -> VerificationReport:
         x[26] = rng.uniform(300.0, 2200.0)
         field = augmented_rhs(x)
         grad = _fd_jacobian(constraint_generators, x, 7)
-        lie = np.abs(grad @ field) / (
-            np.linalg.norm(grad, axis=1) * np.linalg.norm(field) + 1e-300
-        )
+        lie = np.abs(grad @ field) / (np.linalg.norm(grad, axis=1) * np.linalg.norm(field) + 1e-300)
         worst = np.maximum(worst, lie)
     report.add_table(
         "Exactness of each adjunction, over randomized corridor points",
@@ -370,35 +393,55 @@ def run_r1v5(output_dir: Path) -> VerificationReport:
     rows, trimmable = [], []
     for frac in (0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60):
         panel = PanelModel(
-            centroids=_BODY.centroids, normals=_BODY.normals, areas=_BODY.areas,
+            centroids=_BODY.centroids,
+            normals=_BODY.normals,
+            areas=_BODY.areas,
             reference_point=np.array([frac * L_REF, 0.0, 0.0]),
         )
         arms = panel.centroids - panel.reference_point
+
         def pitching(alpha: float, _p: PanelModel = panel, _a: _FloatArray = arms) -> float:
             v = np.array([np.cos(alpha), 0.0, np.sin(alpha)])
             cp = blended_pressure_coefficient(
                 np.arcsin(np.clip(-(_p.normals @ v), -1.0, 1.0)),
-                MACH_REF, cp_max=CP_MAX,
+                MACH_REF,
+                cp_max=CP_MAX,
             )
             force = -(cp * 1.0e4 * _p.areas)[:, None] * _p.normals
             return float(np.cross(_a, force).sum(axis=0)[1])
+
         lo, hi = np.radians(2.0), np.radians(45.0)
         if pitching(lo) * pitching(hi) < 0.0:
             root = float(brentq(pitching, lo, hi, xtol=1e-12))
             eps = 1.0e-5
             slope = (pitching(root + eps) - pitching(root - eps)) / (2.0 * eps)
             verdict = "trim, but STATICALLY UNSTABLE" if slope > 0 else "stable trim"
-            rows.append([f"{frac:.2f}", f"{pitching(lo):.2e}", f"{pitching(hi):.2e}",
-                         f"{np.degrees(root):.2f}", f"{slope:.2e}", verdict])
+            rows.append(
+                [
+                    f"{frac:.2f}",
+                    f"{pitching(lo):.2e}",
+                    f"{pitching(hi):.2e}",
+                    f"{np.degrees(root):.2f}",
+                    f"{slope:.2e}",
+                    verdict,
+                ]
+            )
             if slope < 0:
                 trimmable.append(frac)
         else:
-            rows.append([f"{frac:.2f}", f"{pitching(lo):.2e}", f"{pitching(hi):.2e}",
-                         "--", "--", "no sign change: NO TRIM"])
+            rows.append(
+                [
+                    f"{frac:.2f}",
+                    f"{pitching(lo):.2e}",
+                    f"{pitching(hi):.2e}",
+                    "--",
+                    "--",
+                    "no sign change: NO TRIM",
+                ]
+            )
     report.add_table(
         "Does an attitude critical manifold exist? Bare-airframe trim vs c.g.",
-        ["c.g. / L", "M_y at 2 deg", "M_y at 45 deg", "trim [deg]",
-         "dM/dalpha", "verdict"],
+        ["c.g. / L", "M_y at 2 deg", "M_y at 45 deg", "trim [deg]", "dM/dalpha", "verdict"],
         rows,
         notes=(
             "**No stable trim exists at any reference point.** Forward of "
@@ -441,18 +484,29 @@ def run_r1v5(output_dir: Path) -> VerificationReport:
         slow_live = slow[slow > 1.0e-12]
         qbar = 0.5 * RHO_0 * np.exp(-h / H_S) * 6.0e3**2
         ratio = attitude.min() / slow_live.max() if slow_live.size else np.nan
-        rows.append([
-            f"{h/1e3:.0f}", f"{qbar/1e3:.2f}", f"{elastic.min():.2e}",
-            f"{thermal.min():.2e}" if thermal.size else "--",
-            f"{attitude.min():.2e}",
-            f"{slow_live.min():.2e}" if slow_live.size else "--",
-            f"{ratio:.2f}",
-        ])
+        rows.append(
+            [
+                f"{h / 1e3:.0f}",
+                f"{qbar / 1e3:.2f}",
+                f"{elastic.min():.2e}",
+                f"{thermal.min():.2e}" if thermal.size else "--",
+                f"{attitude.min():.2e}",
+                f"{slow_live.min():.2e}" if slow_live.size else "--",
+                f"{ratio:.2f}",
+            ]
+        )
         csv_rows.append([h, qbar, elastic.min(), attitude.min(), ratio])
     report.add_table(
         "Slowest decay rate in each band, over the corridor (1/s)",
-        ["h [km]", "qbar [kPa]", "elastic", "thermal", "attitude", "skeleton",
-         "attitude / skeleton"],
+        [
+            "h [km]",
+            "qbar [kPa]",
+            "elastic",
+            "thermal",
+            "attitude",
+            "skeleton",
+            "attitude / skeleton",
+        ],
         rows,
         notes=(
             "Computed on the tangent space to the constraint manifold, so the "
@@ -480,7 +534,10 @@ def run_r1v5(output_dir: Path) -> VerificationReport:
             "`|lambda|` alone assigns them wrongly."
         ),
     )
-    write_csv(output_dir, "r1v5-band-decay",
-              ["altitude_m", "qbar_Pa", "elastic_decay", "attitude_decay",
-               "attitude_over_skeleton"], csv_rows)
+    write_csv(
+        output_dir,
+        "r1v5-band-decay",
+        ["altitude_m", "qbar_Pa", "elastic_decay", "attitude_decay", "attitude_over_skeleton"],
+        csv_rows,
+    )
     return report

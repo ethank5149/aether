@@ -159,10 +159,7 @@ def free_molecular_coefficients(
 
     pressure = (
         ((2.0 - sigma_n) / np.sqrt(np.pi) * s + 0.5 * sigma_n * wall) * gaussian
-        + (
-            (2.0 - sigma_n) * (s * s + 0.5)
-            + 0.5 * sigma_n * np.sqrt(np.pi) * wall * s
-        )
+        + ((2.0 - sigma_n) * (s * s + 0.5) + 0.5 * sigma_n * np.sqrt(np.pi) * wall * s)
         * complementary
     ) / (s_ratio * s_ratio)
 
@@ -175,9 +172,7 @@ def free_molecular_coefficients(
     return np.asarray(pressure), np.asarray(shear)
 
 
-def sphere_free_molecular_drag(
-    speed_ratio: float, wall_temperature_ratio: float = 1.0
-) -> float:
+def sphere_free_molecular_drag(speed_ratio: float, wall_temperature_ratio: float = 1.0) -> float:
     """Closed-form free-molecular sphere drag, diffuse reflection.
 
     .. math::
@@ -228,8 +223,7 @@ def sine_squared_bridge(
         raise ValueError(msg)
     kn = np.asarray(knudsen, dtype=np.float64)
     fraction = np.clip(
-        (np.log10(np.maximum(kn, 1.0e-300)) - np.log10(low))
-        / (np.log10(high) - np.log10(low)),
+        (np.log10(np.maximum(kn, 1.0e-300)) - np.log10(low)) / (np.log10(high) - np.log10(low)),
         0.0,
         1.0,
     )
@@ -266,9 +260,7 @@ class FreeMolecularSolver:
     def __post_init__(self) -> None:
         self._model = self.mesh.panel_model(self.reference_point)
 
-    def solve(
-        self, mach: float, alpha: float, temperature: float = 250.0
-    ) -> Coefficients:
+    def solve(self, mach: float, alpha: float, temperature: float = 250.0) -> Coefficients:
         """Coefficients at a Mach number, incidence and ambient temperature.
 
         Ambient temperature enters twice — through the speed ratio
@@ -301,15 +293,13 @@ class FreeMolecularSolver:
         direction = tangential / np.where(magnitude > 1e-12, magnitude, 1.0)[:, np.newaxis]
 
         force = np.sum(
-            (-(cp * areas))[:, np.newaxis] * normals
-            + (c_tau * areas)[:, np.newaxis] * direction,
+            (-(cp * areas))[:, np.newaxis] * normals + (c_tau * areas)[:, np.newaxis] * direction,
             axis=0,
         )
         arms = np.asarray(model.centroids) - np.asarray(model.reference_point)
-        panel_force = (
-            (-(cp * areas))[:, np.newaxis] * normals
-            + (c_tau * areas)[:, np.newaxis] * direction
-        )
+        panel_force = (-(cp * areas))[:, np.newaxis] * normals + (c_tau * areas)[
+            :, np.newaxis
+        ] * direction
         moment = np.sum(np.cross(arms, panel_force), axis=0)
 
         scale = self.reference_area

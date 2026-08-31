@@ -117,6 +117,7 @@ class WallCatalycity(Enum):
             return LEWIS_EXPONENT_FROZEN_CATALYTIC
         return None
 
+
 #: Leading coefficient of Fay & Riddell Eq. (63).
 #:
 #: Reconstructing the modern form from the source settles the exponents but
@@ -336,12 +337,8 @@ def fay_riddell(
             )
         if not (np.isfinite(lewis_exponent) and 0.0 < lewis_exponent < 1.0):
             raise ValueError(f"lewis_exponent must be in (0, 1), got {lewis_exponent}")
-    rho_mu_e = _positive(edge_density, "edge_density") * _positive(
-        edge_viscosity, "edge_viscosity"
-    )
-    rho_mu_w = _positive(wall_density, "wall_density") * _positive(
-        wall_viscosity, "wall_viscosity"
-    )
+    rho_mu_e = _positive(edge_density, "edge_density") * _positive(edge_viscosity, "edge_viscosity")
+    rho_mu_w = _positive(wall_density, "wall_density") * _positive(wall_viscosity, "wall_viscosity")
     dudx = _positive(velocity_gradient, "velocity_gradient")
     h0e = _positive(total_enthalpy_edge, "total_enthalpy_edge")
     h_w = np.asarray(wall_enthalpy, dtype=np.float64)

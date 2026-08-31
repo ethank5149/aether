@@ -82,6 +82,7 @@ RiskModel = Literal["gaussian", "cantelli"]
 # Risk: one-sided chance constraints and mission-level allocation
 # ---------------------------------------------------------------------------
 
+
 def risk_multiplier(epsilon: float, *, model: RiskModel = "gaussian") -> float:
     r"""Return the constraint-tightening multiplier :math:`\kappa` for risk ``epsilon``.
 
@@ -230,9 +231,7 @@ class RiskBudget:
 
     def __post_init__(self) -> None:
         if not 0.0 < self.mission_epsilon < 1.0:
-            raise ValueError(
-                f"mission_epsilon must lie in (0, 1), got {self.mission_epsilon}"
-            )
+            raise ValueError(f"mission_epsilon must lie in (0, 1), got {self.mission_epsilon}")
         if self.allocations and not all(v > 0.0 for v in self.allocations.values()):
             raise ValueError("allocation shares must be strictly positive")
 
@@ -326,6 +325,7 @@ def chance_constraint_margin(
 # ---------------------------------------------------------------------------
 # Covariance propagation
 # ---------------------------------------------------------------------------
+
 
 def van_loan_discretization(
     a_matrix: _FloatArray,
@@ -455,9 +455,7 @@ def propagate_covariance(
         b = np.asarray(b_matrix, dtype=np.float64)
         k = np.asarray(gain, dtype=np.float64)
         if b.shape[0] != a.shape[0] or k.shape[1] != a.shape[1] or b.shape[1] != k.shape[0]:
-            raise ValueError(
-                f"non-conformable feedback shapes: A{a.shape}, B{b.shape}, K{k.shape}"
-            )
+            raise ValueError(f"non-conformable feedback shapes: A{a.shape}, B{b.shape}, K{k.shape}")
         a = a + b @ k
     phi, q_d = van_loan_discretization(a, q_matrix, dt)
     out = phi @ p @ phi.T + q_d
@@ -467,6 +465,7 @@ def propagate_covariance(
 # ---------------------------------------------------------------------------
 # Hybrid events: staging
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class StagingEvent:
@@ -504,9 +503,7 @@ class StagingEvent:
     dropped_mass: float
     dropped_mass_std: float = 0.0
     separation_impulse: float = 0.0
-    separation_direction: _FloatArray = field(
-        default_factory=lambda: np.array([1.0, 0.0, 0.0])
-    )
+    separation_direction: _FloatArray = field(default_factory=lambda: np.array([1.0, 0.0, 0.0]))
     separation_impulse_std: float = 0.0
     transverse_impulse_std: float = 0.0
 
@@ -522,9 +519,7 @@ class StagingEvent:
                 raise ValueError(f"{name} must be non-negative, got {getattr(self, name)}")
         direction = np.asarray(self.separation_direction, dtype=np.float64)
         if direction.shape != (3,):
-            raise ValueError(
-                f"separation_direction must have shape (3,), got {direction.shape}"
-            )
+            raise ValueError(f"separation_direction must have shape (3,), got {direction.shape}")
         norm_d = float(np.linalg.norm(direction))
         if norm_d == 0.0:
             raise ValueError("separation_direction must be non-zero")
@@ -590,8 +585,7 @@ def staging_jump(
     m_plus = m_minus - event.dropped_mass
     if m_plus <= 0.0:
         raise ValueError(
-            f"post-staging mass must be positive: {m_minus} - {event.dropped_mass}"
-            f" = {m_plus}"
+            f"post-staging mass must be positive: {m_minus} - {event.dropped_mass} = {m_plus}"
         )
 
     n_hat = np.asarray(event.separation_direction, dtype=np.float64)
@@ -626,6 +620,7 @@ def staging_jump(
 # ---------------------------------------------------------------------------
 # Timing: explicit launch epoch
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class LaunchWindow:
@@ -716,6 +711,7 @@ def phase_epochs(t_launch: float, durations: _FloatArray) -> _FloatArray:
 # ---------------------------------------------------------------------------
 # Collision geometry and terminal accuracy
 # ---------------------------------------------------------------------------
+
 
 def relative_covariance(
     p_vehicle: _FloatArray,
@@ -844,9 +840,7 @@ def generalized_chi2_cdf(
     d2 = delta**2
 
     theta = 0.5 * (np.arctan(lu) + d2 * lu / (1.0 + lu**2)).sum(axis=1) - 0.5 * q * u
-    log_rho = 0.25 * np.log1p(lu**2).sum(axis=1) + 0.5 * (
-        d2 * lu**2 / (1.0 + lu**2)
-    ).sum(axis=1)
+    log_rho = 0.25 * np.log1p(lu**2).sum(axis=1) + 0.5 * (d2 * lu**2 / (1.0 + lu**2)).sum(axis=1)
 
     integrand = np.sin(theta) / (u * np.exp(log_rho))
     value = 0.5 - float(np.trapezoid(integrand, u)) / np.pi
@@ -993,6 +987,7 @@ def terminal_containment(
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------
+
 
 def atmosphere_relative_velocity(
     position_ecef: _FloatArray,
@@ -1162,6 +1157,7 @@ def heat_flux_gradient(
 # Nonlinear validation: unscented transform
 # ---------------------------------------------------------------------------
 
+
 def sigma_points(
     mean: _FloatArray,
     covariance: _FloatArray,
@@ -1284,11 +1280,8 @@ def unscented_propagate(
         If ``transform`` returns inconsistent shapes or ``process_noise`` does
         not match the output dimension.
     """
-    points, w_m, w_c = sigma_points(
-        mean, covariance, alpha=alpha, beta=beta, kappa=kappa
-    )
-    mapped = np.stack([np.atleast_1d(np.asarray(transform(pt), dtype=np.float64))
-                       for pt in points])
+    points, w_m, w_c = sigma_points(mean, covariance, alpha=alpha, beta=beta, kappa=kappa)
+    mapped = np.stack([np.atleast_1d(np.asarray(transform(pt), dtype=np.float64)) for pt in points])
     if mapped.ndim != 2:
         raise ValueError("transform must return a one-dimensional array")
 
@@ -1299,9 +1292,7 @@ def unscented_propagate(
     if process_noise is not None:
         q = np.asarray(process_noise, dtype=np.float64)
         if q.shape != cov_out.shape:
-            raise ValueError(
-                f"process_noise must have shape {cov_out.shape}, got {q.shape}"
-            )
+            raise ValueError(f"process_noise must have shape {cov_out.shape}, got {q.shape}")
         cov_out = cov_out + q
 
     cov_out = 0.5 * (cov_out + cov_out.T)

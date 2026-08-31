@@ -107,8 +107,7 @@ def probe_depths(
     limit = stack.initial_thickness
     if np.any(d > limit):
         raise ValueError(
-            f"depth {float(np.max(d)):.6g} m lies below the stack "
-            f"({limit:.6g} m thick)"
+            f"depth {float(np.max(d)):.6g} m lies below the stack ({limit:.6g} m thick)"
         )
 
     probes: list[DepthProbe] = []
@@ -204,8 +203,10 @@ def interface_histories(
             fluxes.append(float(flux))
         out.append(
             InterfaceHistory(
-                ply_below=int(np.searchsorted(np.cumsum(
-                    [p.n_cells for p in stack.plies]), face, side="right")) + 1,
+                ply_below=int(
+                    np.searchsorted(np.cumsum([p.n_cells for p in stack.plies]), face, side="right")
+                )
+                + 1,
                 times=np.asarray(times, dtype=np.float64),
                 temperature=np.asarray(temps, dtype=np.float64),
                 heat_flux=np.asarray(fluxes, dtype=np.float64),

@@ -56,9 +56,7 @@ class VerificationReport:
     def to_markdown(self) -> str:
         verdict = "**PASS**" if self.passed else "**FAIL**"
         stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        source = self.source or (
-            "Paper II §8" if self.task_id.startswith("II-") else "Paper I §8"
-        )
+        source = self.source or ("Paper II §8" if self.task_id.startswith("II-") else "Paper I §8")
         head = (
             f"# {self.task_id}: {self.title}\n\n"
             f"- **Failure criterion (stated in advance, {source}):** {self.criterion}\n"

@@ -63,8 +63,7 @@ def run_v1(output_dir: Path) -> VerificationReport:
         task_id="V1",
         title="Structural operator — conditioning and free-free frequencies",
         criterion=(
-            f"relative frequency error > {_FREQ_TOL:.0e} at N = {_N_ACCEPT} "
-            f"for the uniform case"
+            f"relative frequency error > {_FREQ_TOL:.0e} at N = {_N_ACCEPT} for the uniform case"
         ),
         passed=True,
     )

@@ -110,9 +110,7 @@ class LinearBlendProperty:
     def d_temperature(self, temperature: ArrayLike, char_fraction: ArrayLike) -> _FloatArray:
         t = np.asarray(temperature, dtype=np.float64)
         b = np.asarray(char_fraction, dtype=np.float64)
-        return np.asarray(
-            (1.0 - b) * self.virgin_slope + b * self.char_slope + 0.0 * t
-        )
+        return np.asarray((1.0 - b) * self.virgin_slope + b * self.char_slope + 0.0 * t)
 
     def d_char_fraction(self, temperature: ArrayLike, char_fraction: ArrayLike) -> _FloatArray:
         t = np.asarray(temperature, dtype=np.float64)
@@ -180,17 +178,19 @@ class CharringMaterial:
     def virgin_bulk_density(self) -> float:
         """Bulk density of fully virgin material."""
         g = self.resin_fraction
-        return g * (self.resin_a.virgin_density + self.resin_b.virgin_density) + (
-            1.0 - g
-        ) * self.filler.virgin_density
+        return (
+            g * (self.resin_a.virgin_density + self.resin_b.virgin_density)
+            + (1.0 - g) * self.filler.virgin_density
+        )
 
     @property
     def char_bulk_density(self) -> float:
         """Bulk density of fully charred material."""
         g = self.resin_fraction
-        return g * (self.resin_a.char_density + self.resin_b.char_density) + (
-            1.0 - g
-        ) * self.filler.char_density
+        return (
+            g * (self.resin_a.char_density + self.resin_b.char_density)
+            + (1.0 - g) * self.filler.char_density
+        )
 
     def gas_enthalpy(self, temperature: ArrayLike) -> _FloatArray:
         return np.asarray(

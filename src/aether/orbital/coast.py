@@ -119,9 +119,7 @@ def orbital_elements(
     else:
         raan = float(np.arctan2(node_vec[1], node_vec[0]))
         if ecc > 1e-12:
-            argp = float(
-                np.arccos(np.clip(node_vec @ e_vec / (node_mag * ecc), -1.0, 1.0))
-            )
+            argp = float(np.arccos(np.clip(node_vec @ e_vec / (node_mag * ecc), -1.0, 1.0)))
             if e_vec[2] < 0.0:
                 argp = 2.0 * np.pi - argp
         else:
@@ -402,9 +400,11 @@ def compare_coast_strategies(
     # --- strategy 2: freeze once the modal energy is provably quiescent.
     # The ring-down of a damped oscillator is analytic, so the freeze time
     # is known in closed form rather than found by polling.
-    freeze_time = min(
-        float(duration), float(-np.log(freeze_threshold) / (2.0 * zeta * omega))
-    ) if zeta > 0.0 else float(duration)
+    freeze_time = (
+        min(float(duration), float(-np.log(freeze_threshold) / (2.0 * zeta * omega)))
+        if zeta > 0.0
+        else float(duration)
+    )
     start = time.perf_counter()
     phase_a = scipy.integrate.solve_ivp(
         coupled_rhs,
@@ -458,4 +458,3 @@ def compare_coast_strategies(
         structural_energy_ratio=float(modal_ratio_frozen),
     )
     return single, frozen
-

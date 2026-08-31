@@ -65,8 +65,10 @@ def stefan_recession_rate(
     """
     if not 0.0 < emissivity <= 1.0:
         raise ValueError(f"emissivity must be in (0, 1], got {emissivity}")
-    for name, val in (("material_density", material_density),
-                      ("ablation_enthalpy", ablation_enthalpy)):
+    for name, val in (
+        ("material_density", material_density),
+        ("ablation_enthalpy", ablation_enthalpy),
+    ):
         if not (np.isfinite(val) and val > 0.0):
             raise ValueError(f"{name} must be finite and > 0, got {val}")
     q = np.asarray(total_heat_flux, dtype=np.float64)

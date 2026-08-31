@@ -98,9 +98,7 @@ def rosseland_flux(
     return np.asarray(-k_rad * grad)
 
 
-def optical_depth(
-    cell_widths: ArrayLike, extinction_coefficient: ArrayLike
-) -> _FloatArray:
+def optical_depth(cell_widths: ArrayLike, extinction_coefficient: ArrayLike) -> _FloatArray:
     """Cumulative optical depth at cell faces, length ``n_cells + 1``.
 
     :math:`\\kappa(x) = \\int_0^x K\\,dx'`, starting at zero on the

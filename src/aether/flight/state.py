@@ -132,9 +132,7 @@ class GlobalState:
         """Split the flat ODE vector into named blocks."""
         y = np.asarray(vector, dtype=np.float64)
         if y.shape != (layout.size,):
-            raise ValueError(
-                f"state vector must have shape ({layout.size},), got {y.shape}"
-            )
+            raise ValueError(f"state vector must have shape ({layout.size},), got {y.shape}")
         return cls(
             position=y[layout.position],
             velocity=y[layout.velocity],

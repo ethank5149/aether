@@ -182,9 +182,7 @@ class ManufacturedAblation:
     def gas_flux(self, eta: _FloatArray, t: float) -> _FloatArray:
         """Manufactured :math:`\\dot m_g^*` from the closed-form integral of
         Eq. (3.18)."""
-        c_t = (
-            self._bulk_delta * self.char_extent_amplitude * np.exp(-t / self.tau) / self.tau
-        )
+        c_t = self._bulk_delta * self.char_extent_amplitude * np.exp(-t / self.tau) / self.tau
         return np.asarray(-self.thickness(t) * c_t * self._shape_integral(eta))
 
     # ------------------------------------------------------------- sources

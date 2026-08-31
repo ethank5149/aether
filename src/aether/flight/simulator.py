@@ -149,8 +149,13 @@ class FlightConfiguration:
 
     def __post_init__(self) -> None:
         for name in (
-            "length", "tps_thickness", "flexural_rigidity", "mass_per_length",
-            "ballistic_coefficient", "nose_radius", "reference_area",
+            "length",
+            "tps_thickness",
+            "flexural_rigidity",
+            "mass_per_length",
+            "ballistic_coefficient",
+            "nose_radius",
+            "reference_area",
         ):
             val = float(getattr(self, name))
             if not (np.isfinite(val) and val > 0.0):
@@ -169,8 +174,7 @@ class FlightConfiguration:
             raise ValueError(f"drag_area must be finite and > 0, got {self.drag_area}")
         if not 0.0 < self.heat_load_fraction <= 1.0:
             raise ValueError("heat_load_fraction must be in (0, 1]")
-        if not (np.isfinite(self.thermal_baumgarte_gain)
-                and self.thermal_baumgarte_gain > 0.0):
+        if not (np.isfinite(self.thermal_baumgarte_gain) and self.thermal_baumgarte_gain > 0.0):
             raise ValueError("thermal_baumgarte_gain must be finite and > 0")
 
 
@@ -247,9 +251,7 @@ class FlightSimulator:
         available = self._modes.frequencies.size - n_rigid
         n_modes = min(self._cfg.n_modes, available)
         if n_modes < 1:
-            raise ValueError(
-                f"beam_order {self._cfg.beam_order} yields no elastic modes"
-            )
+            raise ValueError(f"beam_order {self._cfg.beam_order} yields no elastic modes")
         self._elastic_omega = np.array(
             self._modes.frequencies[n_rigid : n_rigid + n_modes], dtype=np.float64
         )
@@ -259,17 +261,13 @@ class FlightSimulator:
         self._modal_load_gain = elastic_shapes.T @ beam_grid.weights
 
         # --- thermal kernel on the fixed Landau grid
-        thermal_grid = ChebyshevGrid(
-            self._cfg.thermal_order, interval=(0.0, 1.0), max_derivative=2
-        )
+        thermal_grid = ChebyshevGrid(self._cfg.thermal_order, interval=(0.0, 1.0), max_derivative=2)
         self._frame = LandauFrame(total_thickness=self._cfg.tps_thickness)
         self._thermal = CharringThermalSolver(thermal_grid, self._material, self._frame)
         self._thermal_grid = thermal_grid
 
         self._thermal_baumgarte = float(self._cfg.thermal_baumgarte_gain)
-        self._layout = StateLayout(
-            n_modes=n_modes, n_thermal=thermal_grid.size
-        )
+        self._layout = StateLayout(n_modes=n_modes, n_thermal=thermal_grid.size)
 
     @property
     def config(self) -> FlightConfiguration:
@@ -311,9 +309,9 @@ class FlightSimulator:
         launches from a named site on a named bearing. This takes the
         vectors directly.
         """
-        virgin = np.array(
-            [c.virgin_density for c in self._material.components]
-        )[:, np.newaxis] * np.ones((1, self._layout.n_thermal))
+        virgin = np.array([c.virgin_density for c in self._material.components])[
+            :, np.newaxis
+        ] * np.ones((1, self._layout.n_thermal))
         state = GlobalState(
             position=np.asarray(position, dtype=np.float64),
             velocity=np.asarray(velocity, dtype=np.float64),
@@ -341,9 +339,9 @@ class FlightSimulator:
         position = np.array([radius, 0.0, 0.0])
         gamma = float(flight_path_angle)
         velocity = float(speed) * np.array([np.sin(gamma), np.cos(gamma), 0.0])
-        virgin = np.array(
-            [c.virgin_density for c in self._material.components]
-        )[:, np.newaxis] * np.ones((1, self._layout.n_thermal))
+        virgin = np.array([c.virgin_density for c in self._material.components])[
+            :, np.newaxis
+        ] * np.ones((1, self._layout.n_thermal))
         state = GlobalState(
             position=position,
             velocity=velocity,
@@ -406,13 +404,8 @@ class FlightSimulator:
 
         interior_rate = pde_rate[1:-1]
         rhs_back = -(d1[0, 1:-1] @ interior_rate) - self._thermal_baumgarte * residual_back
-        rhs_surface = (
-            -(d1[-1, 1:-1] @ interior_rate)
-            - self._thermal_baumgarte * residual_surface
-        )
-        matrix = np.array(
-            [[d1[0, 0], d1[0, -1]], [d1[-1, 0], d1[-1, -1]]], dtype=np.float64
-        )
+        rhs_surface = -(d1[-1, 1:-1] @ interior_rate) - self._thermal_baumgarte * residual_surface
+        matrix = np.array([[d1[0, 0], d1[0, -1]], [d1[-1, 0], d1[-1, -1]]], dtype=np.float64)
         boundary_rates = np.linalg.solve(matrix, np.array([rhs_back, rhs_surface]))
 
         rate = np.array(pde_rate, copy=True)
@@ -542,8 +535,7 @@ class FlightSimulator:
         recession = max(float(state.recession), 0.0)
         r_eff = self.effective_radius(recession)
         q_stag = (
-            float(sutton_graves(density, r_eff, speed)) if density > 0.0 and speed > 0.0
-            else 0.0
+            float(sutton_graves(density, r_eff, speed)) if density > 0.0 and speed > 0.0 else 0.0
         )
         q_surface = cfg.heat_load_fraction * q_stag
 
@@ -558,16 +550,15 @@ class FlightSimulator:
         )
         # recession rate from the net surface flux over the ablation enthalpy,
         # clamped at zero because oxidative recession is irreversible
-        sdot = max(net_flux, 0.0) / (
-            self._material.char_bulk_density * _ABLATION_ENTHALPY
-        )
-        thermal_rhs = self._thermal.rhs(
-            t, self._thermal.pack(thermal_state), lambda _t, _s: sdot
-        )
+        sdot = max(net_flux, 0.0) / (self._material.char_bulk_density * _ABLATION_ENTHALPY)
+        thermal_rhs = self._thermal.rhs(t, self._thermal.pack(thermal_state), lambda _t, _s: sdot)
         unpacked = self._thermal.unpack(thermal_rhs)
         temperature_rate = self._close_thermal_boundaries(
-            state.temperature, np.asarray(unpacked.temperature), net_flux,
-            self._frame.thickness(recession), wall,
+            state.temperature,
+            np.asarray(unpacked.temperature),
+            net_flux,
+            self._frame.thickness(recession),
+            wall,
         )
 
         out[layout.temperature] = temperature_rate
@@ -593,16 +584,16 @@ class FlightSimulator:
         """
         layout = self._layout
         atol = np.empty(layout.size)
-        atol[layout.position] = 1.0e-3       # m
-        atol[layout.velocity] = 1.0e-6       # m/s
+        atol[layout.position] = 1.0e-3  # m
+        atol[layout.velocity] = 1.0e-6  # m/s
         atol[layout.quaternion] = 1.0e-10
         atol[layout.angular_rate] = 1.0e-10  # rad/s
-        atol[layout.mass] = 1.0e-6           # kg
+        atol[layout.mass] = 1.0e-6  # kg
         atol[layout.modal_displacement] = 1.0e-9
         atol[layout.modal_velocity] = 1.0e-7
-        atol[layout.temperature] = 1.0e-4    # K
-        atol[layout.densities] = 1.0e-6      # kg/m^3
-        atol[layout.recession] = 1.0e-12     # m
+        atol[layout.temperature] = 1.0e-4  # K
+        atol[layout.densities] = 1.0e-6  # kg/m^3
+        atol[layout.recession] = 1.0e-12  # m
         return atol
 
     def propagate(
@@ -639,8 +630,13 @@ class FlightSimulator:
         t_eval = np.linspace(0.0, float(duration), int(n_output))
         start = time.perf_counter()
         sol = scipy.integrate.solve_ivp(
-            self.rhs, (0.0, float(duration)), y0, method=method,
-            t_eval=t_eval, rtol=rtol, atol=tolerances,
+            self.rhs,
+            (0.0, float(duration)),
+            y0,
+            method=method,
+            t_eval=t_eval,
+            rtol=rtol,
+            atol=tolerances,
         )
         wall = time.perf_counter() - start
         if not sol.success:
@@ -656,8 +652,9 @@ class FlightSimulator:
         q_stag = np.where(
             (density > 0.0) & (speed > 0.0),
             self._cfg.heat_load_fraction
-            * np.asarray(sutton_graves(np.maximum(density, 1e-300), r_eff,
-                                       np.maximum(speed, 1e-300))),
+            * np.asarray(
+                sutton_graves(np.maximum(density, 1e-300), r_eff, np.maximum(speed, 1e-300))
+            ),
             0.0,
         )
         return FlightResult(

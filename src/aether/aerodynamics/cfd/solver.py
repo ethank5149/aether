@@ -312,8 +312,6 @@ class EulerSolver:
         results: list[SU2Result] = []
         for factor in factors:
             results.append(self.run(mach, self.sizing.scaled(factor)))
-        spacing = np.array(
-            [r.mesh.representative_size if r.mesh else np.nan for r in results]
-        )
+        spacing = np.array([r.mesh.representative_size if r.mesh else np.nan for r in results])
         values = np.array([float(getattr(r, quantity)) for r in results])
         return grid_convergence(spacing, values), results

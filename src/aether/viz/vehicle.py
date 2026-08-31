@@ -254,9 +254,7 @@ def mould_line(
     """
     vertices = axial_frame(mesh, axis)
     faces = np.asarray(mesh.faces, dtype=np.int64)
-    edges = np.concatenate(
-        [faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]], axis=0
-    )
+    edges = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]], axis=0)
     start = vertices[edges[:, 0]]
     end = vertices[edges[:, 1]]
 
@@ -375,9 +373,7 @@ def default_bus(diameter: float | None = None) -> ScaledBody:
         # Axis 2 named explicitly: the deck is wider than it is deep, so the
         # longest-extent rule would take its diameter for its axis and draw
         # a 103-unit-long body.
-        return body_from_mesh(
-            BUS_MODEL, "post-boost bus", diameter=diameter, axis=2
-        )
+        return body_from_mesh(BUS_MODEL, "post-boost bus", diameter=diameter, axis=2)
     except (FileNotFoundError, OSError, ValueError):
         stations = np.array([0.0, 0.15, 1.05, 1.20])
         radii = np.array([0.35, 0.5 * diameter, 0.5 * diameter, 0.4])
@@ -389,8 +385,10 @@ def default_reentry_vehicle() -> ScaledBody:
     """One re-entry vehicle at the stated Mk21-class envelope."""
     try:
         return body_from_mesh(
-            REENTRY_VEHICLE_MODEL, "re-entry vehicle",
-            length=RV_LENGTH, diameter=RV_DIAMETER,
+            REENTRY_VEHICLE_MODEL,
+            "re-entry vehicle",
+            length=RV_LENGTH,
+            diameter=RV_DIAMETER,
         )
     except (FileNotFoundError, OSError, ValueError):
         stations = np.linspace(0.0, RV_LENGTH, 40)

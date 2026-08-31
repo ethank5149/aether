@@ -168,15 +168,18 @@ def run_v3(output_dir: Path) -> VerificationReport:
     rhs = _explicit_rhs(proj.reduced_stiffness, proj.reduced_mass)
     y0 = np.concatenate([u0, np.zeros_like(u0)])
     t0 = time.perf_counter()
-    res = scipy.integrate.solve_ivp(
-        rhs, (0.0, _T_END), y0, method="RK45", rtol=1e-6, atol=1e-12
-    )
+    res = scipy.integrate.solve_ivp(rhs, (0.0, _T_END), y0, method="RK45", rtol=1e-6, atol=1e-12)
     wall_exp = time.perf_counter() - t0
     err_exp = float(np.max(np.abs(res.y[: u0.size, -1] - ref_end)) / ref_scale)
     n_steps_exp = res.t.size - 1
     comp_md.append(
-        ["explicit RK45 (adaptive)", f"{_T_END / n_steps_exp:.3e}", str(n_steps_exp),
-         f"{err_exp:.2e}", f"{wall_exp * 1e3:.1f}"]
+        [
+            "explicit RK45 (adaptive)",
+            f"{_T_END / n_steps_exp:.3e}",
+            str(n_steps_exp),
+            f"{err_exp:.2e}",
+            f"{wall_exp * 1e3:.1f}",
+        ]
     )
     comp_csv.append(["explicit_rk45", _T_END / n_steps_exp, n_steps_exp, err_exp, wall_exp])
 
@@ -191,8 +194,13 @@ def run_v3(output_dir: Path) -> VerificationReport:
     wall_imex = time.perf_counter() - t0
     err_imex = float(np.max(np.abs(u - ref_end)) / ref_scale)
     comp_md.append(
-        [f"IMEX Newmark (Δt = {dt_imex:g})", f"{dt_imex:.3e}", str(n_steps),
-         f"{err_imex:.2e}", f"{wall_imex * 1e3:.1f}"]
+        [
+            f"IMEX Newmark (Δt = {dt_imex:g})",
+            f"{dt_imex:.3e}",
+            str(n_steps),
+            f"{err_imex:.2e}",
+            f"{wall_imex * 1e3:.1f}",
+        ]
     )
     comp_csv.append(["imex_newmark", dt_imex, n_steps, err_imex, wall_imex])
 
@@ -209,8 +217,13 @@ def run_v3(output_dir: Path) -> VerificationReport:
     u_modal = basis.modes_reduced @ q
     err_modal = float(np.max(np.abs(u_modal - ref_end)) / ref_scale)
     comp_md.append(
-        [f"modal truncation (n_m = {n_m}, exact)", f"{dt_imex:.3e}", str(n_steps),
-         f"{err_modal:.2e}", f"{wall_modal * 1e3:.1f}"]
+        [
+            f"modal truncation (n_m = {n_m}, exact)",
+            f"{dt_imex:.3e}",
+            str(n_steps),
+            f"{err_modal:.2e}",
+            f"{wall_modal * 1e3:.1f}",
+        ]
     )
     comp_csv.append(["modal_truncation", dt_imex, n_steps, err_modal, wall_modal])
 

@@ -65,9 +65,7 @@ def _weld(triangles: _FloatArray, tolerance: float) -> tuple[_FloatArray, _IntAr
     return flat[first], inverse.reshape(-1, 3).astype(np.int64)
 
 
-def load_stl(
-    path: str | Path, weld_tolerance: float = 1.0e-6, name: str = ""
-) -> VehicleMesh:
+def load_stl(path: str | Path, weld_tolerance: float = 1.0e-6, name: str = "") -> VehicleMesh:
     """Read a binary or ASCII STL.
 
     STL carries no topology at all — it is a bag of triangles, each with its
@@ -88,17 +86,11 @@ def load_stl(
 
     count = struct.unpack("<I", data[80:84])[0]
     if len(data) == 84 + count * 50:
-        block = np.frombuffer(data[84 : 84 + count * 50], dtype=np.uint8).reshape(
-            count, 50
-        )
-        triangles = (
-            block[:, 12:48].copy().view("<f4").reshape(count, 3, 3).astype(np.float64)
-        )
+        block = np.frombuffer(data[84 : 84 + count * 50], dtype=np.uint8).reshape(count, 50)
+        triangles = block[:, 12:48].copy().view("<f4").reshape(count, 3, 3).astype(np.float64)
     else:
         text = data.decode("ascii", errors="replace").split()
-        coordinates = [
-            float(text[i + 1]) for i, word in enumerate(text) if word == "vertex"
-        ]
+        coordinates = [float(text[i + 1]) for i, word in enumerate(text) if word == "vertex"]
         if not coordinates:
             msg = (
                 f"{location} is neither a valid binary STL (header claims "
@@ -314,9 +306,7 @@ class VehicleMesh:
     def edge_counts(self) -> tuple[_IntArray, _IntArray]:
         """Unique undirected edges and how many faces use each."""
         f = self.faces
-        edges = np.sort(
-            np.concatenate([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]]), axis=1
-        )
+        edges = np.sort(np.concatenate([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]]), axis=1)
         unique, counts = np.unique(edges, axis=0, return_counts=True)
         return unique.astype(np.int64), counts.astype(np.int64)
 
@@ -384,21 +374,13 @@ class VehicleMesh:
         for corners in grid:
             u0, v0 = np.floor(corners.min(axis=0)).astype(int)
             u1, v1 = np.ceil(corners.max(axis=0)).astype(int) + 1
-            us, vs = np.meshgrid(
-                np.arange(u0, u1) + 0.5, np.arange(v0, v1) + 0.5, indexing="xy"
-            )
+            us, vs = np.meshgrid(np.arange(u0, u1) + 0.5, np.arange(v0, v1) + 0.5, indexing="xy")
             p0, p1, p2 = corners
-            denominator = (p1[1] - p2[1]) * (p0[0] - p2[0]) + (p2[0] - p1[0]) * (
-                p0[1] - p2[1]
-            )
+            denominator = (p1[1] - p2[1]) * (p0[0] - p2[0]) + (p2[0] - p1[0]) * (p0[1] - p2[1])
             if abs(denominator) < 1e-15:
                 continue
-            w0 = (
-                (p1[1] - p2[1]) * (us - p2[0]) + (p2[0] - p1[0]) * (vs - p2[1])
-            ) / denominator
-            w1 = (
-                (p2[1] - p0[1]) * (us - p2[0]) + (p0[0] - p2[0]) * (vs - p2[1])
-            ) / denominator
+            w0 = ((p1[1] - p2[1]) * (us - p2[0]) + (p2[0] - p1[0]) * (vs - p2[1])) / denominator
+            w1 = ((p2[1] - p0[1]) * (us - p2[0]) + (p0[0] - p2[0]) * (vs - p2[1])) / denominator
             inside = (w0 >= 0.0) & (w1 >= 0.0) & (w0 + w1 <= 1.0)
             if inside.any():
                 covered[v0 : v0 + inside.shape[0], u0 : u0 + inside.shape[1]] |= inside
@@ -429,9 +411,7 @@ class VehicleMesh:
         depth = float(z.max()) - z
         stations = np.unique(np.round(depth, 6))
         stations = stations[stations > 0.0]
-        peak = np.array(
-            [radius[np.isclose(np.round(depth, 6), s)].max() for s in stations]
-        )
+        peak = np.array([radius[np.isclose(np.round(depth, 6), s)].max() for s in stations])
         return np.asarray(stations), np.asarray(peak)
 
     def nose_exponent(self, stations: int = 12) -> float:
@@ -544,16 +524,12 @@ class VehicleMesh:
             # well — as if `signed` were the determinant rather than the
             # volume — inflates the tensor 6x, which on a unit cube gives
             # 3,500 where the closed form m a^2 / 6 says 166.7.
-            covariance = (
-                points.T @ points + np.outer(points.sum(0), points.sum(0))
-            ) / 20.0
+            covariance = (points.T @ points + np.outer(points.sum(0), points.sum(0))) / 20.0
             inertia += vol * covariance
         trace = np.trace(inertia)
         tensor = density * (trace * np.eye(3) - inertia)
         mass = density * volume
-        shift = mass * (
-            float(centroid @ centroid) * np.eye(3) - np.outer(centroid, centroid)
-        )
+        shift = mass * (float(centroid @ centroid) * np.eye(3) - np.outer(centroid, centroid))
         return {
             "volume": volume,
             "mass": mass,
@@ -594,9 +570,7 @@ class VehicleMesh:
             degenerate_dropped=self.degenerate_dropped,
         )
 
-    def scaled_to(
-        self, length: float | None = None, diameter: float | None = None
-    ) -> VehicleMesh:
+    def scaled_to(self, length: float | None = None, diameter: float | None = None) -> VehicleMesh:
         """Scale so the body matches a stated length and maximum diameter.
 
         The maximum diameter is taken over the *whole* body, raised bands
@@ -649,7 +623,9 @@ class VehicleMesh:
             msg = f"origin must be 'nose', 'centroid' or 'keep', got {origin!r}"
             raise ValueError(msg)
         return VehicleMesh(
-            vertices=rotated, faces=self.faces, name=self.name,
+            vertices=rotated,
+            faces=self.faces,
+            name=self.name,
             degenerate_dropped=self.degenerate_dropped,
         )
 
@@ -684,7 +660,8 @@ class VehicleMesh:
             normals=self.normals @ flip.T,
             areas=self.areas,
             reference_point=(
-                np.zeros(3) if reference_point is None
+                np.zeros(3)
+                if reference_point is None
                 else np.asarray(reference_point, dtype=np.float64) @ flip.T
             ),
         )
@@ -717,9 +694,7 @@ class VehicleMesh:
             qvec = xp.cross(tvec, edge1[None, :, :])
             v = xp.sum(d * qvec, axis=2) * inv_det
             t = xp.sum(edge2[None, :, :] * qvec, axis=2) * inv_det
-            inside = (
-                (~parallel) & (u >= 0.0) & (v >= 0.0) & (u + v <= 1.0) & (t > 1.0e-9)
-            )
+            inside = (~parallel) & (u >= 0.0) & (v >= 0.0) & (u + v <= 1.0) & (t > 1.0e-9)
             counts[start:stop] = xp.sum(inside, axis=1)
         return np.asarray(to_numpy(counts).astype(np.int64))
 
@@ -775,7 +750,9 @@ class VehicleMesh:
         faces = self.faces.copy()
         faces[inside] = faces[inside][:, ::-1]
         return VehicleMesh(
-            vertices=self.vertices, faces=faces, name=self.name,
+            vertices=self.vertices,
+            faces=faces,
+            name=self.name,
             degenerate_dropped=self.degenerate_dropped,
         )
 
@@ -832,9 +809,7 @@ class VehicleMesh:
         attitude-dependent and a different calculation. Newtonian theory
         handles convex shadowing on its own through negative incidence.
         """
-        counts = self._ray_hits(
-            self.centroids + offset * self.normals, self.normals, backend
-        )
+        counts = self._ray_hits(self.centroids + offset * self.normals, self.normals, backend)
         return np.asarray(counts == 0)
 
     def exterior(self, backend: str = "numpy") -> VehicleMesh:
@@ -896,9 +871,7 @@ class VehicleMesh:
         if not high > low:
             msg = f"need high > low, got {low} and {high}"
             raise ValueError(msg)
-        keep = (self.centroids[:, self.axis] >= low) & (
-            self.centroids[:, self.axis] <= high
-        )
+        keep = (self.centroids[:, self.axis] >= low) & (self.centroids[:, self.axis] <= high)
         if not keep.any():
             msg = f"no faces between {low} and {high} on axis {self.axis}"
             raise ValueError(msg)

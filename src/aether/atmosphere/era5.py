@@ -130,8 +130,7 @@ class ERA5Column:
     def virtual_temperature(self) -> _FloatArray:
         """:math:`T_v = T(1 + 0.6077q)` (K) — the density-correct temperature."""
         return np.asarray(
-            self.temperature
-            * (1.0 + VIRTUAL_TEMPERATURE_COEFFICIENT * self.specific_humidity)
+            self.temperature * (1.0 + VIRTUAL_TEMPERATURE_COEFFICIENT * self.specific_humidity)
         )
 
     @property
@@ -159,9 +158,7 @@ class ERA5Column:
     @property
     def density(self) -> _FloatArray:
         """Air density (kg/m³) from the gas law with virtual temperature."""
-        return np.asarray(
-            self.pressure / (DRY_AIR_GAS_CONSTANT * self.virtual_temperature)
-        )
+        return np.asarray(self.pressure / (DRY_AIR_GAS_CONSTANT * self.virtual_temperature))
 
     def wind(self, ceiling: float = 60.0e3) -> TabulatedWind:
         """The wind profile as a :class:`~aether.atmosphere.wind.TabulatedWind`."""
@@ -202,22 +199,16 @@ class ERA5Box:
     def shape(self) -> tuple[int, ...]:
         return tuple(np.asarray(self.temperature).shape)
 
-    def column(
-        self, latitude: float, longitude: float, index: int = 0
-    ) -> ERA5Column:
+    def column(self, latitude: float, longitude: float, index: int = 0) -> ERA5Column:
         """Bilinearly interpolated column at a site and one analysis time."""
-        weights_lat, rows = _interpolation_weights(
-            np.asarray(self.latitude), float(latitude)
-        )
+        weights_lat, rows = _interpolation_weights(np.asarray(self.latitude), float(latitude))
         weights_lon, columns = _interpolation_weights(
             np.asarray(self.longitude), float(longitude) % 360.0
         )
 
         def sample(field: _FloatArray) -> _FloatArray:
             block = np.asarray(field)[index][:, rows][:, :, columns]
-            return np.asarray(
-                np.einsum("lij,i,j->l", block, weights_lat, weights_lon)
-            )
+            return np.asarray(np.einsum("lij,i,j->l", block, weights_lat, weights_lon))
 
         return ERA5Column(
             latitude=float(latitude),
@@ -233,8 +224,7 @@ class ERA5Box:
     def ensemble(self, latitude: float, longitude: float) -> WindEnsemble:
         """Every analysis time in the box as a wind ensemble at one site."""
         columns = [
-            self.column(latitude, longitude, index)
-            for index in range(np.asarray(self.times).size)
+            self.column(latitude, longitude, index) for index in range(np.asarray(self.times).size)
         ]
         return WindEnsemble(columns=tuple(columns))
 
@@ -268,9 +258,7 @@ class ERA5Box:
                 temperature=np.asarray(data["temperature"], dtype=np.float64),
                 eastward=np.asarray(data["eastward"], dtype=np.float64),
                 northward=np.asarray(data["northward"], dtype=np.float64),
-                specific_humidity=np.asarray(
-                    data["specific_humidity"], dtype=np.float64
-                ),
+                specific_humidity=np.asarray(data["specific_humidity"], dtype=np.float64),
                 source=str(data["source"]),
             )
 
@@ -310,21 +298,14 @@ class WindEnsemble:
         """Wind speed of every profile on the common grid, ``(n_profiles, n_levels)``."""
         grid = self.altitude
         return np.asarray(
-            [
-                np.interp(grid, column.altitude, column.wind_speed)
-                for column in self.columns
-            ]
+            [np.interp(grid, column.altitude, column.wind_speed) for column in self.columns]
         )
 
     def components(self) -> tuple[_FloatArray, _FloatArray]:
         """Eastward and northward components on the common grid."""
         grid = self.altitude
-        east = np.asarray(
-            [np.interp(grid, c.altitude, c.eastward) for c in self.columns]
-        )
-        north = np.asarray(
-            [np.interp(grid, c.altitude, c.northward) for c in self.columns]
-        )
+        east = np.asarray([np.interp(grid, c.altitude, c.eastward) for c in self.columns])
+        north = np.asarray([np.interp(grid, c.altitude, c.northward) for c in self.columns])
         return east, north
 
     def percentile(self, fraction: float) -> _FloatArray:
@@ -344,9 +325,7 @@ class WindEnsemble:
         for column in self.columns:
             z = column.altitude
             inside = (z >= low) & (z <= high)
-            scores.append(
-                float(np.mean(column.wind_speed[inside])) if np.any(inside) else 0.0
-            )
+            scores.append(float(np.mean(column.wind_speed[inside])) if np.any(inside) else 0.0)
         return self.columns[int(np.argmax(scores))]
 
     def sample(self, rng: np.random.Generator) -> ERA5Column:
@@ -354,9 +333,7 @@ class WindEnsemble:
         return self.columns[int(rng.integers(len(self.columns)))]
 
 
-def _interpolation_weights(
-    axis: _FloatArray, value: float
-) -> tuple[_FloatArray, NDArray[np.intp]]:
+def _interpolation_weights(axis: _FloatArray, value: float) -> tuple[_FloatArray, NDArray[np.intp]]:
     """Linear interpolation weights and indices on a possibly descending axis."""
     ascending = axis if axis[0] <= axis[-1] else axis[::-1]
     order = np.arange(axis.size) if axis[0] <= axis[-1] else np.arange(axis.size)[::-1]
@@ -409,8 +386,10 @@ def extract_box(
         msg = f"no such GRIB: {source}"
         raise FileNotFoundError(msg)
 
-    destination = Path(cache) if cache is not None else _cache_path(
-        source, latitude, longitude, half_width, time_stride
+    destination = (
+        Path(cache)
+        if cache is not None
+        else _cache_path(source, latitude, longitude, half_width, time_stride)
     )
     if destination.exists():
         return ERA5Box.load(destination)
@@ -421,9 +400,7 @@ def extract_box(
         msg = "reading ERA5 GRIB needs xarray and cfgrib (pip install cfgrib xarray)"
         raise ImportError(msg) from error
 
-    dataset: Any = xr.open_dataset(
-        source, engine="cfgrib", backend_kwargs={"indexpath": ""}
-    )
+    dataset: Any = xr.open_dataset(source, engine="cfgrib", backend_kwargs={"indexpath": ""})
     try:
         centre = float(longitude) % 360.0
         lat_slice = slice(latitude + half_width, latitude - half_width)  # descending

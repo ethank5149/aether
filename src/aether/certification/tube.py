@@ -72,9 +72,7 @@ __all__ = [
 Box = list[tuple[float, float]]
 
 
-def _contains(
-    outer: Sequence[tuple[float, float]], inner: Sequence[tuple[float, float]]
-) -> bool:
+def _contains(outer: Sequence[tuple[float, float]], inner: Sequence[tuple[float, float]]) -> bool:
     return all(
         lo_o <= lo_i and hi_i <= hi_o
         for (lo_o, hi_o), (lo_i, hi_i) in zip(outer, inner, strict=True)
@@ -131,9 +129,7 @@ def rough_enclosure(
         ]
         if _contains(candidate, picard):
             return candidate
-        candidate = _inflate(
-            picard, inflation, max(1e-9, 1e-6 * max(widths, default=1.0))
-        )
+        candidate = _inflate(picard, inflation, max(1e-9, 1e-6 * max(widths, default=1.0)))
     raise ValueError(
         f"no rough enclosure verified in {max_iterations} iterations at dt={dt}; "
         f"the step is too long for how much the field varies over this box -- "

@@ -114,7 +114,9 @@ class WallColumnGrid:
     def __post_init__(self) -> None:
         n = self.origin.shape[0]
         for name, expected in (
-            ("normal", (n, 3)), ("area", (n,)), ("depth", (n,)),
+            ("normal", (n, 3)),
+            ("area", (n,)),
+            ("depth", (n,)),
         ):
             got = np.asarray(getattr(self, name)).shape
             if got != expected:
@@ -292,15 +294,17 @@ def wall_columns(
         ]
     )
     return WallColumnGrid(
-        origin=origin, normal=inward, area=area, depth=depth,
-        widths=widths, growth=float(np.median(ratios)),
+        origin=origin,
+        normal=inward,
+        area=area,
+        depth=depth,
+        widths=widths,
+        growth=float(np.median(ratios)),
         clipped=int(np.count_nonzero(capped[keep])),
     )
 
 
-def _first_exit(
-    origin: _FloatArray, direction: _FloatArray, triangles: _FloatArray
-) -> _FloatArray:
+def _first_exit(origin: _FloatArray, direction: _FloatArray, triangles: _FloatArray) -> _FloatArray:
     """Distance from each point to the next surface crossing along its ray.
 
     Möller–Trumbore, taking the smallest strictly positive hit. The offset
@@ -331,9 +335,6 @@ def _first_exit(
         v = np.einsum("ptj,pj->pt", qvec, rays) * inv_det
         t = np.einsum("ptj,tj->pt", qvec, edge2) * inv_det
 
-        hit = (
-            ~parallel & (u >= 0.0) & (u <= 1.0) & (v >= 0.0) & (u + v <= 1.0)
-            & (t > epsilon)
-        )
+        hit = ~parallel & (u >= 0.0) & (u <= 1.0) & (v >= 0.0) & (u + v <= 1.0) & (t > epsilon)
         best[start:stop] = np.where(hit, t, np.inf).min(axis=1)
     return best

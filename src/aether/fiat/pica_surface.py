@@ -105,9 +105,7 @@ class PicaSurfaceTable:
         return 0.05
 
 
-def _monotone_curve(
-    raw: _FloatArray, grid: _FloatArray, logarithmic: bool
-) -> _FloatArray:
+def _monotone_curve(raw: _FloatArray, grid: _FloatArray, logarithmic: bool) -> _FloatArray:
     """Average duplicate abscissae, enforce monotonicity, resample.
 
     Digitiser output has several ordinates per abscissa where the traced
@@ -171,12 +169,10 @@ def read_quinn_bprime(
         coalesced = rate <= 0.01
         a_path = _find(root, "Fig5a", rate, coalesced)
         b_path = _find(root, "Fig5b", rate, coalesced)
-        b_c[i] = _monotone_curve(
-            np.loadtxt(a_path, delimiter=","), grid, logarithmic=True
+        b_c[i] = _monotone_curve(np.loadtxt(a_path, delimiter=","), grid, logarithmic=True)
+        h_w[i] = (
+            _monotone_curve(np.loadtxt(b_path, delimiter=","), grid, logarithmic=False) * _MJ_TO_J
         )
-        h_w[i] = _monotone_curve(
-            np.loadtxt(b_path, delimiter=","), grid, logarithmic=False
-        ) * _MJ_TO_J
 
     table = BPrimeTable(
         [pressure],
@@ -217,9 +213,7 @@ def _find(root: Path, figure: str, rate: float, coalesced: bool) -> Path:
         text = re.search(r"g=([0-9.]+)(?:\.csv|\+)", candidate.name)
         if text and abs(float(text.group(1)) - rate) < 1e-12:
             return candidate
-    raise FileNotFoundError(
-        f"no digitised curve for {figure} at B'_g = {rate:g} under {root}"
-    )
+    raise FileNotFoundError(f"no digitised curve for {figure} at B'_g = {rate:g} under {root}")
 
 
 #: :math:`B'_g` levels of Tran et al. Fig. 25.
@@ -282,8 +276,7 @@ def read_tran_bprime(
                     break
             if path is None:
                 raise FileNotFoundError(
-                    f"no digitised Fig. 25 curve at B'_g = {wanted:g} ({style}) "
-                    f"under {root}"
+                    f"no digitised Fig. 25 curve at B'_g = {wanted:g} ({style}) under {root}"
                 )
             raw = np.loadtxt(path, delimiter=",")
             raw = raw[raw[:, 1] < _TRAN_CEILING]
@@ -301,16 +294,15 @@ def read_tran_bprime(
             np.asarray(TRAN_GAS_RATES),
             fig5.gas_rates,
             np.arange(fig5.gas_rates.size, dtype=np.float64),
-        )[None, :, None] * 0.0,
+        )[None, :, None]
+        * 0.0,
         1,
         axis=0,
     )
     h_w = np.zeros_like(b_c)
     for gi, rate in enumerate(TRAN_GAS_RATES):
         near = float(np.clip(rate, *fig5.table.gas_rate_range))
-        h_w[:, gi, :] = np.array(
-            [fig5.table.wall_enthalpy(101325.0, near, float(t)) for t in grid]
-        )
+        h_w[:, gi, :] = np.array([fig5.table.wall_enthalpy(101325.0, near, float(t)) for t in grid])
 
     table = BPrimeTable(
         np.asarray(TRAN_PRESSURES),

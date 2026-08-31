@@ -101,9 +101,7 @@ def vacuum_pressure_coefficient(mach: float, gamma: float = 1.4) -> float:
     return float(-2.0 / (g * m * m))
 
 
-def newtonian_pressure_coefficient(
-    incidence: ArrayLike, cp_max: float
-) -> _FloatArray:
+def newtonian_pressure_coefficient(incidence: ArrayLike, cp_max: float) -> _FloatArray:
     """Modified Newtonian :math:`C_p = C_{p,\\max}\\sin^2\\delta_c`.
 
     Evaluated as the analytic function of :math:`\\delta_c`, without
@@ -232,9 +230,7 @@ def prandtl_meyer_pressure_coefficient(
     # number sends the pressure ratio to zero, which *is* the vacuum limit,
     # and the explicit floor below makes that exact rather than asymptotic.
     capped = np.where(np.isfinite(m2), m2, 1.0e8)
-    ratio = (stagnation_factor / (1.0 + 0.5 * (g - 1.0) * capped * capped)) ** (
-        g / (g - 1.0)
-    )
+    ratio = (stagnation_factor / (1.0 + 0.5 * (g - 1.0) * capped * capped)) ** (g / (g - 1.0))
     out = np.maximum(2.0 / (g * m1 * m1) * (ratio - 1.0), cp_vac)
     return np.asarray(out.reshape(np.shape(incidence)))
 
@@ -330,6 +326,4 @@ def base_axial_coefficient(
     if reference_area <= 0.0 or base_area < 0.0:
         msg = f"areas must be positive, got base {base_area}, reference {reference_area}"
         raise ValueError(msg)
-    return float(
-        -base_pressure_coefficient(mach, gamma) * base_area / reference_area
-    )
+    return float(-base_pressure_coefficient(mach, gamma) * base_area / reference_area)

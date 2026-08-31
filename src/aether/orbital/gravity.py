@@ -124,9 +124,7 @@ def gravitational_potential(position: ArrayLike, model: GravityModel = EARTH) ->
     radius = np.linalg.norm(r, axis=-1)
     z = r[..., 2]
     keplerian = -model.mu / radius
-    oblate = (
-        0.5 * model.mu * model.j2 * model.radius**2 * (3.0 * z**2 - radius**2) / radius**5
-    )
+    oblate = 0.5 * model.mu * model.j2 * model.radius**2 * (3.0 * z**2 - radius**2) / radius**5
     return np.asarray(keplerian + oblate)
 
 

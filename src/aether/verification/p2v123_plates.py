@@ -159,9 +159,7 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         "governing equations, so this leg verifies operator, boundary "
         "conditions, null-space projection and eigensolve as one chain.",
     )
-    write_csv(
-        output_dir, "p2v3-simply-supported", ["N", "reduced_dim", "max_rel_err"], rows_csv
-    )
+    write_csv(output_dir, "p2v3-simply-supported", ["N", "reduced_dim", "max_rel_err"], rows_csv)
 
     # ------------------------------------------- II-V1: block conditioning
     cond_ns = (8, 10, 12, 14, 16, 18)
@@ -179,8 +177,7 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         kappa_column.append(k_col)
         kappa_projected.append(k_proj)
         cond_md.append(
-            [str(n), str(plate.reduced_dim), f"{k_int:.3e}", f"{k_col:.3e}",
-             f"{k_proj:.3e}"]
+            [str(n), str(plate.reduced_dim), f"{k_int:.3e}", f"{k_col:.3e}", f"{k_proj:.3e}"]
         )
         cond_csv.append([n, plate.reduced_dim, k_int, k_col, k_proj])
 
@@ -196,8 +193,13 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
     kappa_ok = slope_int <= _KAPPA_SLOPE_LIMIT
     report.add_table(
         "II-V1: conditioning of the assembled 3×3 block operator",
-        ["N", "reduced dim", "κ interior (two-sided)", "κ interior (column only)",
-         "κ projected pencil (two-sided)"],
+        [
+            "N",
+            "reduced dim",
+            "κ interior (two-sided)",
+            "κ interior (column only)",
+            "κ projected pencil (two-sided)",
+        ],
         cond_md,
     )
     report.add_section(
@@ -220,9 +222,9 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         f"{kappa_projected[-1]:.1e}, non-monotonically). This is *not* scored "
         "against the criterion, and deliberately so: the Remark in §5.4 states "
         "that the O(1) property belongs to the ultraspherical operator and "
-        "\"does not automatically survive the addition of dense boundary rows, "
+        '"does not automatically survive the addition of dense boundary rows, '
         "variable coefficients with slowly decaying expansions, or the block "
-        "coupling\" — asserting only what Olver & Townsend establish and "
+        'coupling" — asserting only what Olver & Townsend establish and '
         "measuring the rest. The measurement says the block coupling is benign "
         "and the dense free-edge rows are not. The frequency results above show "
         "this costs nothing at the resolutions of interest, but it is the term "
@@ -252,8 +254,13 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
     write_csv(
         output_dir,
         "p2v1-block-conditioning",
-        ["N", "reduced_dim", "kappa_interior_ruiz", "kappa_interior_column",
-         "kappa_projected_ruiz"],
+        [
+            "N",
+            "reduced_dim",
+            "kappa_interior_ruiz",
+            "kappa_interior_column",
+            "kappa_projected_ruiz",
+        ],
         cond_csv,
     )
 
@@ -269,8 +276,13 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         lam_by_ratio[ratio] = float(nd[0])
         mags = np.sort(np.abs(modes.eigenvalues))
         lock_md.append(
-            [f"{ratio:g}", f"{nd[0]:.4f}", f"{nd[1]:.4f}", f"{nd[2]:.4f}",
-             f"{mags[2] / mags[3]:.1e}"]
+            [
+                f"{ratio:g}",
+                f"{nd[0]:.4f}",
+                f"{nd[1]:.4f}",
+                f"{nd[2]:.4f}",
+                f"{mags[2] / mags[3]:.1e}",
+            ]
         )
         lock_csv.append([ratio, float(nd[0]), float(nd[1]), float(nd[2])])
     thin_plateau = lam_by_ratio[0.005]
@@ -297,7 +309,9 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         "correspondingly fewer decades.",
     )
     write_csv(
-        output_dir, "p2v2-shear-locking", ["h_over_L", "lambda1", "lambda2", "lambda3"],
+        output_dir,
+        "p2v2-shear-locking",
+        ["h_over_L", "lambda1", "lambda2", "lambda3"],
         lock_csv,
     )
 

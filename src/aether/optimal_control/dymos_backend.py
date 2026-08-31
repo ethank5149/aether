@@ -159,9 +159,7 @@ def _ode_class(problem: OCPProblem, n_path: int, method: str) -> type:
             for k in range(n):
                 state, control = states[k], controls[k]
                 rates[k] = np.atleast_1d(dynamics(state, control))
-                lagrange = (
-                    0.0 if running_cost is None else running_cost(state, control)
-                )
+                lagrange = 0.0 if running_cost is None else running_cost(state, control)
                 costs[k] = lagrange + weight
                 if n_path:
                     residuals[k] = np.atleast_1d(path_constraints(state, control))
@@ -174,9 +172,7 @@ def _ode_class(problem: OCPProblem, n_path: int, method: str) -> type:
     return _GenericODE
 
 
-def solve_dymos(
-    problem: OCPProblem, settings: DymosSettings | None = None
-) -> OCPSolution:
+def solve_dymos(problem: OCPProblem, settings: DymosSettings | None = None) -> OCPSolution:
     """Solve an :class:`OCPProblem` through Dymos, returning the usual solution.
 
     Raises ``ImportError`` with an actionable message rather than failing
@@ -196,9 +192,7 @@ def solve_dymos(
     x0 = np.asarray(problem.x0, dtype=np.float64)
     target = np.asarray(problem.xf_target, dtype=np.float64)
 
-    probe = np.atleast_1d(
-        problem.path_constraints(x0, np.zeros(nu, dtype=np.float64))
-    )
+    probe = np.atleast_1d(problem.path_constraints(x0, np.zeros(nu, dtype=np.float64)))
     n_path = int(probe.size)
 
     method = settings.partials
@@ -237,9 +231,7 @@ def solve_dymos(
         "phase",
         dm.Phase(
             ode_class=ode,
-            transcription=dm.GaussLobatto(
-                num_segments=segments, order=settings.order
-            ),
+            transcription=dm.GaussLobatto(num_segments=segments, order=settings.order),
         ),
     )
     phase.set_time_options(
@@ -256,13 +248,12 @@ def solve_dymos(
         if problem.u_bounds is not None:
             lower = float(np.atleast_1d(problem.u_bounds[0])[j])
             upper = float(np.atleast_1d(problem.u_bounds[1])[j])
-        phase.add_control(f"u{j}", continuity=True, rate_continuity=True,
-                          lower=lower, upper=upper, units=None)
+        phase.add_control(
+            f"u{j}", continuity=True, rate_continuity=True, lower=lower, upper=upper, units=None
+        )
     for i in range(nx):
         if np.isfinite(target[i]):
-            phase.add_boundary_constraint(
-                f"x{i}", loc="final", equals=float(target[i])
-            )
+            phase.add_boundary_constraint(f"x{i}", loc="final", equals=float(target[i]))
     for k in range(n_path):
         # `g >= 0` feasible, the convention the transcription enforces.
         phase.add_path_constraint(f"g{k}", lower=0.0)
@@ -296,8 +287,11 @@ def solve_dymos(
             phase.set_control_val(f"u{j}", [start, start])
 
     result = dm.run_problem(
-        om_problem, run_driver=True, simulate=False,
-        solution_record_file=None, simulation_record_file=None,
+        om_problem,
+        run_driver=True,
+        simulate=False,
+        solution_record_file=None,
+        simulation_record_file=None,
     )
     # `bool(result)` is deprecated in favour of the explicit attribute, and the
     # suite escalates warnings to errors -- so the deprecated spelling is not a
@@ -305,9 +299,7 @@ def solve_dymos(
     # hence the fallback. It must be a ternary rather than a `getattr` default:
     # Python evaluates that default eagerly, so the deprecated `bool()` would
     # run -- and warn -- even when the attribute is present. A ternary does not.
-    converged = (
-        bool(result.success) if hasattr(result, "success") else not bool(result)
-    )
+    converged = bool(result.success) if hasattr(result, "success") else not bool(result)
 
     times = np.asarray(om_problem.get_val("traj.phase.timeseries.time")).ravel()
     # Gauss-Lobatto reports segment boundaries twice -- the last node of one
@@ -316,17 +308,13 @@ def solve_dymos(
     # control (`mesh_error`, for one) refuses duplicates outright, so the
     # repeats are dropped here rather than left for each consumer to discover.
     keep = np.concatenate([[True], np.diff(times) > 0.0])
-    states = np.column_stack([
-        np.asarray(om_problem.get_val(f"traj.phase.timeseries.x{i}")).ravel()
-        for i in range(nx)
-    ])
-    controls = np.column_stack([
-        np.asarray(om_problem.get_val(f"traj.phase.timeseries.u{j}")).ravel()
-        for j in range(nu)
-    ])
-    cost = float(
-        np.asarray(om_problem.get_val("traj.phase.timeseries.cost")).ravel()[-1]
+    states = np.column_stack(
+        [np.asarray(om_problem.get_val(f"traj.phase.timeseries.x{i}")).ravel() for i in range(nx)]
     )
+    controls = np.column_stack(
+        [np.asarray(om_problem.get_val(f"traj.phase.timeseries.u{j}")).ravel() for j in range(nu)]
+    )
+    cost = float(np.asarray(om_problem.get_val("traj.phase.timeseries.cost")).ravel()[-1])
     return OCPSolution(
         x=states[keep],
         u=controls[keep],
@@ -334,9 +322,7 @@ def solve_dymos(
         tf=float(times[-1]),
         cost=cost,
         success=converged,
-        message=(
-            "dymos: converged" if converged else "dymos: driver reported failure"
-        ),
+        message=("dymos: converged" if converged else "dymos: driver reported failure"),
         nfev=0,
         njev=0,
     )

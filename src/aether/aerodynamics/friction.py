@@ -222,9 +222,7 @@ def reference_temperature_of(
     raise ValueError(msg)
 
 
-def laminar_skin_friction(
-    reynolds: ArrayLike, mangler: float = 1.0
-) -> _FloatArray:
+def laminar_skin_friction(reynolds: ArrayLike, mangler: float = 1.0) -> _FloatArray:
     """:math:`c_f^* = 0.664\\,k/\\sqrt{Re^*_x}` (Anderson Eq. 6.155).
 
     ``mangler`` is 1 for a flat plate and :math:`\\sqrt{3}` for a cone, where
@@ -235,9 +233,7 @@ def laminar_skin_friction(
     return np.asarray(0.664 * float(mangler) / np.sqrt(np.maximum(re, 1.0)))
 
 
-def turbulent_skin_friction(
-    reynolds: ArrayLike, mangler: float = 1.0
-) -> _FloatArray:
+def turbulent_skin_friction(reynolds: ArrayLike, mangler: float = 1.0) -> _FloatArray:
     """:math:`c_f^* = 0.0592\\,k/(Re^*_x)^{0.2}` (Anderson Eq. 6.161)."""
     re = np.asarray(reynolds, dtype=np.float64)
     return np.asarray(0.0592 * float(mangler) / np.maximum(re, 1.0) ** 0.2)
@@ -318,8 +314,7 @@ class AdiabaticWall:
         turbulent_r = recovery_factor(self.prandtl, turbulent=True)
         blended = laminar_r + (turbulent_r - laminar_r) * turbulent
         return np.asarray(
-            edge_temperature
-            * (1.0 + blended * 0.5 * (self.gamma - 1.0) * edge_mach**2)
+            edge_temperature * (1.0 + blended * 0.5 * (self.gamma - 1.0) * edge_mach**2)
         )
 
 
@@ -364,16 +359,19 @@ class RadiativeEquilibriumWall:
         turbulent: _FloatArray,
     ) -> _FloatArray:
         adiabatic = AdiabaticWall(self.prandtl, self.gamma).temperature(
-            edge_temperature, edge_mach, edge_density, edge_speed,
-            edge_pressure, running_length, turbulent,
+            edge_temperature,
+            edge_mach,
+            edge_density,
+            edge_speed,
+            edge_pressure,
+            running_length,
+            turbulent,
         )
         gas_constant = edge_pressure / (edge_density * edge_temperature)
 
         laminar_r = recovery_factor(self.prandtl, turbulent=False)
         turbulent_r = recovery_factor(self.prandtl, turbulent=True)
-        blended_recovery = float(
-            np.mean(laminar_r + (turbulent_r - laminar_r) * turbulent)
-        )
+        blended_recovery = float(np.mean(laminar_r + (turbulent_r - laminar_r) * turbulent))
 
         def heat_flux(wall: _FloatArray) -> _FloatArray:
             star = reference_temperature_of(
@@ -393,17 +391,11 @@ class RadiativeEquilibriumWall:
             # Reynolds analogy: St = c_f/2 * Pr^{-2/3}.
             stanton = 0.5 * friction * self.prandtl ** (-2.0 / 3.0)
             return np.asarray(
-                density_star
-                * edge_speed
-                * stanton
-                * SPECIFIC_HEAT_AIR
-                * (adiabatic - wall)
+                density_star * edge_speed * stanton * SPECIFIC_HEAT_AIR * (adiabatic - wall)
             )
 
         def residual(wall: _FloatArray) -> _FloatArray:
-            return np.asarray(
-                self.emissivity * STEFAN_BOLTZMANN * wall**4 - heat_flux(wall)
-            )
+            return np.asarray(self.emissivity * STEFAN_BOLTZMANN * wall**4 - heat_flux(wall))
 
         low = np.minimum(edge_temperature, adiabatic)
         high = np.maximum(adiabatic, low + 1.0)
@@ -564,9 +556,7 @@ def compressible_blasius(
             break
         nodes, values = np.asarray(solution.x), np.asarray(solution.y)
 
-    sampled = np.asarray(
-        scipy.interpolate.PchipInterpolator(nodes, values, axis=1)(eta)
-    )
+    sampled = np.asarray(scipy.interpolate.PchipInterpolator(nodes, values, axis=1)(eta))
     return BlasiusSolution(
         eta=eta,
         velocity=np.asarray(sampled[1]),
@@ -612,10 +602,7 @@ class BoundaryLayer:
     def __post_init__(self) -> None:
         start, end = self.transition_reynolds
         if not 0.0 < start < end:
-            msg = (
-                f"transition band must satisfy 0 < start < end, got "
-                f"{self.transition_reynolds}"
-            )
+            msg = f"transition band must satisfy 0 < start < end, got {self.transition_reynolds}"
             raise ValueError(msg)
 
     def turbulent_fraction(self, reynolds: ArrayLike) -> _FloatArray:
@@ -663,16 +650,12 @@ class BoundaryLayer:
         reynolds_edge = rho_e * u_e * length / _sutherland(t_e)
         turbulent = self.turbulent_fraction(reynolds_edge)
 
-        wall = self.wall.temperature(
-            t_e, m_e, rho_e, u_e, p_e, length, turbulent
-        )
+        wall = self.wall.temperature(t_e, m_e, rho_e, u_e, p_e, length, turbulent)
         laminar_r = recovery_factor(self.prandtl, turbulent=False)
         turbulent_r = recovery_factor(self.prandtl, turbulent=True)
         recovery = float(np.mean(laminar_r + (turbulent_r - laminar_r) * turbulent))
         star = np.maximum(
-            reference_temperature_of(
-                self.reference_model, t_e, m_e, wall, recovery, self.gamma
-            ),
+            reference_temperature_of(self.reference_model, t_e, m_e, wall, recovery, self.gamma),
             1.0,
         )
         density_star = p_e / (gas_constant * star)

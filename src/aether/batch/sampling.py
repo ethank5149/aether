@@ -57,9 +57,7 @@ class DispersionSpec:
         if not self.lower < self.upper:
             raise ValueError(f"need lower < upper, got ({self.lower}, {self.upper})")
         if not self.lower <= self.nominal <= self.upper:
-            raise ValueError(
-                f"nominal {self.nominal} outside bounds ({self.lower}, {self.upper})"
-            )
+            raise ValueError(f"nominal {self.nominal} outside bounds ({self.lower}, {self.upper})")
 
 
 def sample_dispersions(

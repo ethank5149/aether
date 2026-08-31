@@ -211,8 +211,7 @@ def barycentric_interpolate(
         raise ValueError(f"nodes must be a 1-D array of >= 2 points, got shape {nodes_arr.shape}")
     if values_arr.shape[0] != nodes_arr.size:
         raise ValueError(
-            f"values first dimension {values_arr.shape[0]} does not match "
-            f"{nodes_arr.size} nodes"
+            f"values first dimension {values_arr.shape[0]} does not match {nodes_arr.size} nodes"
         )
     lam = (
         np.asarray(weights, dtype=np.float64)
@@ -283,9 +282,7 @@ class ChebyshevGrid:
         self._x = x
 
         scale = 1.0 / half_len  # d/dx = (2/(b-a)) d/dxi
-        phys = np.array(
-            [scale ** (k + 1) * self._ref_diffmats[k] for k in range(max_derivative)]
-        )
+        phys = np.array([scale ** (k + 1) * self._ref_diffmats[k] for k in range(max_derivative)])
         phys.flags.writeable = False
         self._diffmats = phys
 
@@ -342,9 +339,7 @@ class ChebyshevGrid:
             Derivative order :math:`k`, ``1 <= k <= max_derivative``.
         """
         if not 1 <= order <= self.max_derivative:
-            raise ValueError(
-                f"derivative order must be in [1, {self.max_derivative}], got {order}"
-            )
+            raise ValueError(f"derivative order must be in [1, {self.max_derivative}], got {order}")
         return cast(_FloatArray, self._diffmats[order - 1])
 
     def __repr__(self) -> str:

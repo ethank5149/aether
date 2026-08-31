@@ -86,9 +86,7 @@ def jacobian_enclosure(
     if n == 0:
         raise ValueError("the box has no components, so there is no Jacobian")
     balls = [flint.arb(0.5 * (lo + hi), 0.5 * (hi - lo)) for lo, hi in box]
-    control_ball = flint.arb(
-        0.5 * (control[0] + control[1]), 0.5 * (control[1] - control[0])
-    )
+    control_ball = flint.arb(0.5 * (control[0] + control[1]), 0.5 * (control[1] - control[0]))
 
     rows: list[list[tuple[float, float]]] = [[] for _ in range(n)]
     for j in range(n):
@@ -135,9 +133,7 @@ def mean_value_step(
     half = np.array([0.5 * (hi - lo) for lo, hi in box], dtype=np.float64)
     # f at the centre, with the control still an interval: it is not a deviation
     # from a nominal, it ranges over its whole admissible set.
-    centre_field = enclose_field(
-        field, [(float(c), float(c)) for c in centre], control
-    )
+    centre_field = enclose_field(field, [(float(c), float(c)) for c in centre], control)
     # Second-order remainder (h^2/2)(J f)(Y) on the rough enclosure. This is the
     # Taylor remainder; without it the expansion is not an enclosure at all.
     field_on_enclosure = enclose_field(field, enclosure, control)
@@ -154,15 +150,12 @@ def mean_value_step(
             # (I + h J)(X - c): an interval matrix on a symmetric box, so each
             # column contributes |entry| * half_j to the half-width.
             coefficient = (
-                max(abs(1.0 + dt * lo_j), abs(1.0 + dt * hi_j))
-                if i == j
-                else dt * magnitude
+                max(abs(1.0 + dt * lo_j), abs(1.0 + dt * hi_j)) if i == j else dt * magnitude
             )
             spread += coefficient * half[j]
             lo_f, hi_f = field_on_enclosure[j]
             remainder += magnitude * max(abs(lo_f), abs(hi_f))
         result.append(
-            (low - spread - 0.5 * dt * dt * remainder,
-             high + spread + 0.5 * dt * dt * remainder)
+            (low - spread - 0.5 * dt * dt * remainder, high + spread + 0.5 * dt * dt * remainder)
         )
     return result

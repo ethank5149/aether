@@ -114,6 +114,7 @@ __all__ = [
 
 _FloatArray = NDArray[np.float64]
 
+
 def as_ellipsoid(surface: Ellipsoid | float) -> Ellipsoid:
     """Coerce a radius or an ellipsoid to an :class:`Ellipsoid`.
 
@@ -323,10 +324,7 @@ def _bilinear(
         bottom = flat[base_1 + c0] * (1.0 - fc) + flat[base_1 + c1] * fc
     else:
         top = xp.take(flat, base_0 + c0) * (1.0 - fc) + xp.take(flat, base_0 + c1) * fc
-        bottom = (
-            xp.take(flat, base_1 + c0) * (1.0 - fc)
-            + xp.take(flat, base_1 + c1) * fc
-        )
+        bottom = xp.take(flat, base_1 + c0) * (1.0 - fc) + xp.take(flat, base_1 + c1) * fc
     return top * (1.0 - fr) + bottom * fr
 
 
@@ -350,9 +348,7 @@ def _pixel_coordinates(
     return row, column
 
 
-def _sample_texture(
-    texture: Texture, latitude_deg: Any, longitude_deg: Any, xp: ModuleType
-) -> Any:
+def _sample_texture(texture: Texture, latitude_deg: Any, longitude_deg: Any, xp: ModuleType) -> Any:
     """Bilinear RGB lookup, normalised to ``[0, 1]``."""
     row, column = _pixel_coordinates(texture, latitude_deg, longitude_deg, xp)
     colour = _bilinear(texture.data, row, column, texture.wraps, xp)
@@ -438,9 +434,7 @@ def _geodetic_normal(points: Any, ellipsoid: Ellipsoid, xp: ModuleType) -> Any:
     vector: the two differ by up to 0.19 degrees at mid-latitudes.
     """
     gradient = points * xp.asarray(1.0 / ellipsoid.axes**2)
-    return gradient / xp.maximum(
-        xp.linalg.norm(gradient, axis=-1, keepdims=True), 1.0e-300
-    )
+    return gradient / xp.maximum(xp.linalg.norm(gradient, axis=-1, keepdims=True), 1.0e-300)
 
 
 def _altitude(points: Any, ellipsoid: Ellipsoid, xp: ModuleType) -> Any:
@@ -502,22 +496,20 @@ def _sample_elevation(
         if elevation is None:
             elevation = height
             continue
-        elevation = xp.where(
-            _covers(grid, latitude_deg, longitude_deg, xp), height, elevation
-        )
+        elevation = xp.where(_covers(grid, latitude_deg, longitude_deg, xp), height, elevation)
     return elevation
 
 
-def _covers(
-    grid: ReliefMap, latitude_deg: Any, longitude_deg: Any, xp: ModuleType
-) -> Any:
+def _covers(grid: ReliefMap, latitude_deg: Any, longitude_deg: Any, xp: ModuleType) -> Any:
     """Mask of points inside a relief grid's footprint."""
     if grid.wraps:
         return xp.ones_like(latitude_deg, dtype=bool)
     lon = xp.mod(longitude_deg - grid.west, 360.0) + grid.west
     return (
-        (latitude_deg >= grid.south) & (latitude_deg <= grid.north)
-        & (lon >= grid.west) & (lon <= grid.east)
+        (latitude_deg >= grid.south)
+        & (latitude_deg <= grid.north)
+        & (lon >= grid.west)
+        & (lon <= grid.east)
     )
 
 
@@ -627,9 +619,7 @@ def _march_terrain(
 
     def height_above_ground(t: Any) -> Any:
         points = eye + t[:, None] * rays
-        latitude_deg, longitude_deg = _degrees(
-            _geodetic_normal(points, ellipsoid, xp), xp
-        )
+        latitude_deg, longitude_deg = _degrees(_geodetic_normal(points, ellipsoid, xp), xp)
         ground = _sample_elevation(relief_stack, latitude_deg, longitude_deg, xp)
         return _altitude(points, ellipsoid, xp) - ground
 
@@ -796,8 +786,13 @@ def render(
 
     if displace and relief_stack:
         t_hit, found = _march_terrain(
-            origin, directions, ellipsoid, relief_stack, xp,
-            steps=displace_steps, refinements=displace_refinements,
+            origin,
+            directions,
+            ellipsoid,
+            relief_stack,
+            xp,
+            steps=displace_steps,
+            refinements=displace_refinements,
         )
         t_near = xp.where(found, t_hit, t_near)
         hit = hit | found
@@ -810,9 +805,9 @@ def render(
     albedo = _sample_texture(textures[0], latitude_deg, longitude_deg, xp)
     for finer in textures[1:]:
         blend = _edge_fade(finer, latitude_deg, longitude_deg, feather, xp)[..., None]
-        albedo = albedo * (1.0 - blend) + _sample_texture(
-            finer, latitude_deg, longitude_deg, xp
-        ) * blend
+        albedo = (
+            albedo * (1.0 - blend) + _sample_texture(finer, latitude_deg, longitude_deg, xp) * blend
+        )
 
     shading_normals = normals
     if relief_stack:
@@ -822,12 +817,8 @@ def render(
         sin_phi, cos_phi = xp.sin(phi), xp.cos(phi)
         sin_lam, cos_lam = xp.sin(lam), xp.cos(lam)
         east = xp.stack([-sin_lam, cos_lam, xp.zeros_like(sin_lam)], axis=-1)
-        north = xp.stack(
-            [-sin_phi * cos_lam, -sin_phi * sin_lam, cos_phi], axis=-1
-        )
-        _, slope_e, slope_n = _sample_relief(
-            relief_stack, latitude_deg, longitude_deg, xp
-        )
+        north = xp.stack([-sin_phi * cos_lam, -sin_phi * sin_lam, cos_phi], axis=-1)
+        _, slope_e, slope_n = _sample_relief(relief_stack, latitude_deg, longitude_deg, xp)
         tilted = normals - slope_e[..., None] * east - slope_n[..., None] * north
         shading_normals = tilted / xp.maximum(
             xp.linalg.norm(tilted, axis=-1, keepdims=True), 1.0e-300
@@ -879,9 +870,7 @@ def render(
         halfway /= xp.linalg.norm(halfway, axis=-1, keepdims=True)
         spec = xp.clip(xp.einsum("ijk,ijk->ij", normals, halfway), 0.0, 1.0) ** 48.0
         ocean = xp.clip(1.0 - albedo.mean(axis=-1) * 2.2, 0.0, 1.0)
-        shaded = shaded + (
-            specular * spec * ocean * xp.clip(smooth_cosine, 0.0, 1.0)
-        )[..., None]
+        shaded = shaded + (specular * spec * ocean * xp.clip(smooth_cosine, 0.0, 1.0))[..., None]
 
     if background is None:
         image = xp.zeros((camera.height, camera.width, 3), dtype=xp.float64)

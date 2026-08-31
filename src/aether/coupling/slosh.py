@@ -106,9 +106,7 @@ def normalized_kernel(grid: ChebyshevGrid, station: float, sigma: float) -> _Flo
     kernel = np.exp(-0.5 * z * z)
     denom = float(grid.weights @ kernel)
     if denom <= 0.0 or not np.isfinite(denom):  # pragma: no cover - defensive
-        raise FloatingPointError(
-            f"kernel normalization degenerate at station {x_s}, sigma {sigma}"
-        )
+        raise FloatingPointError(f"kernel normalization degenerate at station {x_s}, sigma {sigma}")
     return kernel / denom
 
 
@@ -148,9 +146,7 @@ class SloshCoupling:
             raise ValueError(f"stations must be a non-empty 1-D array, got shape {x_s.shape}")
         a, b = grid.interval
         if np.any(x_s <= a) or np.any(x_s >= b):
-            raise ValueError(
-                f"tank stations must lie strictly inside ({a}, {b}), got {x_s}"
-            )
+            raise ValueError(f"tank stations must lie strictly inside ({a}, {b}), got {x_s}")
         self._grid = grid
         self._gamma = float(gamma)
         self._stations = x_s.copy()
@@ -225,6 +221,4 @@ class SloshCoupling:
         the endpoint degradation.
         """
         lever = self._grid.x - float(x_ref)
-        return np.asarray(
-            (self._grid.weights * lever) @ np.asarray(load, dtype=np.float64)
-        )
+        return np.asarray((self._grid.weights * lever) @ np.asarray(load, dtype=np.float64))

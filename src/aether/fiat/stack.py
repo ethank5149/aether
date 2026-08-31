@@ -236,9 +236,7 @@ class MaterialStack:
         ply_index = np.concatenate(
             [np.full(p.n_cells, i, dtype=np.intp) for i, p in enumerate(self._plies)]
         )
-        interface_faces = np.cumsum(
-            [p.n_cells for p in self._plies[:-1]], dtype=np.intp
-        )
+        interface_faces = np.cumsum([p.n_cells for p in self._plies[:-1]], dtype=np.intp)
         return StackGrid(
             faces=faces,
             centers=centers,

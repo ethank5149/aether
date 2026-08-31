@@ -107,8 +107,7 @@ def deformed_normal(
     norm = np.linalg.norm(normal, axis=-1, keepdims=True)
     if np.any(norm == 0.0):
         raise ValueError(
-            "degenerate surface: tangent vectors are parallel, so the normal "
-            "is undefined"
+            "degenerate surface: tangent vectors are parallel, so the normal is undefined"
         )
     normal = normal / norm
     # orient outward (+z side); the cross product above already does so for
@@ -127,8 +126,7 @@ def local_incidence(normal: ArrayLike, velocity_body: ArrayLike) -> _FloatArray:
     v = np.asarray(velocity_body, dtype=np.float64)
     if n.shape[-1:] != (3,) or v.shape[-1:] != (3,):
         raise ValueError(
-            f"normal and velocity_body need trailing dimension 3, got "
-            f"{n.shape} and {v.shape}"
+            f"normal and velocity_body need trailing dimension 3, got {n.shape} and {v.shape}"
         )
     speed = np.linalg.norm(v, axis=-1, keepdims=True)
     if np.any(speed == 0.0):

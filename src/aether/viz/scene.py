@@ -74,13 +74,11 @@ _FloatArray = NDArray[np.float64]
 _IntArray = NDArray[np.int64]
 
 
-
 #: Body-frame nose direction assumed by the vehicle glyph. The flight model
 #: is torque-free with drag along the relative velocity, so no force term
 #: pins a body axis; this is a presentation convention, declared rather than
 #: inferred.
 NOSE_AXIS = np.array([1.0, 0.0, 0.0])
-
 
 
 @dataclass(frozen=True)
@@ -102,7 +100,6 @@ class SceneStyle:
     heat_cmap: str = "inferno"
 
 
-
 def ease(t: float | _FloatArray) -> _FloatArray:
     """Smoothstep on ``[0, 1]``.
 
@@ -113,7 +110,6 @@ def ease(t: float | _FloatArray) -> _FloatArray:
     """
     x = np.clip(np.asarray(t, dtype=np.float64), 0.0, 1.0)
     return np.asarray(x * x * (3.0 - 2.0 * x))
-
 
 
 def geodetic_to_cartesian(
@@ -158,23 +154,17 @@ def geodetic_to_cartesian(
     else:
         single, points = False, list(position)
     ellipsoid = as_ellipsoid(surface)
-    heights = np.array(
-        [max(float(p.altitude), 0.0) + float(lift) for p in points]
-    )
+    heights = np.array([max(float(p.altitude), 0.0) + float(lift) for p in points])
     latitudes = np.array([float(p.latitude) for p in points])
     longitudes = np.array([float(p.longitude) for p in points])
     cartesian = geodetic_to_ecef(latitudes, longitudes, heights, ellipsoid)
     return np.asarray(cartesian[0] if single else cartesian)
 
 
-
 _STARFIELDS: dict[tuple[int, int, float, int], _FloatArray] = {}
 
 
-
-def starfield(
-    width: int, height: int, density: float = 0.00035, seed: int = 7
-) -> _FloatArray:
+def starfield(width: int, height: int, density: float = 0.00035, seed: int = 7) -> _FloatArray:
     """A faint fixed starfield, cached per size.
 
     Deterministic because a resampled field shimmers between frames, and
@@ -199,7 +189,6 @@ def starfield(
     sky.flags.writeable = False
     _STARFIELDS[key] = sky
     return sky
-
 
 
 @dataclass(frozen=True)
@@ -359,9 +348,7 @@ class ChaseRig:
         # Not named `height`: that is the frame's pixel height, and shadowing
         # it here put the vehicle's altitude into the camera's row count.
         standoff_altitude = (
-            float(ecef_to_geodetic(centre, ellipsoid)[2])
-            if altitude is None
-            else float(altitude)
+            float(ecef_to_geodetic(centre, ellipsoid)[2]) if altitude is None else float(altitude)
         )
         standoff_altitude = max(standoff_altitude, self.min_altitude)
         shrink = 1.0 - self.tighten * float(ease(progress))
@@ -388,7 +375,6 @@ class ChaseRig:
             width=int(width),
             height=int(height),
         )
-
 
 
 def globe_plate(
@@ -432,9 +418,7 @@ def globe_plate(
         displace=displace,
         backend=backend,
     )
-    figure, ax = plt.subplots(
-        figsize=(camera.width / 100, camera.height / 100), dpi=100
-    )
+    figure, ax = plt.subplots(figsize=(camera.width / 100, camera.height / 100), dpi=100)
     figure.patch.set_facecolor("black")
     ax.imshow(np.clip(image, 0.0, 1.0), interpolation="bilinear", zorder=0)
     ax.set_xlim(0, camera.width)
@@ -442,7 +426,6 @@ def globe_plate(
     ax.axis("off")
     figure.subplots_adjust(0, 0, 1, 1)
     return figure, ax
-
 
 
 def draw_track(
@@ -484,8 +467,13 @@ def draw_track(
 
     if values is None:
         ax.plot(
-            xs, ys, color=color, linewidth=width, alpha=alpha,
-            zorder=zorder, solid_capstyle="round",
+            xs,
+            ys,
+            color=color,
+            linewidth=width,
+            alpha=alpha,
+            zorder=zorder,
+            solid_capstyle="round",
         )
         return
 
@@ -512,7 +500,6 @@ def draw_track(
     hi = float(np.nanmax(scalars)) if vmax is None else float(vmax)
     collection.set_clim(lo, hi if hi > lo else lo + 1.0)
     ax.add_collection(collection)
-
 
 
 def draw_marker(
@@ -548,7 +535,6 @@ def draw_marker(
         return False
     ax.scatter(px[0], py[0], **kwargs)
     return True
-
 
 
 # -- vehicle glyph -------------------------------------------------------
@@ -602,7 +588,6 @@ def glyph_polylines(n_fins: int = 4) -> list[_FloatArray]:
     return lines
 
 
-
 def glyph_world(
     position: _FloatArray,
     dcm: _FloatArray,
@@ -631,11 +616,7 @@ def glyph_world(
         msg = f"dcm must be a single 3x3 matrix, got shape {rotation.shape}"
         raise ValueError(msg)
     to_inertial = rotation.T
-    return [
-        centre + float(scale) * (line @ to_inertial.T)
-        for line in glyph_polylines(n_fins)
-    ]
-
+    return [centre + float(scale) * (line @ to_inertial.T) for line in glyph_polylines(n_fins)]
 
 
 def draw_vehicle(
@@ -707,7 +688,6 @@ def draw_vehicle(
     return True
 
 
-
 def dcm_from_flight_path(
     velocity: _FloatArray, position: _FloatArray, surface: Ellipsoid | float = WGS84
 ) -> _FloatArray:
@@ -765,7 +745,6 @@ def dcm_from_flight_path(
     return np.asarray(np.stack([nose, side, upward], axis=0))
 
 
-
 def stack_world(
     position: _FloatArray,
     dcm: _FloatArray,
@@ -790,7 +769,6 @@ def stack_world(
         centre + float(scale) * (np.asarray(line, dtype=np.float64) @ to_inertial.T)
         for line in lines
     ]
-
 
 
 def draw_stack(
@@ -848,7 +826,6 @@ def draw_stack(
             solid_capstyle="round",
         )
     return True
-
 
 
 def draw_mesh(
@@ -929,6 +906,7 @@ def draw_mesh(
         brightness = np.ones(np.count_nonzero(draw))
 
     from matplotlib.colors import to_rgb
+
     base = np.asarray(to_rgb(color), dtype=np.float64)
 
     for _, face_idx in enumerate(order):
@@ -937,13 +915,13 @@ def draw_mesh(
         face_py = py[f]
         b = float(brightness[face_idx])
         ax.fill(
-            face_px, face_py,
+            face_px,
+            face_py,
             facecolor=base * b,
             edgecolor="none",
             zorder=zorder,
         )
     return True
-
 
 
 # -- sensor overlays -----------------------------------------------------
@@ -1004,11 +982,10 @@ def horizon_ring(
     radius = local_radius + max(float(altitude), 0.0)
     ring = radius * (
         np.cos(lam) * normal[None, :]
-        + np.sin(lam) * (np.cos(phi)[:, None] * east[None, :]
-                         + np.sin(phi)[:, None] * north[None, :])
+        + np.sin(lam)
+        * (np.cos(phi)[:, None] * east[None, :] + np.sin(phi)[:, None] * north[None, :])
     )
     return np.asarray(ring)
-
 
 
 def draw_horizon_ring(

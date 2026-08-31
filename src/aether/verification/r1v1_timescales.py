@@ -110,9 +110,7 @@ def run_r1v1(output_dir: Path) -> VerificationReport:
     for label, length, radius, thickness, mass in _CASES:
         inertia = _thin_wall_inertia(radius, thickness)
         cold = free_free_analytic_frequencies(2, length, _E_COLD * inertia, mass)
-        hot = free_free_analytic_frequencies(
-            2, length, _E_COLD * _E_RETAINED * inertia, mass
-        )
+        hot = free_free_analytic_frequencies(2, length, _E_COLD * _E_RETAINED * inertia, mass)
         f1_cold, f1_hot = cold[0] / (2 * np.pi), hot[0] / (2 * np.pi)
         t_ela_hot = 1.0 / f1_hot
         eps_cold, eps_hot = (1.0 / (f1_cold * _T_TRAJ)), (t_ela_hot / _T_TRAJ)
@@ -130,15 +128,33 @@ def run_r1v1(output_dir: Path) -> VerificationReport:
             ]
         )
         csv_rows.append(
-            [label, length, radius, thickness, mass, _E_COLD * inertia,
-             f1_cold, f1_hot, cold[1] / (2 * np.pi), eps_cold, eps_hot]
+            [
+                label,
+                length,
+                radius,
+                thickness,
+                mass,
+                _E_COLD * inertia,
+                f1_cold,
+                f1_hot,
+                cold[1] / (2 * np.pi),
+                eps_cold,
+                eps_hot,
+            ]
         )
 
     softening_drift = 1.0 / np.sqrt(_E_RETAINED) - 1.0
     report.add_table(
         "First two free-free bending frequencies, cold and softened",
-        ["case", "EI (N·m²)", "f₁ cold (Hz)", "f₁ hot (Hz)", "f₂ cold (Hz)",
-         "eps_ela cold", "eps_ela hot"],
+        [
+            "case",
+            "EI (N·m²)",
+            "f₁ cold (Hz)",
+            "f₁ hot (Hz)",
+            "f₂ cold (Hz)",
+            "eps_ela cold",
+            "eps_ela hot",
+        ],
         freq_rows,
         notes=(
             f"A {100 * (1 - _E_RETAINED):.0f}% modulus loss moves ω₁ by "
@@ -154,9 +170,19 @@ def run_r1v1(output_dir: Path) -> VerificationReport:
     write_csv(
         output_dir,
         "r1v1-frequencies",
-        ["case", "length_m", "radius_m", "thickness_m", "mass_per_length",
-         "EI", "f1_cold_hz", "f1_hot_hz", "f2_cold_hz", "eps_ela_cold",
-         "eps_ela_hot"],
+        [
+            "case",
+            "length_m",
+            "radius_m",
+            "thickness_m",
+            "mass_per_length",
+            "EI",
+            "f1_cold_hz",
+            "f1_hot_hz",
+            "f2_cold_hz",
+            "eps_ela_cold",
+            "eps_ela_hot",
+        ],
         csv_rows,
     )
 
@@ -195,9 +221,7 @@ def run_r1v1(output_dir: Path) -> VerificationReport:
             "earlier draft flagged."
         ),
     )
-    write_csv(
-        output_dir, "r1v1-separation", ["case", "against", "ratio"], pair_csv
-    )
+    write_csv(output_dir, "r1v1-separation", ["case", "against", "ratio"], pair_csv)
 
     passed = worst_t_ela <= _T_ATT_SLOWEST
     report.passed = bool(passed)

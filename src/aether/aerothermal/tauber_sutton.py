@@ -195,11 +195,7 @@ def earth_radiative_heating_exponent(
     rho = np.asarray(density, dtype=np.float64)
     if np.any(v <= 0.0) or np.any(rho <= 0.0):
         raise ValueError("velocity and density must be strictly positive")
-    exponent = (
-        _EARTH_A_COEFFICIENT
-        * v**_EARTH_A_VELOCITY_EXPONENT
-        * rho**_EARTH_A_DENSITY_EXPONENT
-    )
+    exponent = _EARTH_A_COEFFICIENT * v**_EARTH_A_VELOCITY_EXPONENT * rho**_EARTH_A_DENSITY_EXPONENT
     if nose_radius is None:
         return np.asarray(exponent)
     r_n = np.asarray(nose_radius, dtype=np.float64)
@@ -328,9 +324,6 @@ def earth_radiative_heat_flux(
             f"source requires a < 1 for the correlation to apply"
         )
     q_wcm2 = (
-        EARTH_COEFFICIENT
-        * r_n**exponent
-        * rho**EARTH_DENSITY_EXPONENT
-        * earth_velocity_function(v)
+        EARTH_COEFFICIENT * r_n**exponent * rho**EARTH_DENSITY_EXPONENT * earth_velocity_function(v)
     )
     return np.asarray(q_wcm2 * _WCM2_TO_WM2)

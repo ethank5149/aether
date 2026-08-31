@@ -75,8 +75,7 @@ def _integrate_mms(n: int, mms: ManufacturedAblation) -> tuple[float, float, flo
         raise RuntimeError(f"MMS integration failed at N={n}: {sol.message}")
     end = solver.unpack(sol.y[:, -1])
     t_err = float(
-        np.max(np.abs(end.temperature - mms.temperature(eta, _T_FINAL)))
-        / mms.temperature_span
+        np.max(np.abs(end.temperature - mms.temperature(eta, _T_FINAL))) / mms.temperature_span
     )
     r_err = max(
         float(np.max(np.abs(end.partial_densities[i] - mms.partial_density(i, eta, _T_FINAL))))
@@ -158,9 +157,7 @@ def run_v4(output_dir: Path) -> VerificationReport:
     solver = CharringThermalSolver(grid, mat, frame)
     eta = grid.x
     mdot = solver.gas_flux(eta**2 - 0.3, 0.04)
-    flux_err = float(
-        np.max(np.abs(mdot - 0.04 * ((1.0 - eta**3) / 3.0 - 0.3 * (1.0 - eta))))
-    )
+    flux_err = float(np.max(np.abs(mdot - 0.04 * ((1.0 - eta**3) / 3.0 - 0.3 * (1.0 - eta)))))
 
     # blowing correction at collapse-inducing B'
     phi_tiny = float(blowing_correction(1e-17, 0.5))

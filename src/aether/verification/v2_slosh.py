@@ -41,9 +41,7 @@ def run_v2(output_dir: Path) -> VerificationReport:
     report = VerificationReport(
         task_id="V2",
         title="Slosh regularization — exact force transfer and moment error",
-        criterion=(
-            "force error above machine precision; moment error not O(σ²) in the interior"
-        ),
+        criterion=("force error above machine precision; moment error not O(σ²) in the interior"),
         passed=True,
     )
 
@@ -59,20 +57,22 @@ def run_v2(output_dir: Path) -> VerificationReport:
             coupling = SloshCoupling(grid, stations, gamma=gamma)
             forces = rng.uniform(-1.0e4, 1.0e4, stations.size)
             q = coupling.load(forces)
-            err = abs(float(coupling.transferred_force(q)) - forces.sum()) / np.sum(
-                np.abs(forces)
-            )
+            err = abs(float(coupling.transferred_force(q)) - forces.sum()) / np.sum(np.abs(forces))
             worst_force = max(worst_force, err)
             force_rows_md.append(
-                [str(n), f"{gamma:.1f}", f"{np.min(coupling.sigma):.3e}",
-                 f"{np.max(coupling.sigma):.3e}", f"{err:.2e}"]
+                [
+                    str(n),
+                    f"{gamma:.1f}",
+                    f"{np.min(coupling.sigma):.3e}",
+                    f"{np.max(coupling.sigma):.3e}",
+                    f"{err:.2e}",
+                ]
             )
             force_rows_csv.append([n, gamma, np.min(coupling.sigma), np.max(coupling.sigma), err])
 
     force_ok = worst_force <= _FORCE_TOL
     report.add_table(
-        f"Total force transfer, {len(_STATIONS_REL)} stations per row "
-        f"(relative error vs Σ|F|)",
+        f"Total force transfer, {len(_STATIONS_REL)} stations per row (relative error vs Σ|F|)",
         ["N", "γ", "σ min (m)", "σ max (m)", "rel force error"],
         force_rows_md,
     )

@@ -53,9 +53,7 @@ def get_array_module(backend: Backend) -> ModuleType:
         try:
             import cupy
         except ImportError as exc:  # pragma: no cover - depends on environment
-            raise RuntimeError(
-                "backend 'cupy' requested but cupy is not installed"
-            ) from exc
+            raise RuntimeError("backend 'cupy' requested but cupy is not installed") from exc
         if cupy.cuda.runtime.getDeviceCount() < 1:  # pragma: no cover
             raise RuntimeError("backend 'cupy' requested but no CUDA device is present")
         return cast(ModuleType, cupy)

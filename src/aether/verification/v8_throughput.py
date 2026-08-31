@@ -140,9 +140,7 @@ def _below_saturation_slope(n_mc: list[int], throughput: list[float]) -> tuple[f
     # always include the first saturated point so the fit spans the ramp
     if len(pts) < 2:
         return np.nan, [n for n, _ in pts]
-    slope = float(
-        np.polyfit(np.log([p[0] for p in pts]), np.log([p[1] for p in pts]), 1)[0]
-    )
+    slope = float(np.polyfit(np.log([p[0] for p in pts]), np.log([p[1] for p in pts]), 1)[0])
     return slope, [p[0] for p in pts]
 
 
@@ -284,23 +282,23 @@ extern "C" __global__ void rk4_stage(const double* y, const double* beta,
             f"Theoretical occupancy of the batched stage kernel "
             f"(SM {limits['compute_capability_major']}.{limits['compute_capability_minor']}, "
             f"{limits['multiprocessors']} SMs)",
-            ["threads/block", "registers/thread", "blocks/SM", "warps/SM",
-             "occupancy", "limiter"],
+            ["threads/block", "registers/thread", "blocks/SM", "warps/SM", "occupancy", "limiter"],
             [
-                [str(t), str(o.registers_per_thread), str(o.active_blocks_per_sm),
-                 str(o.active_warps_per_sm), f"{o.occupancy:.3f}", o.limiter]
+                [
+                    str(t),
+                    str(o.registers_per_thread),
+                    str(o.active_blocks_per_sm),
+                    str(o.active_warps_per_sm),
+                    f"{o.occupancy:.3f}",
+                    o.limiter,
+                ]
                 for t, o in (
-                    (t, theoretical_occupancy(kernel, t))
-                    for t in (64, 128, 256, 512, 1024)
+                    (t, theoretical_occupancy(kernel, t)) for t in (64, 128, 256, 512, 1024)
                 )
             ],
         )
         probe = Path(__file__).with_name("_occupancy_probe.py")
-        measured = (
-            achieved_occupancy(probe, kernel_name="rk4_stage")
-            if probe.is_file()
-            else None
-        )
+        measured = achieved_occupancy(probe, kernel_name="rk4_stage") if probe.is_file() else None
         if measured is not None and measured.available:
             report.add_section(
                 "Achieved occupancy — measured",
@@ -333,9 +331,7 @@ extern "C" __global__ void rk4_stage(const double* y, const double* beta,
                 f"already the only execution mode implemented.",
             )
     else:  # pragma: no cover - depends on the host
-        report.add_section(
-            "Occupancy", "No CUDA device present; occupancy was not evaluated."
-        )
+        report.add_section("Occupancy", "No CUDA device present; occupancy was not evaluated.")
 
     report.passed = bool(scaling_ok)
     return report

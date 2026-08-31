@@ -94,9 +94,7 @@ def diff_operator(n: int, order: int) -> _Sparse:
     scale = 2.0 ** (order - 1) * float(math.factorial(order - 1)) if order > 1 else 1.0
     cols = np.arange(order, n)
     data = scale * cols.astype(np.float64)
-    return scipy.sparse.csr_matrix(
-        (data, (cols - order, cols)), shape=(n, n)
-    )
+    return scipy.sparse.csr_matrix((data, (cols - order, cols)), shape=(n, n))
 
 
 def conversion_operator(n: int, lam: int) -> _Sparse:
@@ -117,9 +115,7 @@ def conversion_operator(n: int, lam: int) -> _Sparse:
     else:
         diag = lam / (lam + i)
         upper = -(lam / (lam + i[2:]))
-    return scipy.sparse.diags_array(
-        [diag, upper], offsets=[0, 2], shape=(n, n), format="csr"
-    )
+    return scipy.sparse.diags_array([diag, upper], offsets=[0, 2], shape=(n, n), format="csr")
 
 
 def conversion_chain(n: int, lam_from: int, lam_to: int) -> _Sparse:
@@ -163,9 +159,7 @@ def derivative_in_basis(n: int, derivative: int, basis: int, scale: float = 1.0)
     if basis < 1:
         raise ValueError(f"target basis must be >= 1, got {basis}")
     if not 0 <= derivative <= basis:
-        raise ValueError(
-            f"derivative must satisfy 0 <= j <= basis = {basis}, got {derivative}"
-        )
+        raise ValueError(f"derivative must satisfy 0 <= j <= basis = {basis}, got {derivative}")
     factor = float(scale) ** derivative
     if derivative == 0:
         return scipy.sparse.csr_matrix(factor * conversion_chain(n, 0, basis))
@@ -196,9 +190,7 @@ def jacobi_operator(n: int, lam: int) -> _Sparse:
         a = (m + 1.0) / (2.0 * (m + lam))
         b = (m + 2.0 * lam - 1.0) / (2.0 * (m + lam))
     # (X u)_i receives A_{i-1} u_{i-1} and B_{i+1} u_{i+1}
-    return scipy.sparse.diags_array(
-        [a[:-1], b[1:]], offsets=[-1, 1], shape=(n, n), format="csr"
-    )
+    return scipy.sparse.diags_array([a[:-1], b[1:]], offsets=[-1, 1], shape=(n, n), format="csr")
 
 
 def multiplication_operator(

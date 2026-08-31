@@ -100,9 +100,7 @@ class Ellipsoid:
     def prime_vertical(self, latitude: ArrayLike) -> _FloatArray:
         """Radius of curvature in the prime vertical, :math:`N(\\varphi)` (m)."""
         sin_phi = np.sin(np.asarray(latitude, dtype=np.float64))
-        return np.asarray(
-            self.semi_major / np.sqrt(1.0 - self.eccentricity_squared * sin_phi**2)
-        )
+        return np.asarray(self.semi_major / np.sqrt(1.0 - self.eccentricity_squared * sin_phi**2))
 
     def geocentric_latitude(self, latitude: ArrayLike) -> _FloatArray:
         """Geocentric latitude of a point *on the surface* at geodetic ``latitude``.
@@ -199,9 +197,7 @@ def ecef_to_geodetic(
     # intermediate arithmetic finite.
     safe_p = np.where(p > 0.0, p, 1.0e-300)
     theta = np.arctan2(z * a, safe_p * b)
-    latitude = np.arctan2(
-        z + ep2 * b * np.sin(theta) ** 3, safe_p - e2 * a * np.cos(theta) ** 3
-    )
+    latitude = np.arctan2(z + ep2 * b * np.sin(theta) ** 3, safe_p - e2 * a * np.cos(theta) ** 3)
     latitude = np.where(p > 0.0, latitude, np.sign(z) * 0.5 * np.pi)
 
     for _ in range(int(newton_steps)):
@@ -243,9 +239,7 @@ def local_vertical(latitude: ArrayLike, longitude: ArrayLike) -> _FloatArray:
     lam = np.asarray(longitude, dtype=np.float64)
     phi, lam = np.broadcast_arrays(phi, lam)
     cos_phi = np.cos(phi)
-    return np.stack(
-        [cos_phi * np.cos(lam), cos_phi * np.sin(lam), np.sin(phi)], axis=-1
-    )
+    return np.stack([cos_phi * np.cos(lam), cos_phi * np.sin(lam), np.sin(phi)], axis=-1)
 
 
 def ray_ellipsoid(
@@ -377,4 +371,3 @@ def horizon_central_angle(
         raise ValueError(msg)
     ratio = body_radius / (body_radius + h) * np.cos(epsilon)
     return np.asarray(np.maximum(np.arccos(np.clip(ratio, -1.0, 1.0)) - epsilon, 0.0))
-

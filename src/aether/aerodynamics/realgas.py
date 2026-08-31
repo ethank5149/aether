@@ -195,9 +195,7 @@ class EquilibriumAir:
         gas.equilibrate("TP")
         return float(gas.density), float(gas.enthalpy_mass), float(gas.sound_speed)
 
-    def normal_shock(
-        self, temperature: float, pressure: float, speed: float
-    ) -> NormalShock:
+    def normal_shock(self, temperature: float, pressure: float, speed: float) -> NormalShock:
         """Solve the equilibrium normal shock at a freestream condition.
 
         Parameters
@@ -260,7 +258,9 @@ class EquilibriumAir:
         # weak), and searching in the log keeps the bracket well conditioned
         # across five decades of freestream pressure.
         log_p = scipy.optimize.brentq(
-            residual, float(np.log(pressure_2)), float(np.log(pressure_2 * 100.0)),
+            residual,
+            float(np.log(pressure_2)),
+            float(np.log(pressure_2 * 100.0)),
             xtol=1.0e-10,
         )
 

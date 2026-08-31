@@ -68,12 +68,18 @@ class EntryDispersionModel:
     def specs(self) -> list[DispersionSpec]:
         """The dispersion set, in fixed order (see sampling module)."""
         return [
-            DispersionSpec("beta", self.beta_nominal, self.beta_rel_sigma * self.beta_nominal,
-                           lower=0.2 * self.beta_nominal),
-            DispersionSpec("speed", self.speed, self.speed_rel_sigma * self.speed,
-                           lower=0.5 * self.speed),
-            DispersionSpec("flight_path_deg", self.flight_path_deg, self.flight_path_sigma_deg,
-                           upper=-1.0),
+            DispersionSpec(
+                "beta",
+                self.beta_nominal,
+                self.beta_rel_sigma * self.beta_nominal,
+                lower=0.2 * self.beta_nominal,
+            ),
+            DispersionSpec(
+                "speed", self.speed, self.speed_rel_sigma * self.speed, lower=0.5 * self.speed
+            ),
+            DispersionSpec(
+                "flight_path_deg", self.flight_path_deg, self.flight_path_sigma_deg, upper=-1.0
+            ),
             DispersionSpec("azimuth_deg", self.azimuth_deg, self.azimuth_sigma_deg),
             DispersionSpec("density_bias", 1.0, self.density_bias_rel_sigma, lower=0.3),
             DispersionSpec("wind_x", 0.0, self.wind_sigma),
@@ -117,8 +123,9 @@ class EntryDispersionModel:
         y = xp.array(self.initial_states(params), dtype=xp.float64)
         beta = xp.array(params["beta"])
         rho_bias = xp.array(params["density_bias"])
-        wind = xp.stack([xp.array(params["wind_x"]), xp.array(params["wind_y"]),
-                         xp.zeros(n_replicates)], axis=1)
+        wind = xp.stack(
+            [xp.array(params["wind_x"]), xp.array(params["wind_y"]), xp.zeros(n_replicates)], axis=1
+        )
 
         impact = xp.zeros((n_replicates, 2), dtype=xp.float64)
         landed = xp.zeros(n_replicates, dtype=bool)
@@ -145,8 +152,7 @@ class EntryDispersionModel:
             stages[:, :, 2] = rhs(y + 0.5 * dt * stages[:, :, 1])
             stages[:, :, 3] = rhs(y + dt * stages[:, :, 2])
             y_next = y + (dt / 6.0) * (
-                stages[:, :, 0] + 2.0 * stages[:, :, 1] + 2.0 * stages[:, :, 2]
-                + stages[:, :, 3]
+                stages[:, :, 0] + 2.0 * stages[:, :, 1] + 2.0 * stages[:, :, 2] + stages[:, :, 3]
             )
             # ground-crossing detection with in-step linear interpolation
             crossing = (~landed) & (y_next[:, 2] <= 0.0)
@@ -154,9 +160,8 @@ class EntryDispersionModel:
                 z0 = y_prev[crossing, 2]
                 z1 = y_next[crossing, 2]
                 frac = z0 / (z0 - z1)
-                impact_pts = (
-                    y_prev[crossing, 0:2]
-                    + frac[:, None] * (y_next[crossing, 0:2] - y_prev[crossing, 0:2])
+                impact_pts = y_prev[crossing, 0:2] + frac[:, None] * (
+                    y_next[crossing, 0:2] - y_prev[crossing, 0:2]
                 )
                 impact[crossing] = impact_pts
                 landed = landed | crossing
@@ -166,7 +171,5 @@ class EntryDispersionModel:
                 break
         if not bool(xp.all(landed)):
             n_open = int(xp.sum(~landed))
-            raise RuntimeError(
-                f"{n_open} replicates airborne after {max_time} s; raise max_time"
-            )
+            raise RuntimeError(f"{n_open} replicates airborne after {max_time} s; raise max_time")
         return to_numpy(impact)

@@ -103,9 +103,7 @@ def minimising_control(
     the cost of the whole indirect stage rather than a detail of it.
     """
     if problem.control_argmin is not None:
-        return np.atleast_1d(
-            np.asarray(problem.control_argmin(state, costate), dtype=np.float64)
-        )
+        return np.atleast_1d(np.asarray(problem.control_argmin(state, costate), dtype=np.float64))
     start = np.zeros(problem.nu) if guess is None else np.asarray(guess, float)
     bounds = None
     if problem.u_bounds is not None:
@@ -115,7 +113,9 @@ def minimising_control(
 
     result = scipy.optimize.minimize(
         lambda u: hamiltonian(problem, state, np.atleast_1d(u), costate),
-        start, method="L-BFGS-B" if bounds else "BFGS", bounds=bounds,
+        start,
+        method="L-BFGS-B" if bounds else "BFGS",
+        bounds=bounds,
     )
     return np.atleast_1d(np.asarray(result.x, dtype=np.float64))
 
@@ -172,19 +172,21 @@ class HamiltonianSystem:
         nx = self.problem.nx
         state, costate = y[:nx], y[nx:]
         control = minimising_control(self.problem, state, costate)
-        return np.concatenate([
-            self.problem.dynamics(state, control),
-            costate_dynamics(self.problem, state, control, costate),
-        ])
+        return np.concatenate(
+            [
+                self.problem.dynamics(state, control),
+                costate_dynamics(self.problem, state, control, costate),
+            ]
+        )
 
-    def controls_along(
-        self, states: _FloatArray, costates: _FloatArray
-    ) -> _FloatArray:
+    def controls_along(self, states: _FloatArray, costates: _FloatArray) -> _FloatArray:
         """Recover the optimal control history from a state-costate trajectory."""
-        return np.array([
-            minimising_control(self.problem, x, lam)
-            for x, lam in zip(states, costates, strict=True)
-        ])
+        return np.array(
+            [
+                minimising_control(self.problem, x, lam)
+                for x, lam in zip(states, costates, strict=True)
+            ]
+        )
 
 
 def control_jacobian(
@@ -202,9 +204,9 @@ def control_jacobian(
         forward, backward = control.copy(), control.copy()
         forward[j] += h
         backward[j] -= h
-        jacobian[:, j] = (
-            problem.dynamics(state, forward) - problem.dynamics(state, backward)
-        ) / (2.0 * h)
+        jacobian[:, j] = (problem.dynamics(state, forward) - problem.dynamics(state, backward)) / (
+            2.0 * h
+        )
     return jacobian
 
 
@@ -305,8 +307,11 @@ def refine_indirect(
         costates = covector_estimate(problem, guess)
     except Exception as exc:
         return IndirectSolution(
-            t=times, x=states, u=np.asarray(guess.u, dtype=np.float64),
-            costates=np.zeros_like(states), converged=False,
+            t=times,
+            x=states,
+            u=np.asarray(guess.u, dtype=np.float64),
+            costates=np.zeros_like(states),
+            converged=False,
             residual=float("inf"),
             message=f"covector estimate failed: {exc}",
         )
@@ -318,13 +323,21 @@ def refine_indirect(
 
     try:
         result = scipy.integrate.solve_bvp(
-            system.derivatives, boundary, times, y0,
-            tol=tol, max_nodes=max_nodes,
+            system.derivatives,
+            boundary,
+            times,
+            y0,
+            tol=tol,
+            max_nodes=max_nodes,
         )
     except Exception as exc:
         return IndirectSolution(
-            t=times, x=states, u=np.asarray(guess.u, dtype=np.float64),
-            costates=costates, converged=False, residual=float("inf"),
+            t=times,
+            x=states,
+            u=np.asarray(guess.u, dtype=np.float64),
+            costates=costates,
+            converged=False,
+            residual=float("inf"),
             message=f"boundary value solve raised: {exc}",
         )
 
@@ -481,18 +494,14 @@ def refine_indirect_free_time(
                 out[nx:, k] = costate_dynamics(problem, state, control, costate)
             return duration * out
 
-        def boundary(
-            ya: _FloatArray, yb: _FloatArray, _par: _FloatArray
-        ) -> _FloatArray:
+        def boundary(ya: _FloatArray, yb: _FloatArray, _par: _FloatArray) -> _FloatArray:
             conditions = list(ya[:nx] - x0)
             for j in range(nx):
                 # Fixed component: pin the state. Free component: transversality
                 # pins its costate to zero instead. Exactly one applies to each.
                 conditions.append(yb[j] - target[j] if fixed[j] else yb[nx + j])
             terminal_control = control_at(yb[:nx], yb[nx:], rho)
-            conditions.append(
-                hamiltonian(problem, yb[:nx], terminal_control, yb[nx:])
-            )
+            conditions.append(hamiltonian(problem, yb[:nx], terminal_control, yb[nx:]))
             return np.asarray(conditions, dtype=np.float64)
 
         return derivatives, boundary
@@ -505,19 +514,32 @@ def refine_indirect_free_time(
         derivatives, boundary = make(rho)
         try:
             result = scipy.integrate.solve_bvp(
-                derivatives, boundary, mesh, values, p=duration,
-                tol=tol, max_nodes=max_nodes,
+                derivatives,
+                boundary,
+                mesh,
+                values,
+                p=duration,
+                tol=tol,
+                max_nodes=max_nodes,
             )
         except Exception as exc:
             return IndirectSolution(
-                t=times, x=states, u=np.asarray(guess.u, dtype=np.float64),
-                costates=costates, converged=False, residual=float("inf"),
+                t=times,
+                x=states,
+                u=np.asarray(guess.u, dtype=np.float64),
+                costates=costates,
+                converged=False,
+                residual=float("inf"),
                 message=f"boundary value solve raised at rho={rho}: {exc}",
             )
         if not result.success:
             return IndirectSolution(
-                t=times, x=states, u=np.asarray(guess.u, dtype=np.float64),
-                costates=costates, converged=False, residual=float("inf"),
+                t=times,
+                x=states,
+                u=np.asarray(guess.u, dtype=np.float64),
+                costates=costates,
+                converged=False,
+                residual=float("inf"),
                 message=f"did not converge at rho={rho}: {result.message}",
             )
         mesh, values, duration = result.x, result.y, result.p
@@ -526,10 +548,12 @@ def refine_indirect_free_time(
     final = float(duration[0])
     refined_states = result.y[:nx].T
     refined_costates = result.y[nx:].T
-    controls = np.array([
-        minimising_control(problem, x, lam)
-        for x, lam in zip(refined_states, refined_costates, strict=True)
-    ])
+    controls = np.array(
+        [
+            minimising_control(problem, x, lam)
+            for x, lam in zip(refined_states, refined_costates, strict=True)
+        ]
+    )
     # The residual reported is the Hamiltonian drift, not a terminal miss: the
     # endpoints are boundary conditions and are met by construction, whereas
     # H = 0 is enforced only at t_f and must hold everywhere if the answer is

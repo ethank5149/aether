@@ -48,9 +48,7 @@ class LandauFrame:
 
     def __post_init__(self) -> None:
         if not (np.isfinite(self.total_thickness) and self.total_thickness > 0.0):
-            raise ValueError(
-                f"total_thickness must be finite and > 0, got {self.total_thickness}"
-            )
+            raise ValueError(f"total_thickness must be finite and > 0, got {self.total_thickness}")
         if not 0.0 < self.min_thickness_fraction < 1.0:
             raise ValueError(
                 f"min_thickness_fraction must be in (0, 1), got {self.min_thickness_fraction}"
@@ -80,9 +78,7 @@ class LandauFrame:
     def physical_coordinate(self, eta: ArrayLike, recession: float) -> _FloatArray:
         """Map :math:`\\eta \\mapsto y = s + \\eta\\,\\ell`."""
         ell = self.thickness(recession)
-        return np.asarray(
-            float(recession) + np.asarray(eta, dtype=np.float64) * ell
-        )
+        return np.asarray(float(recession) + np.asarray(eta, dtype=np.float64) * ell)
 
     def grid_velocity_coefficient(
         self, eta: ArrayLike, recession: float, recession_rate: float
@@ -92,6 +88,4 @@ class LandauFrame:
         \\dot s(1-\\eta)/\\ell\\,\\partial_\\eta` for a field carried by
         the material."""
         ell = self.thickness(recession)
-        return np.asarray(
-            float(recession_rate) * (1.0 - np.asarray(eta, dtype=np.float64)) / ell
-        )
+        return np.asarray(float(recession_rate) * (1.0 - np.asarray(eta, dtype=np.float64)) / ell)

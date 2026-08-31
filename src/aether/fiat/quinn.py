@@ -116,9 +116,7 @@ CALIBRATED_BOUNDARY: dict[float, tuple[float, float]] = {
 def mean_depths(heat_flux: float) -> _FloatArray:
     """Mean TC depths (m) over the three samples at this heat flux."""
     if heat_flux not in SAMPLE_DEPTHS:
-        raise ValueError(
-            f"no samples at {heat_flux} W/cm²; have {sorted(SAMPLE_DEPTHS)}"
-        )
+        raise ValueError(f"no samples at {heat_flux} W/cm²; have {sorted(SAMPLE_DEPTHS)}")
     return np.asarray(SAMPLE_DEPTHS[heat_flux], dtype=np.float64).mean(axis=0)
 
 
@@ -154,9 +152,7 @@ class TorchCurve:
         """
         t = np.asarray(times, dtype=np.float64)
         out = np.interp(t, self.time, self.temperature)
-        return np.asarray(
-            np.where((t < self.time[0]) | (t > self.time[-1]), np.nan, out)
-        )
+        return np.asarray(np.where((t < self.time[0]) | (t > self.time[-1]), np.nan, out))
 
 
 @dataclass(frozen=True)
@@ -174,13 +170,7 @@ class QuinnCase:
 
     @property
     def duration(self) -> float:
-        return float(
-            max(
-                c.time[-1]
-                for by_kind in self.curves.values()
-                for c in by_kind.values()
-            )
-        )
+        return float(max(c.time[-1] for by_kind in self.curves.values() for c in by_kind.values()))
 
     def environment(self, pressure: float = 101325.0) -> AerothermalEnvironment:
         """The paper's calibrated boundary condition, as an environment.
@@ -213,9 +203,7 @@ def load_quinn_case(directory: str | Path, heat_flux: float) -> QuinnCase:
         250, 500 or 750 W/cm².
     """
     if heat_flux not in _FIGURES:
-        raise ValueError(
-            f"no figure for {heat_flux} W/cm²; have {sorted(_FIGURES)}"
-        )
+        raise ValueError(f"no figure for {heat_flux} W/cm²; have {sorted(_FIGURES)}")
     root = Path(directory)
     figure = _FIGURES[heat_flux]
     depths = mean_depths(heat_flux)

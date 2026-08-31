@@ -61,8 +61,6 @@ __all__ = [
 _FloatArray = NDArray[np.float64]
 
 
-
-
 class TrimAtGridEdge(UserWarning):
     """The incidence that maximised :math:`L/D` was the edge of the swept grid.
 
@@ -70,7 +68,6 @@ class TrimAtGridEdge(UserWarning):
     search ran out of grid before the curve turned over, so the true trim is
     outside the range and the ratio reported is an underestimate of it.
     """
-
 
 
 def reentry_alpha_grid(limit_deg: float = 40.0, step_deg: float = 2.0) -> _FloatArray:
@@ -85,13 +82,11 @@ def reentry_alpha_grid(limit_deg: float = 40.0, step_deg: float = 2.0) -> _Float
     return np.deg2rad(np.arange(0.0, limit_deg + 0.5 * step_deg, step_deg))
 
 
-
 def load_mesh(path: str | Path) -> Any:
     """Load an STL and put it in body axes (nose along the +x axis)."""
     from aether.geometry.mesh import load_stl
 
     return load_stl(Path(path)).to_body_axes()
-
 
 
 def condition_lifting_body(
@@ -151,7 +146,6 @@ def condition_lifting_body(
     return conditioned
 
 
-
 def planform_area(mesh: Any) -> float:
     r"""Planform area (m²): the body projected onto its own :math:`x`–:math:`y` plane.
 
@@ -176,7 +170,6 @@ def planform_area(mesh: Any) -> float:
     triangles = vertices[faces]
     normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
     return float(0.5 * np.abs(normals[:, 2]).sum() / 2.0)
-
 
 
 @dataclass(frozen=True)
@@ -209,7 +202,6 @@ class Configuration:
     @property
     def frontal_area(self) -> float:
         return float(self.mesh.frontal_area())
-
 
 
 def build_solver(
@@ -258,7 +250,6 @@ def build_solver(
     )
 
 
-
 def build_tables(
     configurations: Sequence[Configuration],
     grid: SweepGrid | None = None,
@@ -285,9 +276,7 @@ def build_tables(
         run = SweepRun(
             name=configuration.name,
             grid=sweep,
-            solver=build_solver(
-                configuration, altitude=altitude, full_fidelity=full_fidelity
-            ),
+            solver=build_solver(configuration, altitude=altitude, full_fidelity=full_fidelity),
             store=out / f"{configuration.name}.jsonl",
             reference_area=configuration.reference_area,
             reference_length=configuration.reference_length,
@@ -296,7 +285,6 @@ def build_tables(
             progress=progress, max_points=max_points, time_budget=time_budget
         )
     return tables
-
 
 
 def wind_axes(table: AeroTable, mach: float, alpha: float) -> tuple[float, float]:
@@ -335,7 +323,6 @@ def wind_axes(table: AeroTable, mach: float, alpha: float) -> tuple[float, float
     return lift, drag
 
 
-
 def lift_to_drag(table: AeroTable, mach: float, alpha: float) -> float:
     """:math:`L/D` at one condition, from :func:`wind_axes`."""
     lift, drag = wind_axes(table, mach, alpha)
@@ -345,7 +332,6 @@ def lift_to_drag(table: AeroTable, mach: float, alpha: float) -> float:
             f"alpha {np.rad2deg(alpha):.1f} deg; the table cannot be trimmed there"
         )
     return float(lift / drag)
-
 
 
 def trim_for_max_lift_to_drag(
@@ -391,10 +377,7 @@ def trim_for_max_lift_to_drag(
     return best_alpha, float(best_ratio)
 
 
-
-def ballistic_coefficient(
-    table: AeroTable, mass: float, mach: float, alpha: float = 0.0
-) -> float:
+def ballistic_coefficient(table: AeroTable, mass: float, mach: float, alpha: float = 0.0) -> float:
     r""":math:`\beta = m/(C_D S)` (kg/m²) at one condition.
 
     The definition entry and glide dynamics use — drag deceleration is
@@ -410,7 +393,6 @@ def ballistic_coefficient(
     return float(mass / (drag * table.reference_area))
 
 
-
 def save_tables(directory: str | Path, tables: dict[str, AeroTable]) -> Path:
     """Write tables to ``directory`` as one ``.npz`` each, plus an index."""
     out = Path(directory)
@@ -419,8 +401,11 @@ def save_tables(directory: str | Path, tables: dict[str, AeroTable]) -> Path:
     for name, table in tables.items():
         np.savez_compressed(
             out / f"{name}.npz",
-            mach=table.mach, alpha=table.alpha, axial=table.axial,
-            normal=table.normal, pitching_moment=table.pitching_moment,
+            mach=table.mach,
+            alpha=table.alpha,
+            axial=table.axial,
+            normal=table.normal,
+            pitching_moment=table.pitching_moment,
         )
         index[name] = {
             "reference_area": float(table.reference_area),
@@ -434,7 +419,6 @@ def save_tables(directory: str | Path, tables: dict[str, AeroTable]) -> Path:
     return out
 
 
-
 def load_tables(directory: str | Path) -> dict[str, AeroTable]:
     """Read tables written by :func:`save_tables`."""
     src = Path(directory)
@@ -444,8 +428,11 @@ def load_tables(directory: str | Path) -> dict[str, AeroTable]:
         with np.load(src / f"{name}.npz") as archive:
             tables[name] = AeroTable(
                 name=name,
-                mach=archive["mach"], alpha=archive["alpha"], axial=archive["axial"],
-                normal=archive["normal"], pitching_moment=archive["pitching_moment"],
+                mach=archive["mach"],
+                alpha=archive["alpha"],
+                axial=archive["axial"],
+                normal=archive["normal"],
+                pitching_moment=archive["pitching_moment"],
                 reference_area=float(meta["reference_area"]),
                 reference_length=float(meta["reference_length"]),
                 solver=str(meta["solver"]),

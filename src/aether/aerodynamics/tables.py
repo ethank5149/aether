@@ -184,6 +184,7 @@ class AeroTable:
         Mach 30 when it was built to 25 should return the Mach 25 value, not
         a linear guess off the end of a curve that is asymptotic anyway.
         """
+
         def interpolate(surface: _FloatArray) -> float:
             row = np.interp(
                 float(np.clip(alpha, self.alpha[0], self.alpha[-1])),
@@ -246,9 +247,7 @@ class PanelSolver:
     #: Below this the pressure closure has no supersonic solution at all.
     absolute_floor: float = 1.05
 
-    def solve(
-        self, mach: float, alpha: float, cp_max: float | None = None
-    ) -> Coefficients:
+    def solve(self, mach: float, alpha: float, cp_max: float | None = None) -> Coefficients:
         """Coefficients at one condition.
 
         ``cp_max`` overrides the perfect-gas stagnation pressure coefficient
@@ -270,9 +269,7 @@ class PanelSolver:
             raise ValueError(msg)
         # Dynamic pressure cancels out of a coefficient; unity keeps the
         # arithmetic in a sane range.
-        force, moment = self._model.loads(
-            float(alpha), float(mach), 1.0, cp_max=cp_max
-        )
+        force, moment = self._model.loads(float(alpha), float(mach), 1.0, cp_max=cp_max)
         scale = self.reference_area
         return Coefficients(
             axial=float(force[0] / scale),
@@ -429,10 +426,7 @@ class SweepRun:
                 for mach, alpha in outstanding:
                     if max_points is not None and evaluated >= max_points:
                         break
-                    if (
-                        time_budget is not None
-                        and time.perf_counter() - started >= time_budget
-                    ):
+                    if time_budget is not None and time.perf_counter() - started >= time_budget:
                         break
                     coefficients = self.solver.solve(mach, alpha)
                     record = {
@@ -469,9 +463,7 @@ class SweepRun:
         mach = np.asarray(self.grid.mach, dtype=np.float64)
         alpha = np.asarray(self.grid.alpha, dtype=np.float64)
         shape = (mach.size, alpha.size)
-        surfaces = {
-            key: np.full(shape, np.nan) for key in ("axial", "normal", "pitching_moment")
-        }
+        surfaces = {key: np.full(shape, np.nan) for key in ("axial", "normal", "pitching_moment")}
         for i, m in enumerate(mach):
             for j, a in enumerate(alpha):
                 record = records.get(self._key(float(m), float(a)))

@@ -115,9 +115,7 @@ def interval(lower: float, upper: float) -> Any:
     import flint
 
     if not (np.isfinite(lower) and np.isfinite(upper)):
-        raise ValueError(
-            f"an enclosure needs finite endpoints, got [{lower}, {upper}]"
-        )
+        raise ValueError(f"an enclosure needs finite endpoints, got [{lower}, {upper}]")
     if lower > upper:
         raise ValueError(
             f"the interval [{lower}, {upper}] is empty; endpoints are "

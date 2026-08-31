@@ -142,9 +142,7 @@ class Freestream:
         computed anyway because it is the number the real-gas model has to
         replace, and seeing it makes the replacement legible.
         """
-        return np.asarray(
-            self.state.temperature * (1.0 + 0.5 * (GAMMA_AIR - 1.0) * self.mach**2)
-        )
+        return np.asarray(self.state.temperature * (1.0 + 0.5 * (GAMMA_AIR - 1.0) * self.mach**2))
 
 
 @dataclass(frozen=True)
@@ -170,8 +168,7 @@ class LayeredAtmosphere:
     def __post_init__(self) -> None:
         if not self.blend_bottom < self.blend_top:
             msg = (
-                f"blend band must satisfy bottom < top, got "
-                f"({self.blend_bottom}, {self.blend_top})"
+                f"blend band must satisfy bottom < top, got ({self.blend_bottom}, {self.blend_top})"
             )
             raise ValueError(msg)
         object.__setattr__(self, "name", f"{self.lower.name} / {self.upper.name}")
@@ -309,9 +306,7 @@ class TabulatedAtmosphere:
         decay = (log_top[1] - log_top[0]) / (top[1] - top[0])
         above = z > self.ceiling
         if np.any(above):
-            density = np.where(
-                above, density * np.exp(decay * (z - self.ceiling)), density
-            )
+            density = np.where(above, density * np.exp(decay * (z - self.ceiling)), density)
 
         from aether.atmosphere.standard import UNIVERSAL_GAS_CONSTANT
 

@@ -333,13 +333,16 @@ def geodesic_track(
     otherwise -- and a warning is an error in this project's test suite.
     """
     if samples < 2:
-        raise ValueError(
-            f"a track needs at least its two endpoints, got samples={samples}"
-        )
+        raise ValueError(f"a track needs at least its two endpoints, got samples={samples}")
     result = _GEOD.inv_intermediate(
-        np.rad2deg(origin.longitude), np.rad2deg(origin.latitude),
-        np.rad2deg(destination.longitude), np.rad2deg(destination.latitude),
-        samples, initial_idx=0, terminus_idx=0, return_back_azimuth=True,
+        np.rad2deg(origin.longitude),
+        np.rad2deg(origin.latitude),
+        np.rad2deg(destination.longitude),
+        np.rad2deg(destination.latitude),
+        samples,
+        initial_idx=0,
+        terminus_idx=0,
+        return_back_azimuth=True,
     )
     return [
         GeodeticPosition(float(np.deg2rad(lat)), float(np.deg2rad(lon)))
@@ -371,15 +374,18 @@ def geodesic_walk(
     :func:`ecef_to_geodetic`, not a walk.
     """
     if samples < 2:
-        raise ValueError(
-            f"a track needs at least its two endpoints, got samples={samples}"
-        )
+        raise ValueError(f"a track needs at least its two endpoints, got samples={samples}")
     if not (np.isfinite(distance) and distance > 0.0):
         raise ValueError(f"distance must be finite and > 0, got {distance}")
     result = _GEOD.fwd_intermediate(
-        np.rad2deg(origin.longitude), np.rad2deg(origin.latitude),
-        np.rad2deg(azimuth), samples, float(distance) / (samples - 1),
-        initial_idx=0, terminus_idx=0, return_back_azimuth=True,
+        np.rad2deg(origin.longitude),
+        np.rad2deg(origin.latitude),
+        np.rad2deg(azimuth),
+        samples,
+        float(distance) / (samples - 1),
+        initial_idx=0,
+        terminus_idx=0,
+        return_back_azimuth=True,
     )
     return [
         GeodeticPosition(float(np.deg2rad(lat)), float(np.deg2rad(lon)))
@@ -411,8 +417,7 @@ def central_angle(origin: GeodeticPosition, destination: GeodeticPosition) -> fl
     lat2 = float(geodetic_to_geocentric_latitude(destination.latitude))
     dlon = destination.longitude - origin.longitude
     haversine = (
-        np.sin(0.5 * (lat2 - lat1)) ** 2
-        + np.cos(lat1) * np.cos(lat2) * np.sin(0.5 * dlon) ** 2
+        np.sin(0.5 * (lat2 - lat1)) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(0.5 * dlon) ** 2
     )
     return float(2.0 * np.arcsin(np.sqrt(np.clip(haversine, 0.0, 1.0))))
 
@@ -450,8 +455,10 @@ def geodesic_range(origin: GeodeticPosition, destination: GeodeticPosition) -> f
     """
     return float(
         _GEOD.inv(
-            np.rad2deg(origin.longitude), np.rad2deg(origin.latitude),
-            np.rad2deg(destination.longitude), np.rad2deg(destination.latitude),
+            np.rad2deg(origin.longitude),
+            np.rad2deg(origin.latitude),
+            np.rad2deg(destination.longitude),
+            np.rad2deg(destination.latitude),
         )[2]
     )
 
@@ -464,13 +471,12 @@ def geodesic_bearing(origin: GeodeticPosition, destination: GeodeticPosition) ->
     places a point off the curve it names, and the error grows with distance
     instead of announcing itself.
     """
-    if (
-        origin.latitude == destination.latitude
-        and origin.longitude == destination.longitude
-    ):
+    if origin.latitude == destination.latitude and origin.longitude == destination.longitude:
         raise ValueError("origin and destination coincide, so no bearing is defined")
     forward = _GEOD.inv(
-        np.rad2deg(origin.longitude), np.rad2deg(origin.latitude),
-        np.rad2deg(destination.longitude), np.rad2deg(destination.latitude),
+        np.rad2deg(origin.longitude),
+        np.rad2deg(origin.latitude),
+        np.rad2deg(destination.longitude),
+        np.rad2deg(destination.latitude),
     )[0]
     return float(np.deg2rad(forward))

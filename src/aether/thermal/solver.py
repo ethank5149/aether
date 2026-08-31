@@ -157,8 +157,7 @@ class CharringThermalSolver:
         """Flatten a :class:`ThermalState` into the ODE vector."""
         if state.temperature.shape != (self._grid.size,):
             raise ValueError(
-                f"temperature must have shape ({self._grid.size},), "
-                f"got {state.temperature.shape}"
+                f"temperature must have shape ({self._grid.size},), got {state.temperature.shape}"
             )
         if state.partial_densities.shape != (3, self._grid.size):
             raise ValueError(

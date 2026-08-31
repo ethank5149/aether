@@ -79,9 +79,7 @@ class OrthotropicLaminate:
                 f"d11*d22 = {self.d11 * self.d22:.6g} must exceed d12² = {self.d12**2:.6g}"
             )
         if not 0.0 < self.shear_correction <= 1.0:
-            raise ValueError(
-                f"shear_correction must be in (0, 1], got {self.shear_correction}"
-            )
+            raise ValueError(f"shear_correction must be in (0, 1], got {self.shear_correction}")
 
     @property
     def shear_stiffness_x(self) -> float:

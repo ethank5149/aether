@@ -128,9 +128,7 @@ def damped_moment(
     return np.asarray(np.cross(arms, panel_force).sum(axis=0))
 
 
-def _derivatives(
-    model: PanelModel, alpha: float, q_dyn: float
-) -> dict[str, float]:
+def _derivatives(model: PanelModel, alpha: float, q_dyn: float) -> dict[str, float]:
     """Central-differenced stiffness and damping derivatives (SI units)."""
     zero, h_rate, h_ang = np.zeros(3), 1.0e-3, 1.0e-5
 
@@ -273,7 +271,7 @@ def run_r1v2(output_dir: Path) -> VerificationReport:
         zeta = float(np.min(-osc.real / np.abs(osc))) if osc.size else float("nan")
         ratio = absc * _T_SLOW
         rows.append(
-            [f"{q:g}", f"{absc:.4e}", f"{ratio:.2f}", f"{2*np.pi/omega:.3f}", f"{zeta:.2e}"]
+            [f"{q:g}", f"{absc:.4e}", f"{ratio:.2f}", f"{2 * np.pi / omega:.3f}", f"{zeta:.2e}"]
         )
         csv_rows.append([q, absc, ratio, 2 * np.pi / omega, zeta])
     report.add_table(

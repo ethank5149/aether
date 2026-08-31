@@ -192,8 +192,10 @@ def measure(mesh: Any) -> dict[str, Any]:
         # `nose_radius` fits a curve over a window near the tip and so returns an
         # upper bound rather than the true tip radius; named for what it is, as the
         # bundled reference vehicle's manifest already does.
-        for name, call in (("nose_exponent", mesh.nose_exponent),
-                           ("nose_radius_bound_m", mesh.nose_radius)):
+        for name, call in (
+            ("nose_exponent", mesh.nose_exponent),
+            ("nose_radius_bound_m", mesh.nose_radius),
+        ):
             try:
                 value = float(call())
             except Exception:  # pragma: no cover - shape-dependent
@@ -267,9 +269,9 @@ def export_master(
         manifest.update(extra)
 
     component = {"kind": "configuration", "name": name, "file": stl_path.name, **measure(mesh)}
-    manifest["components"] = [
-        c for c in manifest["components"] if c.get("name") != name
-    ] + [component]
+    manifest["components"] = [c for c in manifest["components"] if c.get("name") != name] + [
+        component
+    ]
     manifest["measured"] = measure(mesh)
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return stl_path

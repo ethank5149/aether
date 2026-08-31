@@ -55,6 +55,7 @@ _FloatArray = NDArray[np.float64]
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class OCPProblem:
     """Optimal control problem specification.
@@ -197,6 +198,7 @@ class OCPSolution:
 # LGL nodes and differentiation matrix
 # ---------------------------------------------------------------------------
 
+
 def lgl_nodes(n: int) -> tuple[_FloatArray, _FloatArray]:
     """Legendre-Gauss-Lobatto nodes and weights on ``[-1, 1]``.
 
@@ -260,9 +262,8 @@ def differentiation_matrix(nodes: _FloatArray) -> _FloatArray:
     for i in range(n):
         for j in range(n):
             if i != j:
-                matrix[i, j] = (
-                    _lagrange_weight(nodes, i)
-                    / (_lagrange_weight(nodes, j) * (nodes[i] - nodes[j]))
+                matrix[i, j] = _lagrange_weight(nodes, i) / (
+                    _lagrange_weight(nodes, j) * (nodes[i] - nodes[j])
                 )
 
     # Diagonal entries: negative sum of off-diagonal. This is the "negative
@@ -281,13 +282,14 @@ def _lagrange_weight(nodes: _FloatArray, i: int) -> float:
     xi = nodes[i]
     for j in range(n):
         if j != i:
-            prod *= (xi - nodes[j])
+            prod *= xi - nodes[j]
     return float(prod)
 
 
 # ---------------------------------------------------------------------------
 # Time mapping
 # ---------------------------------------------------------------------------
+
 
 def map_to_physical(tau: _FloatArray, t0: float, tf: float) -> _FloatArray:
     """Map LGL nodes from [-1, 1] to [t0, tf]."""
@@ -302,6 +304,7 @@ def map_to_tau(t: _FloatArray, t0: float, tf: float) -> _FloatArray:
 # ---------------------------------------------------------------------------
 # NLP formulation
 # ---------------------------------------------------------------------------
+
 
 def _build_nlp_variables(
     problem: OCPProblem,
@@ -345,8 +348,7 @@ def _build_nlp_variables(
             )
         if guess_u.shape != (n_nodes + 1, nu):
             raise ValueError(
-                f"initial_guess controls must have shape {(n_nodes + 1, nu)}, "
-                f"got {guess_u.shape}"
+                f"initial_guess controls must have shape {(n_nodes + 1, nu)}, got {guess_u.shape}"
             )
         z0[: (n_nodes + 1) * nx] = guess_x.reshape(-1)
         offset = (n_nodes + 1) * nx
@@ -413,17 +415,11 @@ def _objective(z: _FloatArray, problem: OCPProblem) -> float:
     if problem.running_cost is None:
         return tf
     x = z[: (n_nodes + 1) * nx].reshape(n_nodes + 1, nx)
-    u = z[(n_nodes + 1) * nx : (n_nodes + 1) * nx + (n_nodes + 1) * nu].reshape(
-        n_nodes + 1, nu
-    )
+    u = z[(n_nodes + 1) * nx : (n_nodes + 1) * nx + (n_nodes + 1) * nu].reshape(n_nodes + 1, nu)
     _, weights = lgl_nodes(n_nodes + 1)
     scale = 0.5 * (tf - problem.t0)
     running = float(
-        scale
-        * sum(
-            w * float(problem.running_cost(x[i], u[i]))
-            for i, w in enumerate(weights)
-        )
+        scale * sum(w * float(problem.running_cost(x[i], u[i])) for i, w in enumerate(weights))
     )
     return problem.time_weight * tf + running
 
@@ -491,9 +487,7 @@ def _dynamics_constraints(
     t0 = problem.t0
 
     x = z[: (n_nodes + 1) * nx].reshape(n_nodes + 1, nx)
-    u = z[(n_nodes + 1) * nx : (n_nodes + 1) * nx + (n_nodes + 1) * nu].reshape(
-        n_nodes + 1, nu
-    )
+    u = z[(n_nodes + 1) * nx : (n_nodes + 1) * nx + (n_nodes + 1) * nu].reshape(n_nodes + 1, nu)
 
     # dt/dtau
     scale = 0.5 * (tf - t0)
@@ -597,10 +591,7 @@ def solve_ocp(
         return solve_dymos(problem)
     if solver == "pseudospectral":
         return _solve_pseudospectral(problem)
-    raise ValueError(
-        f"unknown solver: {solver!r}. "
-        f"Choose 'pseudospectral', 'dymos' or 'scvx'"
-    )
+    raise ValueError(f"unknown solver: {solver!r}. Choose 'pseudospectral', 'dymos' or 'scvx'")
 
 
 def _solve_pseudospectral(problem: OCPProblem) -> OCPSolution:
@@ -623,9 +614,7 @@ def _solve_pseudospectral(problem: OCPProblem) -> OCPSolution:
     # is never read. It must track `_dynamics_constraints` exactly.
     n_dynamics = (n_nodes + 1) * nx
     n_boundary = (
-        nx
-        + int(np.sum(np.isfinite(problem.xf_target)))
-        + len(problem.terminal_constraints)
+        nx + int(np.sum(np.isfinite(problem.xf_target))) + len(problem.terminal_constraints)
     )
     n_eq = n_dynamics + n_boundary
 
@@ -664,9 +653,7 @@ def _solve_pseudospectral(problem: OCPProblem) -> OCPSolution:
     # Extract solution
     tf_opt = float(result.x[-1])
     x_opt = result.x[: (n_nodes + 1) * nx].reshape(n_nodes + 1, nx)
-    controls = result.x[
-        (n_nodes + 1) * nx : (n_nodes + 1) * nx + (n_nodes + 1) * nu
-    ]
+    controls = result.x[(n_nodes + 1) * nx : (n_nodes + 1) * nx + (n_nodes + 1) * nu]
     u_opt = controls.reshape(n_nodes + 1, nu)
     t_opt = map_to_physical(tau, problem.t0, tf_opt)
 
@@ -714,15 +701,15 @@ def _solve_scvx(problem: OCPProblem) -> OCPSolution:
         for k in range(nx):
             delta = np.zeros(nx)
             delta[k] = step * max(abs(float(x[k])), 1.0)
-            a_mat[:, k] = (
-                problem.dynamics(x + delta, u) - problem.dynamics(x - delta, u)
-            ) / (2.0 * delta[k])
+            a_mat[:, k] = (problem.dynamics(x + delta, u) - problem.dynamics(x - delta, u)) / (
+                2.0 * delta[k]
+            )
         for k in range(nu):
             delta = np.zeros(nu)
             delta[k] = step * max(abs(float(u[k])), 1.0)
-            b_mat[:, k] = (
-                problem.dynamics(x, u + delta) - problem.dynamics(x, u - delta)
-            ) / (2.0 * delta[k])
+            b_mat[:, k] = (problem.dynamics(x, u + delta) - problem.dynamics(x, u - delta)) / (
+                2.0 * delta[k]
+            )
         return a_mat, b_mat
 
     # A scalar authority bound is what SCvx takes; the OCP carries a box.
@@ -841,8 +828,7 @@ def mesh_error(
         controls = controls.T
     if times.size < 2:
         raise ValueError(
-            f"a mesh error needs at least two nodes to integrate between, "
-            f"got {times.size}"
+            f"a mesh error needs at least two nodes to integrate between, got {times.size}"
         )
 
     # Cubic where there are enough nodes to support it, linear otherwise. The
@@ -852,7 +838,10 @@ def mesh_error(
     kind = "cubic" if times.size >= 4 else "linear"
     interpolants = [
         scipy.interpolate.interp1d(
-            times, controls[:, j], kind=kind, bounds_error=False,
+            times,
+            controls[:, j],
+            kind=kind,
+            bounds_error=False,
             fill_value=(controls[0, j], controls[-1, j]),
         )
         for j in range(controls.shape[1])
@@ -863,9 +852,11 @@ def mesh_error(
         return np.atleast_1d(problem.dynamics(x, control))
 
     flown = scipy.integrate.solve_ivp(
-        derivatives, (float(times[0]), float(times[-1])),
+        derivatives,
+        (float(times[0]), float(times[-1])),
         np.asarray(problem.x0, dtype=np.float64),
-        rtol=rtol, atol=atol,
+        rtol=rtol,
+        atol=atol,
     )
     if not flown.success:
         raise RuntimeError(

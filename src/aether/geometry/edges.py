@@ -102,8 +102,7 @@ class Contour:
             angle = float(
                 np.arccos(
                     np.clip(
-                        np.dot(first, last)
-                        / (np.linalg.norm(first) * np.linalg.norm(last)),
+                        np.dot(first, last) / (np.linalg.norm(first) * np.linalg.norm(last)),
                         -1.0,
                         1.0,
                     )
@@ -195,9 +194,7 @@ def _fillets(
     return tangents, frames
 
 
-def _validated(
-    points: _FloatArray, radii: float | _FloatArray
-) -> tuple[_FloatArray, _FloatArray]:
+def _validated(points: _FloatArray, radii: float | _FloatArray) -> tuple[_FloatArray, _FloatArray]:
     p = np.asarray(points, dtype=np.float64)
     if p.ndim != 2 or p.shape[0] < 3:
         msg = f"need at least 3 points of shape (n, d), got {p.shape}"

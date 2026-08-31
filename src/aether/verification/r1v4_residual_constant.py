@@ -145,22 +145,31 @@ def glide_residual(
         return [
             v * np.sin(gamma),
             -qbar * _S_REF * c_drag / _MASS - g * np.sin(gamma),
-            qbar * _S_REF * c_lift * np.cos(bank) / (_MASS * v)
-            + (v / r - g / v) * np.cos(gamma),
+            qbar * _S_REF * c_lift * np.cos(bank) / (_MASS * v) + (v / r - g / v) * np.cos(gamma),
         ]
 
     h0 = _qeg_altitude(v0, h_scale, c_lift, bank)
     sol = solve_ivp(
-        rhs, (0.0, t_final), np.array([R_E + h0, v0, 0.0]),
-        rtol=1e-11, atol=1e-13, dense_output=True, max_step=0.5,
+        rhs,
+        (0.0, t_final),
+        np.array([R_E + h0, v0, 0.0]),
+        rtol=1e-11,
+        atol=1e-13,
+        dense_output=True,
+        max_step=0.5,
     )
     t = np.linspace(0.0, float(sol.t[-1]), 4000)
     r, v, gamma = sol.sol(t)
     h_qeg = np.array([_qeg_altitude(x, h_scale, c_lift, bank) for x in v])
     return {
-        "t": t, "V": v, "gamma": gamma, "h_qeg": h_qeg,
+        "t": t,
+        "V": v,
+        "gamma": gamma,
+        "h_qeg": h_qeg,
         "dh": np.abs((r - R_E) - h_qeg),
-        "lift_to_drag": c_lift / c_drag, "c_lift": c_lift, "bank": bank,
+        "lift_to_drag": c_lift / c_drag,
+        "c_lift": c_lift,
+        "bank": bank,
     }
 
 
@@ -187,21 +196,36 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
         eps.append(e)
         dh_norm.append(d)
         gam.append(g)
-        rows.append([f"{h_scale/1e3:.1f}", f"{e:.3e}", f"{np.sqrt(e):.4f}",
-                     f"{float(m['dh'].max()):.1f}", f"{d:.4e}",
-                     f"{d/np.sqrt(e):.4f}", f"{np.degrees(g):.4f}"])
+        rows.append(
+            [
+                f"{h_scale / 1e3:.1f}",
+                f"{e:.3e}",
+                f"{np.sqrt(e):.4f}",
+                f"{float(m['dh'].max()):.1f}",
+                f"{d:.4e}",
+                f"{d / np.sqrt(e):.4f}",
+                f"{np.degrees(g):.4f}",
+            ]
+        )
         csv_rows.append([h_scale, e, float(m["dh"].max()), d, g])
     eps_a, dh_a, gam_a = np.array(eps), np.array(dh_norm), np.array(gam)
     p_dh = float(np.polyfit(np.log(eps_a), np.log(dh_a), 1)[0])
     p_gam = float(np.polyfit(np.log(eps_a), np.log(gam_a), 1)[0])
     report.add_table(
         "Residual against eps, by varying the atmospheric scale height",
-        ["H_s [km]", "eps", "sqrt(eps)", "sup|dh| [m]", "sup|dh|/H_s",
-         "C = ratio to sqrt(eps)", "sup|gamma| [deg]"],
+        [
+            "H_s [km]",
+            "eps",
+            "sqrt(eps)",
+            "sup|dh| [m]",
+            "sup|dh|/H_s",
+            "C = ratio to sqrt(eps)",
+            "sup|gamma| [deg]",
+        ],
         rows,
         notes=(
             f"Fitted exponents: **altitude {p_dh:.4f}**, flight-path angle "
-            f"{p_gam:.4f}. The first is 1/2 to within {abs(p_dh-0.5):.4f}, "
+            f"{p_gam:.4f}. The first is 1/2 to within {abs(p_dh - 0.5):.4f}, "
             "which is what licenses the `sqrt(eps)` in the theorem; the "
             "second is 1, so the flight-path channel is one order tighter "
             "than the altitude channel and does not set the bound.\n\n"
@@ -211,9 +235,12 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
             "below necessarily omits."
         ),
     )
-    write_csv(output_dir, "r1v4-residual-scaling",
-              ["H_s_m", "eps", "sup_dh_m", "sup_dh_over_Hs", "sup_gamma_rad"],
-              csv_rows)
+    write_csv(
+        output_dir,
+        "r1v4-residual-scaling",
+        ["H_s_m", "eps", "sup_dh_m", "sup_dh_over_Hs", "sup_gamma_rad"],
+        csv_rows,
+    )
     report.passed = abs(p_dh - 0.5) <= _TOLERANCE
 
     # --- 2. the closed form, across trim, speed and bank ---------------
@@ -234,11 +261,20 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
         i = int(np.argmax(m["dh"]))
         measured = (float(m["dh"][i]) / 7.2e3) / np.sqrt(7.2e3 / R_E)
         predicted = residual_constant(
-            float(m["V"][i]), R_E + float(m["h_qeg"][i]),
-            m["lift_to_drag"], m["bank"],
+            float(m["V"][i]),
+            R_E + float(m["h_qeg"][i]),
+            m["lift_to_drag"],
+            m["bank"],
         )
-        rows.append([name, f"{m['lift_to_drag']:.2f}", f"{measured:.4f}",
-                     f"{predicted:.4f}", f"{measured/predicted:.4f}"])
+        rows.append(
+            [
+                name,
+                f"{m['lift_to_drag']:.2f}",
+                f"{measured:.4f}",
+                f"{predicted:.4f}",
+                f"{measured / predicted:.4f}",
+            ]
+        )
         worst = max(worst, abs(1.0 - measured / predicted))
     report.add_table(
         "The closed form against direct measurement",
@@ -246,7 +282,7 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
         rows,
         notes=(
             f"The formula is an upper bound in every case and is tight to "
-            f"within {100*worst:.1f}%. It is a bound rather than an equality "
+            f"within {100 * worst:.1f}%. It is a bound rather than an equality "
             "because the trajectory *rings* about the manifold at the phugoid "
             "frequency: the formula tracks the envelope of that oscillation "
             "and the measured supremum touches it from below. That is exactly "
@@ -260,7 +296,9 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
     # --- 3. do the two reductions hold in the same place? --------------
     body = curved_lifting_body()
     model = PanelModel(
-        centroids=body.centroids, normals=body.normals, areas=body.areas,
+        centroids=body.centroids,
+        normals=body.normals,
+        areas=body.areas,
         reference_point=np.array([0.35 * 6.0, 0.0, 0.0]),
     )
     rows, window = [], []
@@ -271,23 +309,38 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
         qbar = 0.5 * rho * _V_REF**2
         qdot = float(sutton_graves(rho, _R_NOSE, _V_REF))
         c_r = residual_constant(_V_REF, R_E + h, m["lift_to_drag"], m["bank"])
-        gap = float(
-            np.abs(attitude_spectrum(model, np.radians(25.0), qbar)[0].real).min()
-        ) * _T_SLOW
+        gap = (
+            float(np.abs(attitude_spectrum(model, np.radians(25.0), qbar)[0].real).min()) * _T_SLOW
+        )
         ok = gap > 1.0 and qdot <= _QDOT_MAX
         if ok:
             window.append(alpha_deg)
-        rows.append([
-            f"{alpha_deg:.0f}", f"{m['lift_to_drag']:.2f}",
-            f"{_MASS/(_S_REF*m['c_lift']):.0f}", f"{h/1e3:.1f}",
-            f"{qbar/1e3:.2f}", f"{qdot/1e4:.0f}", f"{c_r:.3f}", f"{gap:.3f}",
-            "both hold" if ok else ("attitude gap < 1" if gap <= 1.0 else "over heating cap"),
-        ])
+        rows.append(
+            [
+                f"{alpha_deg:.0f}",
+                f"{m['lift_to_drag']:.2f}",
+                f"{_MASS / (_S_REF * m['c_lift']):.0f}",
+                f"{h / 1e3:.1f}",
+                f"{qbar / 1e3:.2f}",
+                f"{qdot / 1e4:.0f}",
+                f"{c_r:.3f}",
+                f"{gap:.3f}",
+                "both hold" if ok else ("attitude gap < 1" if gap <= 1.0 else "over heating cap"),
+            ]
+        )
     report.add_table(
-        "Where both reductions hold at once, along the glide manifold at "
-        f"V = {_V_REF:.0f} m/s",
-        ["alpha [deg]", "L/D", "m/(S C_L)", "h_QEG [km]", "qbar [kPa]",
-         "qdot [W/cm2]", "C_R", "gap x T_slow", "verdict"],
+        f"Where both reductions hold at once, along the glide manifold at V = {_V_REF:.0f} m/s",
+        [
+            "alpha [deg]",
+            "L/D",
+            "m/(S C_L)",
+            "h_QEG [km]",
+            "qbar [kPa]",
+            "qdot [W/cm2]",
+            "C_R",
+            "gap x T_slow",
+            "verdict",
+        ],
         rows,
         notes=(
             "On the glide manifold `qbar = m g k^2 / (S C_L cos sigma)` is set "

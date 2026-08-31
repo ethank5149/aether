@@ -177,9 +177,7 @@ class SolverOptions:
 
     def __post_init__(self) -> None:
         if self.radiation not in _RADIATION_MODES:
-            raise ValueError(
-                f"radiation must be one of {_RADIATION_MODES}, got {self.radiation!r}"
-            )
+            raise ValueError(f"radiation must be one of {_RADIATION_MODES}, got {self.radiation!r}")
         for name in ("newton_tolerance", "recession_tolerance", "min_temperature"):
             value = getattr(self, name)
             if not (value > 0.0 and not np.isnan(value)):
@@ -289,9 +287,7 @@ class FiatSolver:
         self._virgin = np.array([_virgin_density(m) for m in self._materials])
         self._char = np.array([_char_density(m) for m in self._materials])
         self._n_top = stack.plies[0].n_cells
-        self._pressure_k = [
-            stack.plies[i].pressure_conductivity for i in stack.grid(0.0).ply_index
-        ]
+        self._pressure_k = [stack.plies[i].pressure_conductivity for i in stack.grid(0.0).ply_index]
         self._any_pressure_k = any(c is not None for c in self._pressure_k)
         # Per-cell Arrhenius parameter arrays, so the kinetics update is a
         # vectorised (n_cells, 3) operation rather than a Python loop.
@@ -308,14 +304,10 @@ class FiatSolver:
                 "mixing a 3-component and a 7-component material in one stack "
                 "would make the packed state ambiguous"
             )
-        self._weights = np.array(
-            [list(_component_weights(m)) for m in self._materials]
-        )
+        self._weights = np.array([list(_component_weights(m)) for m in self._materials])
         self._gas_slope = np.array([m.gas_enthalpy_slope for m in self._materials])
         self._solid_slope = np.array([m.solid_enthalpy_slope for m in self._materials])
-        ext = [
-            stack.plies[i].extinction_coefficient for i in stack.grid(0.0).ply_index
-        ]
+        ext = [stack.plies[i].extinction_coefficient for i in stack.grid(0.0).ply_index]
         self._opaque = any(e is None for e in ext)
         self._extinction = np.array([e if e is not None else np.inf for e in ext])
 
@@ -461,10 +453,7 @@ class FiatSolver:
         bondline, where the answer matters most.
         """
         half_left, half_right = 0.5 * widths[:-1], 0.5 * widths[1:]
-        return np.asarray(
-            (half_left + half_right) / (half_left / k[:-1] + half_right / k[1:])
-        )
-
+        return np.asarray((half_left + half_right) / (half_left / k[:-1] + half_right / k[1:]))
 
     def _residual(
         self, unknowns: _FloatArray, ctx: _StepContext
@@ -552,9 +541,7 @@ class FiatSolver:
             - gas_flux * (h_face[1:] - h_face[:-1])
         )
 
-        residual[n], surface = self._surface(
-            t_wall, surface_gas_flux, float(q[0]), ctx
-        )
+        residual[n], surface = self._surface(t_wall, surface_gas_flux, float(q[0]), ctx)
         residual[n + 1] = ctx.backface.closure(
             float(t_cell[-1]), t_back, float(k[-1]), 0.5 * widths[-1]
         )
@@ -595,17 +582,11 @@ class FiatSolver:
             ctx.environment,
             ctx.table,
             self._char[0],
-            char_enthalpy=float(
-                top.solid_enthalpy_offset + top.solid_enthalpy_slope * t_wall
-            ),
-            gas_enthalpy=float(
-                top.gas_enthalpy_offset + top.gas_enthalpy_slope * t_wall
-            ),
+            char_enthalpy=float(top.solid_enthalpy_offset + top.solid_enthalpy_slope * t_wall),
+            gas_enthalpy=float(top.gas_enthalpy_offset + top.gas_enthalpy_slope * t_wall),
         )
 
-    def _face_weight_matrix(
-        self, w_right: _FloatArray, slope: _FloatArray | None
-    ) -> _FloatArray:
+    def _face_weight_matrix(self, w_right: _FloatArray, slope: _FloatArray | None) -> _FloatArray:
         """:math:`\\partial(\\text{face value})/\\partial u`, shape ``(n+1, n+2)``.
 
         Face values are width-weighted interpolants of the two adjacent
@@ -623,9 +604,7 @@ class FiatSolver:
         m[n, n - 1] = d[-1]
         return m
 
-    def _gas_flux_sensitivity(
-        self, domega_dt: _FloatArray, widths: _FloatArray
-    ) -> _FloatArray:
+    def _gas_flux_sensitivity(self, domega_dt: _FloatArray, widths: _FloatArray) -> _FloatArray:
         """:math:`\\partial \\dot m_g/\\partial u`, shape ``(n, n+2)``.
 
         Eq. (9) integrates decomposition upward from the backface, so the
@@ -693,14 +672,13 @@ class FiatSolver:
         dk_dt = self._property_derivative(
             "conductivity", t_cell, rho, drho_dt, ctx.environment.pressure
         )
-        jac[idx, idx] += storage + (
-            (drho_dt * cp + rho * dcp_dt) * widths / ctx.dt
-        ) * (t_cell - ctx.previous_temperature)
+        jac[idx, idx] += storage + ((drho_dt * cp + rho * dcp_dt) * widths / ctx.dt) * (
+            t_cell - ctx.previous_temperature
+        )
 
         # Pyrolysis source, -(h_g - h_bar) * omega * width.
         jac[idx, idx] -= (
-            (self._gas_slope - self._solid_slope) * omega
-            + (h_g - h_bar) * domega_dt
+            (self._gas_slope - self._solid_slope) * omega + (h_g - h_bar) * domega_dt
         ) * widths
 
         # Conduction, including the temperature dependence of k. At interior
@@ -750,9 +728,7 @@ class FiatSolver:
         jac[:n, :] -= (advect * rho * cp)[:, None] * (d_tface[1:] - d_tface[:-1])
         # rho and cp in that coefficient are themselves functions of T, and
         # with an active pyrolysis front drho/dT is not small.
-        jac[idx, idx] -= (
-            advect * (drho_dt * cp + rho * dcp_dt) * (t_face[1:] - t_face[:-1])
-        )
+        jac[idx, idx] -= advect * (drho_dt * cp + rho * dcp_dt) * (t_face[1:] - t_face[:-1])
         jac[:n, :] -= gas_flux[:, None] * (d_hface[1:] - d_hface[:-1])
         jac[:n, :] -= (h_face[1:] - h_face[:-1])[:, None] * d_gas
 
@@ -806,12 +782,8 @@ class FiatSolver:
         g_lo, g_hi = ctx.table.gas_rate_range
         m_lo, m_hi = (g_lo * c_m, g_hi * c_m) if c_m > 0.0 else (0.0, np.inf)
 
-        d_seb_dtw = probe(
-            t_wall, t_lo, t_hi, 1.0e-3 * max(t_wall, 1.0), lambda v: (v, m_g)
-        )
-        d_seb_dmg = probe(
-            m_g, m_lo, m_hi, 1.0e-6 * max(m_g, c_m, 1.0e-6), lambda v: (t_wall, v)
-        )
+        d_seb_dtw = probe(t_wall, t_lo, t_hi, 1.0e-3 * max(t_wall, 1.0), lambda v: (v, m_g))
+        d_seb_dmg = probe(m_g, m_lo, m_hi, 1.0e-6 * max(m_g, c_m, 1.0e-6), lambda v: (t_wall, v))
 
         jac[n, n] = d_seb_dtw - dq0_dtw
         jac[n, 0] = -dq0_dt0
@@ -907,9 +879,7 @@ class FiatSolver:
             raise ValueError(f"dt must be finite and > 0, got {dt}")
         opt = self._opt
         t_w = float(wall_temperature if wall_temperature is not None else temperature[0])
-        t_b = float(
-            backface_temperature if backface_temperature is not None else temperature[-1]
-        )
+        t_b = float(backface_temperature if backface_temperature is not None else temperature[-1])
         unknowns = np.concatenate([np.asarray(temperature, dtype=np.float64), [t_w, t_b]])
 
         s_new = float(recession)
@@ -996,9 +966,11 @@ class FiatSolver:
                         # surfaces below as a genuine failure.
                         alpha *= 0.5
                         continue
-                    if float(np.max(np.abs(trial_residual))) <= float(
-                        np.max(np.abs(residual))
-                    ) * (1.0 - 1.0e-4 * alpha) or alpha < 1e-8:
+                    if (
+                        float(np.max(np.abs(trial_residual)))
+                        <= float(np.max(np.abs(residual))) * (1.0 - 1.0e-4 * alpha)
+                        or alpha < 1e-8
+                    ):
                         u, residual, info = trial, trial_residual, trial_info
                         accepted = True
                         break
@@ -1034,8 +1006,7 @@ class FiatSolver:
             raise ValueError("times must be strictly increasing with >= 2 entries")
         if len(environments) != t.size - 1:
             raise ValueError(
-                f"need {t.size - 1} environments for {t.size} times, "
-                f"got {len(environments)}"
+                f"need {t.size - 1} environments for {t.size} times, got {len(environments)}"
             )
         temperature, components = self.initial_state(initial_temperature)
         solution = FiatSolution(times=t)

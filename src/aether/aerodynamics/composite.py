@@ -215,9 +215,7 @@ class SkinFrictionModel:
                 0.0,
             )
         )
-        edge_temperature = temperature * stagnation / (
-            1.0 + 0.5 * (g - 1.0) * edge_mach**2
-        )
+        edge_temperature = temperature * stagnation / (1.0 + 0.5 * (g - 1.0) * edge_mach**2)
         edge_density = edge_pressure / (gas_constant * edge_temperature)
         edge_speed = edge_mach * np.sqrt(g * gas_constant * edge_temperature)
 
@@ -375,9 +373,7 @@ class PatchedSolver:
         altitude = self.altitude_at(m)
         stream = self.atmosphere.state(altitude)
         speed = m * float(stream.speed_of_sound)
-        reynolds = (
-            float(stream.density) * speed * self.reference_length / float(stream.viscosity)
-        )
+        reynolds = float(stream.density) * speed * self.reference_length / float(stream.viscosity)
         chi = m**3 / np.sqrt(max(reynolds, 1.0))
         low, high = self.viscous_interaction_band
         knudsen = float(stream.mean_free_path) / self.reference_length
@@ -397,9 +393,7 @@ class PatchedSolver:
             return None
         state = self.atmosphere.state(self.altitude_at(mach))
         speed = float(mach) * float(state.speed_of_sound)
-        return self.real_gas.cp_max(
-            float(state.temperature), float(state.pressure), speed
-        )
+        return self.real_gas.cp_max(float(state.temperature), float(state.pressure), speed)
 
     # -- the pieces --------------------------------------------------------
 
@@ -420,11 +414,7 @@ class PatchedSolver:
         # 2e-16 and reported that nothing covered it.
         edge_tolerance = 1e-9 * max(abs(lower), 1.0)
         inviscid = self._panel(m, alpha, cp_max) if m >= lower - edge_tolerance else None
-        euler = (
-            self.euler.solve(m, alpha)
-            if m <= upper and self.euler is not None
-            else None
-        )
+        euler = self.euler.solve(m, alpha) if m <= upper and self.euler is not None else None
 
         if inviscid is None and euler is None:
             msg = (
@@ -531,16 +521,12 @@ class PatchedSolver:
 
     # -- panel-method plumbing --------------------------------------------
 
-    def _panel(
-        self, mach: float, alpha: float, cp_max: float | None
-    ) -> Coefficients:
+    def _panel(self, mach: float, alpha: float, cp_max: float | None) -> Coefficients:
         if cp_max is None:
             return cast(Coefficients, self.panel.solve(mach, alpha))
         return cast(Coefficients, self.panel.solve(mach, alpha, cp_max=cp_max))
 
-    def _panel_pressures(
-        self, mach: float, alpha: float, cp_max: float | None
-    ) -> _FloatArray:
+    def _panel_pressures(self, mach: float, alpha: float, cp_max: float | None) -> _FloatArray:
         """The panel pressure distribution the friction model needs.
 
         Taken from the panel method even inside the blend band where the

@@ -21,9 +21,7 @@ from aether.verification.v8_throughput import run_v8
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Run the public numerics verification tasks"
-    )
+    parser = argparse.ArgumentParser(description="Run the public numerics verification tasks")
     parser.add_argument("--output", type=Path, default=Path("results"))
     args = parser.parse_args()
 

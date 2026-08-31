@@ -46,9 +46,7 @@ _SLOPE_LIMIT = 1.3  # criterion: not growing faster than O(N)
 
 
 def _uniform_operator(n: int) -> VariableCoefficientOperator:
-    return VariableCoefficientOperator(
-        [None] * 4 + [lambda s: np.ones_like(s)], n, (0.0, 1.0)
-    )
+    return VariableCoefficientOperator([None] * 4 + [lambda s: np.ones_like(s)], n, (0.0, 1.0))
 
 
 def _stepped_operator(n: int) -> VariableCoefficientOperator:
@@ -87,8 +85,7 @@ def run_p2v1(output_dir: Path) -> VerificationReport:
         task_id="II-V1",
         title="Ultraspherical operator — conditioning vs N (univariate leg)",
         criterion=(
-            "κ growing faster than O(N); Mindlin–Reissner block-operator leg "
-            "pending roadmap item 9"
+            "κ growing faster than O(N); Mindlin–Reissner block-operator leg pending roadmap item 9"
         ),
         passed=True,
     )
@@ -114,8 +111,15 @@ def run_p2v1(output_dir: Path) -> VerificationReport:
 
     report.add_table(
         "Conditioning of the fourth-order variable-EI operator (ultraspherical)",
-        ["N", "uniform interior raw", "uniform precond.", "uniform bordered",
-         "stepped interior raw", "stepped precond.", "stepped bordered"],
+        [
+            "N",
+            "uniform interior raw",
+            "uniform precond.",
+            "uniform bordered",
+            "stepped interior raw",
+            "stepped precond.",
+            "stepped bordered",
+        ],
         rows_md,
     )
     write_csv(
@@ -127,13 +131,11 @@ def run_p2v1(output_dir: Path) -> VerificationReport:
 
     log_n = np.log(_N_SWEEP)
     slopes = {
-        label: float(np.polyfit(log_n, np.log(kappas[label]["raw"]), 1)[0])
-        for label in kappas
+        label: float(np.polyfit(log_n, np.log(kappas[label]["raw"]), 1)[0]) for label in kappas
     }
     pre_max = max(max(kappas[label]["pre"]) for label in kappas)
     bordered_slopes = {
-        label: float(np.polyfit(log_n, np.log(kappas[label]["bordered"]), 1)[0])
-        for label in kappas
+        label: float(np.polyfit(log_n, np.log(kappas[label]["bordered"]), 1)[0]) for label in kappas
     }
     slope_ok = all(s <= _SLOPE_LIMIT for s in slopes.values())
     report.add_section(

@@ -129,8 +129,7 @@ def stepped_profile(
         )
     if x_j.shape != (ei_seg.size - 1,):
         raise ValueError(
-            f"need exactly {ei_seg.size - 1} joints for {ei_seg.size} segments, "
-            f"got {x_j.size}"
+            f"need exactly {ei_seg.size - 1} joints for {ei_seg.size} segments, got {x_j.size}"
         )
     if x_j.size > 1 and not np.all(np.diff(x_j) > 0.0):
         raise ValueError("joints must be strictly increasing")

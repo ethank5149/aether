@@ -154,9 +154,7 @@ class Texture:
         mid = np.deg2rad(0.5 * (self.north + self.south))
         return float(np.deg2rad(d_lon) * 6378137.0 * max(np.cos(mid), 1.0e-6))
 
-    def covers(
-        self, latitude: float, longitude: float, margin: float = 0.0
-    ) -> bool:
+    def covers(self, latitude: float, longitude: float, margin: float = 0.0) -> bool:
         """Whether a degree point lies inside the box, less ``margin`` degrees."""
         lon = (float(longitude) - self.west) % 360.0 + self.west
         return bool(
@@ -164,9 +162,7 @@ class Texture:
             and self.west + margin <= lon <= self.east - margin
         )
 
-    def overlaps(
-        self, latitude: float, longitude: float, radius_degrees: float
-    ) -> bool:
+    def overlaps(self, latitude: float, longitude: float, radius_degrees: float) -> bool:
         """Whether this box meets a disc of ``radius_degrees`` about a point.
 
         The test a *frame* needs, where :meth:`covers` is the test a *point*
@@ -195,9 +191,20 @@ class Texture:
         """The same box with different pixels — for a device upload."""
         return Texture(data, self.south, self.north, self.west, self.east)
 
+
 MONTH_NAMES = (
-    "january", "february", "march", "april", "may", "june",
-    "july", "august", "september", "october", "november", "december",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
 )
 
 #: ``(column, row)`` of each BMNG tile and the degree box it covers.
@@ -306,9 +313,7 @@ class BlueMarble:
         assert self.cache is not None
         return self.cache / f"bmng-{month:02d}-{height}.npy"
 
-    def mosaic(
-        self, height: int = 4096, month: int = 1, rebuild: bool = False
-    ) -> _ByteImage:
+    def mosaic(self, height: int = 4096, month: int = 1, rebuild: bool = False) -> _ByteImage:
         """Decimated global equirectangular texture, ``(height, 2*height, 3)`` uint8.
 
         Row 0 is +90 latitude and column 0 is -180 longitude, which is the
@@ -360,9 +365,7 @@ class BlueMarble:
                     out_shape=(3, tile_h, tile_w),
                     resampling=rasterio.enums.Resampling.average,
                 )
-            image[top : top + tile_h, left : left + tile_w] = np.transpose(
-                block, (1, 2, 0)
-            )
+            image[top : top + tile_h, left : left + tile_w] = np.transpose(block, (1, 2, 0))
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         np.save(destination, image)
@@ -476,9 +479,9 @@ class BlueMarble:
                     resampling=rasterio.enums.Resampling.average,
                 )
             slot_r, slot_c = (r0 - row0) // stride, (c0 - col0) // stride
-            image[
-                slot_r : slot_r + block.shape[1], slot_c : slot_c + block.shape[2]
-            ] = np.transpose(block, (1, 2, 0))
+            image[slot_r : slot_r + block.shape[1], slot_c : slot_c + block.shape[2]] = (
+                np.transpose(block, (1, 2, 0))
+            )
 
         return Texture(
             image,

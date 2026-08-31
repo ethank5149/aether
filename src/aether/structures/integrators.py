@@ -68,9 +68,7 @@ def explicit_dt_limit(omega_maximum: float, c_rk: float = C_RK_FEHLBERG5) -> flo
 def _as_state(x: NDArray[np.floating], n: int, name: str) -> _FloatArray:
     arr = np.asarray(x, dtype=np.float64)
     if arr.shape[0] != n or arr.ndim not in (1, 2):
-        raise ValueError(
-            f"{name} must have shape ({n},) or ({n}, n_batch), got {arr.shape}"
-        )
+        raise ValueError(f"{name} must have shape ({n},) or ({n}, n_batch), got {arr.shape}")
     return arr
 
 
@@ -130,11 +128,7 @@ class NewmarkIntegrator:
             raise ValueError(
                 f"unconditional stability requires beta >= gamma/2 = {gamma / 2.0}, got {beta}"
             )
-        c = (
-            np.zeros_like(k)
-            if damping is None
-            else np.asarray(damping, dtype=np.float64)
-        )
+        c = np.zeros_like(k) if damping is None else np.asarray(damping, dtype=np.float64)
         if c.shape != k.shape:
             raise ValueError(f"damping shape {c.shape} does not match k_hat shape {k.shape}")
 

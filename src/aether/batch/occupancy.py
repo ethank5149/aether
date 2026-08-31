@@ -113,9 +113,7 @@ def theoretical_occupancy(
         if rounded > 0
         else max_blocks_per_sm
     )
-    by_shared = (
-        limits["shared_bytes_per_sm"] // shared if shared > 0 else max_blocks_per_sm
-    )
+    by_shared = limits["shared_bytes_per_sm"] // shared if shared > 0 else max_blocks_per_sm
     by_warps = max_warps // warps_per_block
     candidates = {
         "registers": by_registers,
@@ -200,13 +198,17 @@ def achieved_occupancy(
         if sibling.is_file():
             resolved = str(sibling)
     if resolved is None:
-        return AchievedOccupancy(
-            available=False, reason=f"{ncu_executable} not found on PATH"
-        )
+        return AchievedOccupancy(available=False, reason=f"{ncu_executable} not found on PATH")
     metric = "sm__warps_active.avg.pct_of_peak_sustained_active"
     command = [
-        resolved, "--metrics", metric, "--csv", "--target-processes", "all",
-        python_executable or sys.executable, str(path),
+        resolved,
+        "--metrics",
+        metric,
+        "--csv",
+        "--target-processes",
+        "all",
+        python_executable or sys.executable,
+        str(path),
     ]
     try:
         completed = subprocess.run(

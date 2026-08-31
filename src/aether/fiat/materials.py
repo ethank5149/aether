@@ -287,9 +287,7 @@ def pica_like_material(heritage: bool = False) -> CharringMaterial:
         # `conductivity=MEDLI2_PICA_CONDUCTIVITY` overrides this with the
         # full pressure dependence; this field is the sea-level fallback for
         # code paths that have no pressure to hand.
-        conductivity=(
-            HERITAGE_PICA_CONDUCTIVITY if heritage else MEDLI2_PICA_CONDUCTIVITY
-        ).high,
+        conductivity=(HERITAGE_PICA_CONDUCTIVITY if heritage else MEDLI2_PICA_CONDUCTIVITY).high,
         specific_heat=LinearBlendProperty(1100.0, 0.32, 1250.0, 0.30),
         gas_specific_heat=2100.0,
         gas_enthalpy_offset=-2.2e6,
@@ -475,9 +473,7 @@ def read_tran_specific_heat(directory: str | Path) -> LinearBlendProperty:
     t = _fahrenheit(raw[:, 0])
     cp = raw[:, 1] * _BTU_PER_LBM_F
     slope, intercept = np.polyfit(t, cp, 1)
-    return LinearBlendProperty(
-        float(intercept), float(slope), float(intercept), float(slope)
-    )
+    return LinearBlendProperty(float(intercept), float(slope), float(intercept), float(slope))
 
 
 @dataclass(frozen=True)

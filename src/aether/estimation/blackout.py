@@ -114,9 +114,9 @@ def saha_electron_density(
 
     thermal = (2.0 * np.pi * _ELECTRON_MASS * _BOLTZMANN * t / _PLANCK**2) ** 1.5
     with np.errstate(over="ignore", under="ignore"):
-        k_saha = 2.0 * degeneracy_ratio * thermal * np.exp(
-            -ionization_energy / (_BOLTZMANN * t)
-        ) / n
+        k_saha = (
+            2.0 * degeneracy_ratio * thermal * np.exp(-ionization_energy / (_BOLTZMANN * t)) / n
+        )
     # alpha^2/(1-alpha) = K  =>  alpha = (-K + sqrt(K^2 + 4K))/2, the root in [0, 1]
     k_saha = np.minimum(k_saha, 1.0e300)
     alpha = 0.5 * (-k_saha + np.sqrt(k_saha * k_saha + 4.0 * k_saha))
@@ -129,9 +129,7 @@ def plasma_frequency(electron_density: ArrayLike) -> _FloatArray:
     n_e = np.asarray(electron_density, dtype=np.float64)
     if np.any(n_e < 0.0) or not np.all(np.isfinite(n_e)):
         raise ValueError("electron_density must be finite and >= 0")
-    return np.asarray(
-        np.sqrt(n_e * _ELECTRON_CHARGE**2 / (_ELECTRON_MASS * _VACUUM_PERMITTIVITY))
-    )
+    return np.asarray(np.sqrt(n_e * _ELECTRON_CHARGE**2 / (_ELECTRON_MASS * _VACUUM_PERMITTIVITY)))
 
 
 @dataclass
@@ -246,9 +244,7 @@ def unaided_position_variance(
     if channels == "all":
         return np.asarray(sum(terms.values()))
     if channels not in terms:
-        raise ValueError(
-            f"channels must be 'all' or one of {sorted(terms)}, got {channels!r}"
-        )
+        raise ValueError(f"channels must be 'all' or one of {sorted(terms)}, got {channels!r}")
     return np.asarray(terms[channels])
 
 

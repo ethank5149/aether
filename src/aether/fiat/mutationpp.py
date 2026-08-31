@@ -153,8 +153,7 @@ def read_mutationpp_bprime(
     raw = np.loadtxt(Path(path), skiprows=1)
     if raw.ndim != 2 or raw.shape[1] < 6:
         raise ValueError(
-            f"expected the 5 B' columns plus at least one species column, "
-            f"got shape {raw.shape}"
+            f"expected the 5 B' columns plus at least one species column, got shape {raw.shape}"
         )
     pressure_bar, gas_rate, wall_t, char_rate, hw_mj = raw[:, :5].T
     # The final column is the condensed-carbon mole fraction: 1 where a

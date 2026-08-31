@@ -166,3 +166,58 @@ def test_the_ogive_is_not_the_same_body_as_sears_haack() -> None:
 def test_degenerate_dimensions_are_refused(kwargs: dict) -> None:
     with pytest.raises(ValueError, match="must be positive"):
         von_karman_ogive(**kwargs)
+
+
+# ------------------------------------------------------- the meshing backend
+
+
+def test_a_gmsh_that_will_not_load_says_why(monkeypatch) -> None:
+    """The wheel installs and then fails to import, which reads as a bug.
+
+    ``pip install gmsh`` succeeds, so the package is present and the failure
+    arrives three frames inside a meshing call as ``libXft.so.2: cannot open
+    shared object file`` -- naming a library nobody asked for, in a process
+    that is headless and will never open a window. What is actually needed is
+    a system library pip cannot install, and the error has to say so or the
+    next person spends the afternoon reinstalling gmsh.
+    """
+    import builtins
+
+    from aether.geometry.backend import require_gmsh
+
+    real = builtins.__import__
+
+    def refuse(name, *args, **kwargs):
+        if name == "gmsh":
+            raise OSError("libXft.so.2: cannot open shared object file")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", refuse)
+    with pytest.raises(OSError) as caught:
+        require_gmsh()
+
+    message = str(caught.value)
+    assert "not a missing Python package" in message
+    assert "conda install -c conda-forge" in message
+    assert "xorg-libxft" in message
+    assert "libxft2" in message
+
+
+def test_a_gmsh_that_is_absent_is_distinguished_from_one_that_is_broken(
+    monkeypatch,
+) -> None:
+    """Different problems, different fixes; the same traceback otherwise."""
+    import builtins
+
+    from aether.geometry.backend import require_gmsh
+
+    real = builtins.__import__
+
+    def absent(name, *args, **kwargs):
+        if name == "gmsh":
+            raise ImportError("No module named 'gmsh'")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", absent)
+    with pytest.raises(ImportError, match="gmsh is not installed"):
+        require_gmsh()

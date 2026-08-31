@@ -120,8 +120,10 @@ class TabulatedWind:
         if np.any(np.diff(z) <= 0.0):
             msg = "altitude must be strictly increasing"
             raise ValueError(msg)
-        components = [np.asarray(self.east, dtype=np.float64),
-                      np.asarray(self.north, dtype=np.float64)]
+        components = [
+            np.asarray(self.east, dtype=np.float64),
+            np.asarray(self.north, dtype=np.float64),
+        ]
         components.append(
             np.zeros_like(z) if self.up is None else np.asarray(self.up, dtype=np.float64)
         )
@@ -146,9 +148,7 @@ class TabulatedWind:
         knots = np.concatenate(
             [[float(z[0]) - max(float(z[0]), 1.0)], z, [self.ceiling, self.ceiling + span]]
         )
-        padded = [
-            np.concatenate([[values[0]], values, [0.0, 0.0]]) for values in components
-        ]
+        padded = [np.concatenate([[values[0]], values, [0.0, 0.0]]) for values in components]
         object.__setattr__(
             self,
             "_interpolants",
@@ -178,9 +178,7 @@ class TabulatedWind:
         """
         z = np.asarray(altitude, dtype=np.float64)
         clamped = np.clip(z, self._knots[0], self._knots[1])
-        return np.asarray(
-            np.stack([f(clamped) for f in self._interpolants], axis=-1)
-        )
+        return np.asarray(np.stack([f(clamped) for f in self._interpolants], axis=-1))
 
     def shear(self, altitude: ArrayLike) -> _FloatArray:
         """:math:`d\\mathbf{V}_w/dz` (1/s), shape ``(..., 3)``.
@@ -192,9 +190,7 @@ class TabulatedWind:
         z = np.asarray(altitude, dtype=np.float64)
         inside = (z >= self._knots[0]) & (z <= self._knots[1])
         clamped = np.clip(z, self._knots[0], self._knots[1])
-        derivative = np.stack(
-            [f.derivative()(clamped) for f in self._interpolants], axis=-1
-        )
+        derivative = np.stack([f.derivative()(clamped) for f in self._interpolants], axis=-1)
         return np.asarray(derivative * inside[..., np.newaxis])
 
     def speed(self, altitude: ArrayLike) -> _FloatArray:
@@ -213,9 +209,7 @@ class TabulatedWind:
         return np.asarray(np.arctan2(-wind[..., 0], -wind[..., 1]) % (2.0 * np.pi))
 
 
-def relative_velocity(
-    ground_velocity: ArrayLike, wind: ArrayLike
-) -> _FloatArray:
+def relative_velocity(ground_velocity: ArrayLike, wind: ArrayLike) -> _FloatArray:
     """Air-relative velocity: :math:`\\mathbf{V}_\\infty = \\mathbf{V}_g - \\mathbf{V}_w`.
 
     Both arguments are in the same local frame — ENU at the vehicle. This is a

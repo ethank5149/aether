@@ -134,9 +134,7 @@ class ModalSolution:
         translation participation quantifies the approximation.
         """
         if not 1 <= n_modes <= self.frequencies.size:
-            raise ValueError(
-                f"n_modes must be in [1, {self.frequencies.size}], got {n_modes}"
-            )
+            raise ValueError(f"n_modes must be in [1, {self.frequencies.size}], got {n_modes}")
         omega = self.frequencies[:n_modes].copy()
         omega[: self.n_rigid] = 0.0  # rigid modes propagate as exact drift
         omega.flags.writeable = False
@@ -150,9 +148,7 @@ class ModalSolution:
         """Cumulative translation effective-mass fraction of the lowest
         ``n_modes`` modes."""
         if not 1 <= n_modes <= self.frequencies.size:
-            raise ValueError(
-                f"n_modes must be in [1, {self.frequencies.size}], got {n_modes}"
-            )
+            raise ValueError(f"n_modes must be in [1, {self.frequencies.size}], got {n_modes}")
         return float(np.sum(self.translation_participation[:n_modes]))
 
 

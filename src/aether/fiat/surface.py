@@ -140,9 +140,7 @@ class BackfaceCondition:
         if self.kind is BackfaceKind.FIXED_TEMPERATURE:
             assert self.temperature is not None
             return t_back - self.temperature
-        radiated = self.emissivity * STEFAN_BOLTZMANN * (
-            t_back**4 - self.sink_temperature**4
-        )
+        radiated = self.emissivity * STEFAN_BOLTZMANN * (t_back**4 - self.sink_temperature**4)
         return conduction - radiated
 
     def closure_jacobian(
@@ -214,8 +212,7 @@ class AerothermalEnvironment:
         if not (np.isfinite(self.film_coefficient) and self.film_coefficient >= 0.0):
             raise ValueError("film_coefficient must be finite and >= 0")
         if self.mass_transfer_coefficient is not None and not (
-            np.isfinite(self.mass_transfer_coefficient)
-            and self.mass_transfer_coefficient >= 0.0
+            np.isfinite(self.mass_transfer_coefficient) and self.mass_transfer_coefficient >= 0.0
         ):
             raise ValueError("mass_transfer_coefficient must be finite and >= 0")
         if not np.isfinite(self.recovery_enthalpy):
@@ -313,10 +310,7 @@ def solve_surface(
         + m_g * gas_enthalpy
         + environment.wall_absorptance * environment.radiative_flux
         - (m_c + m_g) * h_w
-        - environment.view_factor
-        * STEFAN_BOLTZMANN
-        * environment.wall_emissivity
-        * t_w**4
+        - environment.view_factor * STEFAN_BOLTZMANN * environment.wall_emissivity * t_w**4
         - conduction_flux
     )
     state = SurfaceState(

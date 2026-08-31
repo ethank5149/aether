@@ -123,9 +123,7 @@ class ElevationSample:
 
 def _parse_directory(name: str) -> tuple[float, float, float] | None:
     """``(south, west, degrees_per_tile_lat)`` from a GMTED directory name."""
-    match = re.fullmatch(
-        r"GMTED2010([NS])(\d{2})([EW])(\d{3})(?:_(\d{3}))?", name
-    )
+    match = re.fullmatch(r"GMTED2010([NS])(\d{2})([EW])(\d{3})(?:_(\d{3}))?", name)
     if match is None:
         return None
     ns, lat, ew, lon, _resolution = match.groups()
@@ -175,8 +173,7 @@ class Terrain:
             if not matches:
                 continue
             self._tiles.append(
-                _Tile(matches[0], south=south, west=west, height_degrees=span,
-                      width_degrees=30.0)
+                _Tile(matches[0], south=south, west=west, height_degrees=span, width_degrees=30.0)
             )
         if not self._tiles:
             msg = (
@@ -250,9 +247,9 @@ class Terrain:
                 row1 = min(row1, handle.height)
                 if col1 <= col0 or row1 <= row0:  # pragma: no cover - clipped away
                     continue
-                block = handle.read(
-                    1, window=Window(col0, row0, col1 - col0, row1 - row0)
-                ).astype(np.float64)
+                block = handle.read(1, window=Window(col0, row0, col1 - col0, row1 - row0)).astype(
+                    np.float64
+                )
 
             missing = block <= NODATA + 1
             block = np.where(missing, 0.0, block)
@@ -279,9 +276,7 @@ class Terrain:
             out[inside] = top * (1 - fr) + bottom * fr
             # A sample is void only if every corner it drew from was void;
             # a coastline cell interpolating one land corner is real data.
-            corners = (
-                missing[r0, c0] & missing[r0, c1] & missing[r1, c0] & missing[r1, c1]
-            )
+            corners = missing[r0, c0] & missing[r0, c1] & missing[r1, c0] & missing[r1, c1]
             void[inside] = corners
 
         return ElevationSample(
@@ -303,7 +298,8 @@ class Terrain:
             msg = f"coarse height must be even and at least 32, got {height}"
             raise ValueError(msg)
         destination = (
-            Path(cache) if cache is not None
+            Path(cache)
+            if cache is not None
             else self.root / "_coarse" / f"gmted-{self.product}-{height}.npy"
         )
         if destination.is_file() and not rebuild:
@@ -333,7 +329,6 @@ class Terrain:
         destination.parent.mkdir(parents=True, exist_ok=True)
         np.save(destination, grid)
         return np.asarray(grid)
-
 
     def patch(
         self,
@@ -397,9 +392,9 @@ class Terrain:
             raise ValueError(msg)
 
         touched = [
-            tile for tile in self._tiles
-            if tile.west < east and tile.east > west
-            and tile.south < north and tile.north > south
+            tile
+            for tile in self._tiles
+            if tile.west < east and tile.east > west and tile.south < north and tile.north > south
         ]
         if not touched:
             msg = (
@@ -417,8 +412,11 @@ class Terrain:
             with rasterio.open(tile.path) as handle:
                 transform = handle.transform
                 geometry[tile.path] = (
-                    float(transform.a), float(transform.c), float(transform.f),
-                    int(handle.width), int(handle.height),
+                    float(transform.a),
+                    float(transform.c),
+                    float(transform.f),
+                    int(handle.width),
+                    int(handle.height),
                 )
         step = min(entry[0] for entry in geometry.values())
         usable = [t for t in touched if np.isclose(geometry[t.path][0], step)]
@@ -485,8 +483,7 @@ class Terrain:
         once built; rebuilding them per animator is the same waste the
         mosaic cache exists to stop.
         """
-        key = (str(Path(self.root).resolve()), self.product, int(height),
-               float(exaggeration))
+        key = (str(Path(self.root).resolve()), self.product, int(height), float(exaggeration))
         held = _RELIEFS.get(key)
         if held is not None:
             return held
@@ -615,14 +612,9 @@ class ReliefMap:
         if self.wraps:
             return bool(self.south <= latitude <= self.north)
         lon = (float(longitude) - self.west) % 360.0 + self.west
-        return bool(
-            self.south <= float(latitude) <= self.north
-            and self.west <= lon <= self.east
-        )
+        return bool(self.south <= float(latitude) <= self.north and self.west <= lon <= self.east)
 
-    def overlaps(
-        self, latitude: float, longitude: float, radius_degrees: float
-    ) -> bool:
+    def overlaps(self, latitude: float, longitude: float, radius_degrees: float) -> bool:
         """Whether this grid meets a disc of ``radius_degrees`` about a point.
 
         The frame-sized companion to :meth:`covers`; see
@@ -732,14 +724,13 @@ class ReliefMap:
 
         return cls(
             elevation=elevation,
-            slope_east=np.asarray(
-                scale * d_east / east_step[:, None], dtype=np.float32
-            ),
-            slope_north=np.asarray(
-                scale * d_north / north_step[:, None], dtype=np.float32
-            ),
+            slope_east=np.asarray(scale * d_east / east_step[:, None], dtype=np.float32),
+            slope_north=np.asarray(scale * d_north / north_step[:, None], dtype=np.float32),
             exaggeration=scale,
-            south=south, north=north, west=west, east=east,
+            south=south,
+            north=north,
+            west=west,
+            east=east,
         )
 
 
@@ -823,12 +814,18 @@ def _dataset_candidates(name: str) -> list[Path]:
     configured = os.environ.get(DATA_ROOT_ENV)
     if configured:
         root = Path(configured).expanduser()
-        found += [root / name, root / "datasets" / name,
-                  root / "reference" / name, root / "reference" / "datasets" / name]
+        found += [
+            root / name,
+            root / "datasets" / name,
+            root / "reference" / name,
+            root / "reference" / "datasets" / name,
+        ]
     for parent in Path(__file__).resolve().parents:
-        found += [parent / "datasets" / name,
-                  parent / "reference" / name,
-                  parent / "reference" / "datasets" / name]
+        found += [
+            parent / "datasets" / name,
+            parent / "reference" / name,
+            parent / "reference" / "datasets" / name,
+        ]
     return found
 
 

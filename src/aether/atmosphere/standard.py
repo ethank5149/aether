@@ -114,14 +114,10 @@ def _base_pressures(temperatures: _FloatArray) -> _FloatArray:
         lapse = _LAPSE_RATE[index]
         base_t = temperatures[index]
         if lapse == 0.0:
-            pressures[index + 1] = pressures[index] * np.exp(
-                -coefficient * span / base_t
-            )
+            pressures[index + 1] = pressures[index] * np.exp(-coefficient * span / base_t)
         else:
             top_t = base_t + lapse * span
-            pressures[index + 1] = pressures[index] * (base_t / top_t) ** (
-                coefficient / lapse
-            )
+            pressures[index + 1] = pressures[index] * (base_t / top_t) ** (coefficient / lapse)
     return pressures
 
 
@@ -137,8 +133,19 @@ _BASE_PRESSURE = _base_pressures(_BASE_TEMPERATURE)
 _MOLAR_RATIO_ALTITUDE = np.arange(80.0, 86.5, 0.5) * 1.0e3
 _MOLAR_RATIO = np.array(
     [
-        1.000000, 0.999996, 0.999989, 0.999971, 0.999941, 0.999909, 0.999870,
-        0.999829, 0.999786, 0.999741, 0.999694, 0.999641, 0.999579,
+        1.000000,
+        0.999996,
+        0.999989,
+        0.999971,
+        0.999941,
+        0.999909,
+        0.999870,
+        0.999829,
+        0.999786,
+        0.999741,
+        0.999694,
+        0.999641,
+        0.999579,
     ]
 )
 
@@ -229,8 +236,7 @@ class AtmosphereState:
         several other effective diameters in circulation.
         """
         return np.asarray(
-            1.0
-            / (np.sqrt(2.0) * np.pi * COLLISION_DIAMETER**2 * self.number_density)
+            1.0 / (np.sqrt(2.0) * np.pi * COLLISION_DIAMETER**2 * self.number_density)
         )
 
     @property
@@ -243,8 +249,7 @@ def gravity(altitude: ArrayLike) -> _FloatArray:
     """Gravitational acceleration by the standard's inverse-square law (m/s²)."""
     z = np.asarray(altitude, dtype=np.float64)
     return np.asarray(
-        SEA_LEVEL_GRAVITY
-        * (EARTH_RADIUS_EFFECTIVE / (EARTH_RADIUS_EFFECTIVE + z)) ** 2
+        SEA_LEVEL_GRAVITY * (EARTH_RADIUS_EFFECTIVE / (EARTH_RADIUS_EFFECTIVE + z)) ** 2
     )
 
 
@@ -273,9 +278,7 @@ class USStandard1976:
         """
         h = geopotential_altitude(altitude)
         index = self._layer_index(h)
-        return np.asarray(
-            _BASE_TEMPERATURE[index] + _LAPSE_RATE[index] * (h - _LAYER_BASE[index])
-        )
+        return np.asarray(_BASE_TEMPERATURE[index] + _LAPSE_RATE[index] * (h - _LAYER_BASE[index]))
 
     def molar_mass(self, altitude: ArrayLike) -> _FloatArray:
         """Mean molar mass (kg/kmol); :math:`M_0` below 80 km."""

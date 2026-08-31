@@ -241,8 +241,7 @@ class SurfaceThermochemistry:
             raise ValueError("gas_blowing_rates must be strictly increasing with >= 4 points")
         if z.shape != (t.size, b.size):
             raise ValueError(
-                f"char_blowing_table shape {z.shape} does not match grids "
-                f"({t.size}, {b.size})"
+                f"char_blowing_table shape {z.shape} does not match grids ({t.size}, {b.size})"
             )
         if np.any(z < 0.0) or not np.all(np.isfinite(z)):
             raise ValueError("char blowing rates must be finite and >= 0")

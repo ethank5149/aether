@@ -54,6 +54,7 @@ from typing import Any, TypeVar
 import numpy as np
 from numpy.typing import NDArray
 
+from aether.geometry.backend import start_gmsh
 from aether.geometry.edges import Contour, Segment
 from aether.geometry.mesh import VehicleMesh, _weld
 
@@ -129,9 +130,7 @@ def _contour_curves(gmsh: Any, contour: Contour) -> tuple[list[int], int, int]:
         if isinstance(item, Segment):
             curves.append(int(gmsh.model.occ.addLine(begin, finish)))
         else:
-            curves.append(
-                int(gmsh.model.occ.addCircleArc(begin, point(item.centre), finish))
-            )
+            curves.append(int(gmsh.model.occ.addCircleArc(begin, point(item.centre), finish)))
         last = finish
     return curves, starts[0], last
 
@@ -206,18 +205,13 @@ class Loft:
         for u in np.asarray(self.stations, dtype=np.float64):
             if self.section_contour is not None:
                 wires.append(
-                    gmsh.model.occ.addWire(
-                        _contour_curves(gmsh, self.section_contour(float(u)))[0]
-                    )
+                    gmsh.model.occ.addWire(_contour_curves(gmsh, self.section_contour(float(u)))[0])
                 )
                 continue
             assert sampled is not None  # guaranteed by __post_init__
             points = np.asarray(sampled(float(u)), dtype=np.float64)
             if points.ndim != 2 or points.shape[1] != 3 or points.shape[0] < 3:
-                msg = (
-                    f"section({u:g}) must return (n >= 3, 3) points, got "
-                    f"{points.shape}"
-                )
+                msg = f"section({u:g}) must return (n >= 3, 3) points, got {points.shape}"
                 raise ValueError(msg)
             tags = [gmsh.model.occ.addPoint(*p) for p in points]
             closed = [*tags, tags[0]]
@@ -228,18 +222,13 @@ class Loft:
                 # the OCC kernel has no polyline, and building the segments
                 # explicitly is also what keeps each corner a real vertex, which
                 # is what stops the mesher from smoothing across it.
-                curves = [
-                    gmsh.model.occ.addLine(a, b)
-                    for a, b in itertools.pairwise(closed)
-                ]
+                curves = [gmsh.model.occ.addLine(a, b) for a, b in itertools.pairwise(closed)]
             wires.append(gmsh.model.occ.addWire(curves))
         # makeSolid caps both ends with planar faces. The aft cap *is* the base
         # disc and is right; the forward one is a small flat facet whose size is
         # the first station's section, so a blunt-nosed body wants its first
         # station close to zero and a pointed one is better built by Revolve.
-        made = gmsh.model.occ.addThruSections(
-            wires, makeSolid=True, makeRuled=self.ruled
-        )
+        made = gmsh.model.occ.addThruSections(wires, makeSolid=True, makeRuled=self.ruled)
         gmsh.model.occ.synchronize()
         volumes = [tag for dim, tag in made if dim == 3]
         if not volumes:
@@ -295,11 +284,11 @@ class Revolve:
             x = np.array([float(first[0]), float(final[0])])
             r = np.array([float(first[1]), float(final[1])])
         else:
-            points = [gmsh.model.occ.addPoint(float(xi), float(ri), 0.0)
-                      for xi, ri in zip(x, r, strict=True)]
-            segments = [
-                gmsh.model.occ.addLine(a, b) for a, b in itertools.pairwise(points)
+            points = [
+                gmsh.model.occ.addPoint(float(xi), float(ri), 0.0)
+                for xi, ri in zip(x, r, strict=True)
             ]
+            segments = [gmsh.model.occ.addLine(a, b) for a, b in itertools.pairwise(points)]
             head, tail = points[0], points[-1]
         base = gmsh.model.occ.addPoint(float(x[-1]), 0.0, 0.0)
         nose = gmsh.model.occ.addPoint(float(x[0]), 0.0, 0.0)
@@ -309,9 +298,7 @@ class Revolve:
             closing.append(gmsh.model.occ.addLine(nose, head))
         loop = gmsh.model.occ.addCurveLoop(segments + closing)
         face = gmsh.model.occ.addPlaneSurface([loop])
-        made = gmsh.model.occ.revolve(
-            [(2, face)], 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0 * np.pi
-        )
+        made = gmsh.model.occ.revolve([(2, face)], 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0 * np.pi)
         gmsh.model.occ.synchronize()
         volumes = [tag for dim, tag in made if dim == 3]
         if not volumes:
@@ -331,9 +318,8 @@ def _session(body: Body, work: Callable[[Any, int], _Result]) -> _Result:
     — would otherwise leave a partial model behind for the next unrelated
     caller to trip over.
     """
-    import gmsh
+    gmsh = start_gmsh()
 
-    gmsh.initialize()
     try:
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.model.add(body.name)
@@ -360,9 +346,7 @@ def solid_properties(body: Body) -> SolidProperties:
         # on the waverider, curvature-driven default sizes over a 3 mm leading
         # edge fillet turn "measure this solid" into an unbounded mesh.
         box = gmsh.model.occ.getBoundingBox(3, volume)
-        diagonal = float(
-            np.linalg.norm(np.asarray(box[3:]) - np.asarray(box[:3]))
-        )
+        diagonal = float(np.linalg.norm(np.asarray(box[3:]) - np.asarray(box[:3])))
         gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 12.0)
         gmsh.option.setNumber("Mesh.MeshSizeMax", diagonal / 60.0)
         gmsh.option.setNumber("Mesh.MeshSizeMin", diagonal / 600.0)
@@ -389,9 +373,7 @@ def solid_properties(body: Body) -> SolidProperties:
         # every triangle in the model, and ``revolve`` leaves its generating
         # meridian face behind as a separate entity — including it inflated the
         # sphere-cone's wetted area by 13 %.
-        boundary = gmsh.model.getBoundary(
-            [(3, volume)], combined=True, oriented=False
-        )
+        boundary = gmsh.model.getBoundary([(3, volume)], combined=True, oriented=False)
         blocks = [
             np.asarray(block, dtype=np.int64).reshape(-1, 3)
             for _, tag in boundary
@@ -481,9 +463,7 @@ def surface_mesh(
         # and their elements give the axis edges a third incident face: enough
         # to make a perfectly good solid report as not closed.
         blocks = []
-        for dim, tag in gmsh.model.getBoundary(
-            [(3, volume)], combined=True, oriented=False
-        ):
+        for dim, tag in gmsh.model.getBoundary([(3, volume)], combined=True, oriented=False):
             if dim != 2 or gmsh.model.occ.getMass(2, abs(tag)) <= 1.0e-12:
                 continue
             _, _, entity = gmsh.model.mesh.getElements(2, abs(tag))

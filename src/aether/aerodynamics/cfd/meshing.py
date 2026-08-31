@@ -58,7 +58,7 @@ configurations does not need re-tuning:
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -66,16 +66,109 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from aether.geometry.backend import start_gmsh
+
+#: What a caller is told while a mesh is being built: a stage name, and how
+#: many of the stages are done.
+MeshProgress = Callable[[str, float], None]
+
+# Named in the order they run. The fraction a caller receives counts stages,
+# not work, and the two are very different: on a 400k-element domain the 3D
+# pass is most of the wall time and everything before it is a second or two.
+# Reporting a work fraction would mean inventing one -- gmsh does not expose
+# its internal progress through the API -- so the stage name is the honest
+# signal and is what a display should show.
+_STAGES = ("surface", "farfield", "sizing", "mesh 1D", "mesh 2D", "mesh 3D", "write")
+
+
+def console_progress(
+    label: str = "mesh", stream: Any = None, width: int = 24, tick: float = 0.5
+) -> MeshProgress:
+    """A :data:`MeshProgress` that draws a *ticking* bar on a terminal.
+
+    Meant for a command line, where the alternative is a process that prints
+    nothing for half a minute and is indistinguishable from one that has hung.
+
+    The clock is the point. Stage callbacks alone are not enough: on a 400k
+    element domain the 3D pass is twenty-six of the twenty-seven seconds, so a
+    bar that redraws only when the stage changes sits motionless through
+    almost the whole build -- the same hang, with a nicer line above it. So a
+    daemon thread redraws the elapsed time while the build runs. It can,
+    because gmsh is reached through ctypes, which releases the GIL.
+
+    Falls back to plain lines when the stream is not a terminal, and does not
+    tick there: a log with a carriage return every half second is worse than a
+    line per stage.
+    """
+    import sys
+    import threading
+    import time
+
+    handle = stream if stream is not None else sys.stderr
+    interactive = bool(getattr(handle, "isatty", lambda: False)())
+    started = time.monotonic()
+    stage_now = ["starting"]
+    fraction_now = [0.0]
+    lock = threading.Lock()
+    finished = threading.Event()
+
+    def draw() -> None:
+        fraction = fraction_now[0]
+        filled = round(width * fraction)
+        bar = "#" * filled + "-" * (width - filled)
+        elapsed = time.monotonic() - started
+        line = f"{label} [{bar}] {100 * fraction:3.0f}%  {stage_now[0]:<9} {elapsed:5.1f}s"
+        with lock:
+            if interactive:
+                handle.write("\r" + line)
+            else:
+                handle.write(line + "\n")
+            handle.flush()
+
+    def ticker() -> None:
+        while not finished.wait(tick):
+            draw()
+
+    if interactive:
+        threading.Thread(target=ticker, daemon=True).start()
+
+    def report(stage: str, fraction: float) -> None:
+        stage_now[0], fraction_now[0] = stage, fraction
+        draw()
+        if fraction >= 1.0:
+            finished.set()
+            if interactive:
+                with lock:
+                    handle.write("\n")
+                    handle.flush()
+
+    return report
+
+
+def _reporter(progress: MeshProgress | None) -> Callable[[str], None]:
+    """Turn an optional callback into one that is always safe to call."""
+    if progress is None:
+        return lambda _stage: None
+
+    def report(stage: str) -> None:
+        index = _STAGES.index(stage) if stage in _STAGES else len(_STAGES) - 1
+        progress(stage, (index + 1) / len(_STAGES))
+
+    return report
+
+
 __all__ = [
     "BodyProfile",
     "BoundaryLayerTruncated",
     "DomainSizing",
+    "MeshProgress",
     "MeshResult",
     "RefinementBall",
     "ViscousSizing",
     "axisymmetric_domain",
     "boundary_layer_thickness",
     "cone_profile",
+    "console_progress",
     "inviscid_domain",
     "profile_from_arrays",
     "resolvable_radius",
@@ -308,11 +401,7 @@ def axisymmetric_domain(
     corrupt each other's model, which a long checkpointed sweep will
     eventually try to do.
     """
-    try:
-        import gmsh
-    except ImportError as error:  # pragma: no cover - dependency declared
-        msg = "axisymmetric meshing needs gmsh (pip install gmsh)"
-        raise ImportError(msg) from error
+    gmsh = start_gmsh()
 
     sizing = sizing if sizing is not None else DomainSizing()
     destination = Path(path)
@@ -327,7 +416,6 @@ def axisymmetric_domain(
     x_max = base_x + sizing.downstream * length
     y_max = sizing.transverse * diameter
 
-    gmsh.initialize()
     try:
         gmsh.option.setNumber("General.Terminal", 1 if verbose else 0)
         gmsh.model.add(profile.name)
@@ -1615,11 +1703,10 @@ def _build_viscous_domain(
     behind; the retry has to start from a fresh ``initialize``/``finalize``
     pair rather than from the wreckage of the last one.
     """
-    import gmsh
+    gmsh = start_gmsh()
 
     heights = sizing.layer_heights(first_cell_height)
 
-    gmsh.initialize()
     try:
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.model.add(name)
@@ -1871,6 +1958,7 @@ def inviscid_domain(
     split_base: bool = True,
     base_station: float | None = None,
     refinement: Sequence[RefinementBall] = (),
+    progress: MeshProgress | None = None,
 ) -> MeshResult:
     """Isotropic tetrahedral domain around a closed body — no boundary layer.
 
@@ -1938,7 +2026,8 @@ def inviscid_domain(
     rejects the mesh outright. Both entities share one node set, so the wall
     stays conformal across the seam.
     """
-    import gmsh
+    gmsh = start_gmsh()
+    report = _reporter(progress)
 
     sizing = sizing if sizing is not None else ViscousSizing()
     target = Path(path)
@@ -1954,7 +2043,6 @@ def inviscid_domain(
     body_length = float(high[0] - low[0])
     diameter = float(max(high[1] - low[1], high[2] - low[2]))
 
-    gmsh.initialize()
     try:
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.model.add(getattr(mesh, "name", None) or "vehicle")
@@ -1974,6 +2062,8 @@ def inviscid_domain(
             gmsh.model.mesh.addElementsByType(disc, 2, [], (faces[aft] + 1).ravel().tolist())
             patches.append(disc)
         gmsh.model.geo.synchronize()
+
+        report("surface")
 
         box = _farfield_box(gmsh, low, high, body_length, diameter, sizing)
         outer = gmsh.model.geo.addSurfaceLoop(box)
@@ -1995,6 +2085,8 @@ def inviscid_domain(
         # That failure is quiet in the worst way: the mesher succeeds, the mesh
         # is uniform at the farfield size, and the run converges to a drag
         # coefficient with the wrong sign.
+        report("farfield")
+
         near = gmsh.model.mesh.field.add("Box")
         band = wall_band * diameter
         gmsh.model.mesh.field.setNumber(near, "VIn", wall_refinement * diameter)
@@ -2059,14 +2151,23 @@ def inviscid_domain(
         # The viscous path must *not* do this — there the wall spacing is a few
         # microns and propagating it outward would fill the domain — which is
         # why the two builders differ here rather than sharing a default.
+        report("sizing")
         gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 1)
         gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
         gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
         gmsh.option.setNumber("Mesh.Algorithm3D", 1)
         gmsh.option.setNumber("Mesh.Optimize", 1)
         gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
-        gmsh.model.mesh.generate(3)
+        # One dimension at a time. `generate(3)` runs the same three passes
+        # internally and returns only when all of them are done, so calling
+        # them separately costs nothing and is the difference between a
+        # caller knowing which pass is slow and knowing only that something
+        # is. Verified to produce an identical mesh.
+        for dimension in (1, 2, 3):
+            report(f"mesh {dimension}D")
+            gmsh.model.mesh.generate(dimension)
 
+        report("write")
         node_tags, _, _ = gmsh.model.mesh.getNodes()
         elements = sum(
             len(gmsh.model.mesh.getElementsByType(kind)[0])

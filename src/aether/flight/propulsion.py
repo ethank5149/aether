@@ -165,9 +165,7 @@ class Burn:
                 "the mass would go non-positive before burnout"
             )
             raise ValueError(msg)
-        return float(
-            self.exhaust_velocity * np.log(initial_mass / (initial_mass - spent))
-        )
+        return float(self.exhaust_velocity * np.log(initial_mass / (initial_mass - spent)))
 
 
 def thrust_direction(
@@ -225,9 +223,10 @@ def thrust_direction(
 
     if burn.steering == "pitch":
         fraction = float(np.clip(elapsed / burn.duration, 0.0, 1.0))
-        angle = burn.final_angle + (0.5 * np.pi - burn.final_angle) * (
-            1.0 - fraction
-        ) ** burn.pitch_exponent
+        angle = (
+            burn.final_angle
+            + (0.5 * np.pi - burn.final_angle) * (1.0 - fraction) ** burn.pitch_exponent
+        )
         return np.asarray(np.sin(angle) * up + np.cos(angle) * horizontal)
 
     # --- gravity turn: vertical, kick, then let gravity steer.

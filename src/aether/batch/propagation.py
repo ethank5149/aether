@@ -62,9 +62,7 @@ def rk4_batch(
     xp = get_array_module(backend)
     y = xp.array(initial_states, dtype=xp.float64)
     if y.ndim != 2:
-        raise ValueError(
-            f"initial_states must have shape (n_rep, n_state), got {y.shape}"
-        )
+        raise ValueError(f"initial_states must have shape (n_rep, n_state), got {y.shape}")
     dt = (t_end - t_start) / n_steps
     # rank-3 stage tensor: (replicate, state, stage)
     stages = xp.empty((*y.shape, 4), dtype=xp.float64)

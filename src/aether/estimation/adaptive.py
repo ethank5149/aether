@@ -103,8 +103,12 @@ class LinearModel:
                 f"measurement_noise shape {r.shape} does not match measurement "
                 f"dimension {h.shape[0]}"
             )
-        for name, arr in (("transition", f), ("observation", h),
-                          ("process_noise", q), ("measurement_noise", r)):
+        for name, arr in (
+            ("transition", f),
+            ("observation", h),
+            ("process_noise", q),
+            ("measurement_noise", r),
+        ):
             arr = np.ascontiguousarray(arr)
             arr.flags.writeable = False
             object.__setattr__(self, name, arr)
@@ -300,9 +304,7 @@ class AdaptiveKalmanFilter:
         self._x = np.array(x0, dtype=np.float64)
         self._p = np.array(p0, dtype=np.float64)
         self._alpha = np.ones(n_batch)
-        self._window = np.zeros(
-            (self._config.window_length, n_batch, self._model.measurement_dim)
-        )
+        self._window = np.zeros((self._config.window_length, n_batch, self._model.measurement_dim))
         self._window_count = 0
         self._step_index = 0
 
@@ -315,8 +317,7 @@ class AdaptiveKalmanFilter:
         z = np.asarray(measurements, dtype=np.float64)
         if z.shape != (n_batch, model.measurement_dim):
             raise ValueError(
-                f"measurements must have shape ({n_batch}, {model.measurement_dim}), "
-                f"got {z.shape}"
+                f"measurements must have shape ({n_batch}, {model.measurement_dim}), got {z.shape}"
             )
         f, h = model.transition, model.observation
         q_nom, r = model.process_noise, model.measurement_noise
@@ -338,9 +339,7 @@ class AdaptiveKalmanFilter:
         self._window[slot] = innovation
         self._window_count = min(self._window_count + 1, cfg.window_length)
         n_w = self._window_count
-        c_hat = (
-            np.einsum("wbi,wbj->bij", self._window[:n_w], self._window[:n_w]) / n_w
-        )
+        c_hat = np.einsum("wbi,wbj->bij", self._window[:n_w], self._window[:n_w]) / n_w
 
         # --- scalar inflation, applied where the gate triggered
         predicted_trace = np.einsum("bii->b", np.einsum("ij,bjk,lk->bil", h, p_pred, h))

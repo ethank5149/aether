@@ -104,9 +104,7 @@ def _apply_scaling(matrix: _FloatArray, scaling: str, sweeps: int = 12) -> _Floa
         norms[norms == 0.0] = 1.0
         return np.asarray(matrix / norms)
     if scaling != "ruiz":
-        raise ValueError(
-            f"scaling must be 'ruiz', 'column' or 'none', got {scaling!r}"
-        )
+        raise ValueError(f"scaling must be 'ruiz', 'column' or 'none', got {scaling!r}")
     scaled = matrix.copy()
     for _ in range(sweeps):
         rows = np.sqrt(np.linalg.norm(scaled, np.inf, axis=1))
@@ -120,9 +118,7 @@ def _apply_scaling(matrix: _FloatArray, scaling: str, sweeps: int = 12) -> _Floa
 
 def _kron2(a: _Sparse, b: _Sparse) -> _Sparse:
     """Kronecker product on the sparse *array* interface (no legacy warning)."""
-    return scipy.sparse.kron(
-        scipy.sparse.csr_array(a), scipy.sparse.csr_array(b), format="csr"
-    )
+    return scipy.sparse.kron(scipy.sparse.csr_array(a), scipy.sparse.csr_array(b), format="csr")
 
 
 def _cgl(n: int) -> _FloatArray:
@@ -178,9 +174,7 @@ class PlateModes:
         """:math:`\\lambda = \\omega a^2\\sqrt{\\rho h/D_{11}}` for the elastic
         modes — the form plate frequencies are conventionally tabulated in."""
         return np.asarray(
-            self.elastic_frequencies
-            * length**2
-            * np.sqrt(laminate.mass_per_area / laminate.d11)
+            self.elastic_frequencies * length**2 * np.sqrt(laminate.mass_per_area / laminate.d11)
         )
 
 
@@ -218,8 +212,7 @@ class MindlinPlate:
                 raise ValueError(f"{name} must be finite and > 0, got {val}")
         if len(edges) != 4 or any(e not in ("free", "simply_supported") for e in edges):
             raise ValueError(
-                f"edges must be four entries from "
-                f"('free', 'simply_supported'), got {edges}"
+                f"edges must be four entries from ('free', 'simply_supported'), got {edges}"
             )
 
         self._lam = laminate
@@ -309,9 +302,7 @@ class MindlinPlate:
         k31 = s_y * kr(x0, y1)
         k32 = -(d12 + d66) * kr(x1, y1)
         k33 = -d66 * kr(x2, y0) - d22 * kr(x0, y2) + s_y * kr(x0, y0)
-        return scipy.sparse.bmat(
-            [[k11, k12, k13], [k21, k22, k23], [k31, k32, k33]], format="csr"
-        )
+        return scipy.sparse.bmat([[k11, k12, k13], [k21, k22, k23], [k31, k32, k33]], format="csr")
 
     def _mass_diagonal(self) -> _FloatArray:
         """Inertia in the Chebyshev-output form: exactly diagonal."""
@@ -364,30 +355,36 @@ class MindlinPlate:
             zero_blk = scipy.sparse.csr_array((ny, n_block))
             if edge == "free":
                 # M_x = D11 dphix/dx + D12 dphiy/dy = 0
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk,
-                     d11 * _kron2(ex1, ty0),
-                     d12 * _kron2(ex0, ty1)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack(
+                        [zero_blk, d11 * _kron2(ex1, ty0), d12 * _kron2(ex0, ty1)], format="csr"
+                    )
+                )
                 # M_xy = D66 (dphix/dy + dphiy/dx) = 0
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk,
-                     d66 * _kron2(ex0, ty1),
-                     d66 * _kron2(ex1, ty0)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack(
+                        [zero_blk, d66 * _kron2(ex0, ty1), d66 * _kron2(ex1, ty0)], format="csr"
+                    )
+                )
                 # Q_x = kappa^2 Gxz h (phix + dw/dx) = 0, evaluated
                 # independently of the geometric slope (Paper II, §5.3)
-                rows.append(scipy.sparse.hstack(
-                    [s_x * _kron2(ex1, ty0),
-                     s_x * _kron2(ex0, ty0),
-                     zero_blk], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack(
+                        [s_x * _kron2(ex1, ty0), s_x * _kron2(ex0, ty0), zero_blk], format="csr"
+                    )
+                )
             else:  # hard simple support: w = 0, phi_y = 0, M_x = 0
-                rows.append(scipy.sparse.hstack(
-                    [_kron2(ex0, ty0), zero_blk, zero_blk], format="csr"))
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk, zero_blk, _kron2(ex0, ty0)], format="csr"))
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk,
-                     d11 * _kron2(ex1, ty0),
-                     d12 * _kron2(ex0, ty1)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack([_kron2(ex0, ty0), zero_blk, zero_blk], format="csr")
+                )
+                rows.append(
+                    scipy.sparse.hstack([zero_blk, zero_blk, _kron2(ex0, ty0)], format="csr")
+                )
+                rows.append(
+                    scipy.sparse.hstack(
+                        [zero_blk, d11 * _kron2(ex1, ty0), d12 * _kron2(ex0, ty1)], format="csr"
+                    )
+                )
 
         for end, edge in ((-1, self._edges[2]), (1, self._edges[3])):  # normal to y
             ey0 = scipy.sparse.csr_array(self._edge_row_y(end, 0).reshape(1, -1))
@@ -395,29 +392,35 @@ class MindlinPlate:
             zero_blk = scipy.sparse.csr_array((nx, n_block))
             if edge == "free":
                 # M_y = D12 dphix/dx + D22 dphiy/dy = 0
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk,
-                     d12 * _kron2(tx1, ey0),
-                     d22 * _kron2(tx0, ey1)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack(
+                        [zero_blk, d12 * _kron2(tx1, ey0), d22 * _kron2(tx0, ey1)], format="csr"
+                    )
+                )
                 # M_xy = 0
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk,
-                     d66 * _kron2(tx0, ey1),
-                     d66 * _kron2(tx1, ey0)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack(
+                        [zero_blk, d66 * _kron2(tx0, ey1), d66 * _kron2(tx1, ey0)], format="csr"
+                    )
+                )
                 # Q_y = kappa^2 Gyz h (phiy + dw/dy) = 0
-                rows.append(scipy.sparse.hstack(
-                    [s_y * _kron2(tx0, ey1),
-                     zero_blk,
-                     s_y * _kron2(tx0, ey0)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack(
+                        [s_y * _kron2(tx0, ey1), zero_blk, s_y * _kron2(tx0, ey0)], format="csr"
+                    )
+                )
             else:  # hard simple support: w = 0, phi_x = 0, M_y = 0
-                rows.append(scipy.sparse.hstack(
-                    [_kron2(tx0, ey0), zero_blk, zero_blk], format="csr"))
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk, _kron2(tx0, ey0), zero_blk], format="csr"))
-                rows.append(scipy.sparse.hstack(
-                    [zero_blk,
-                     d12 * _kron2(tx1, ey0),
-                     d22 * _kron2(tx0, ey1)], format="csr"))
+                rows.append(
+                    scipy.sparse.hstack([_kron2(tx0, ey0), zero_blk, zero_blk], format="csr")
+                )
+                rows.append(
+                    scipy.sparse.hstack([zero_blk, _kron2(tx0, ey0), zero_blk], format="csr")
+                )
+                rows.append(
+                    scipy.sparse.hstack(
+                        [zero_blk, d12 * _kron2(tx1, ey0), d22 * _kron2(tx0, ey1)], format="csr"
+                    )
+                )
 
         block = scipy.sparse.vstack(rows, format="csr").toarray()
         norms = np.linalg.norm(block, axis=1, keepdims=True)
@@ -599,8 +602,7 @@ class MindlinPlate:
         for name, arr in (("w", w), ("phi_x", phi_x), ("phi_y", phi_y)):
             if np.asarray(arr).shape != (self._nx, self._ny):
                 raise ValueError(
-                    f"{name} must have shape ({self._nx}, {self._ny}), "
-                    f"got {np.asarray(arr).shape}"
+                    f"{name} must have shape ({self._nx}, {self._ny}), got {np.asarray(arr).shape}"
                 )
         vec = np.concatenate(
             [np.asarray(a, dtype=np.float64).reshape(-1) for a in (w, phi_x, phi_y)]
@@ -635,16 +637,12 @@ def solve_plate_modes(
     a_mat = plate.reduced_matrix()
     lam_c, phi_c = scipy.linalg.eig(a_mat)
     if not np.all(np.isfinite(lam_c)):
-        raise np.linalg.LinAlgError(
-            "projected plate pencil returned non-finite eigenvalues"
-        )
+        raise np.linalg.LinAlgError("projected plate pencil returned non-finite eigenvalues")
     scale = float(np.max(np.abs(lam_c.real)))
     order_all = np.argsort(lam_c.real)
     n_resolved = max(1, int(resolved_fraction * lam_c.size))
     resolved = lam_c[order_all][:n_resolved]
-    max_imag_ratio = (
-        float(np.max(np.abs(resolved.imag)) / scale) if scale > 0.0 else 0.0
-    )
+    max_imag_ratio = float(np.max(np.abs(resolved.imag)) / scale) if scale > 0.0 else 0.0
     if strict and max_imag_ratio > imag_tol:
         raise np.linalg.LinAlgError(
             f"resolved plate spectrum has relative imaginary contamination "

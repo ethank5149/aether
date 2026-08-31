@@ -72,9 +72,7 @@ __all__ = [
 _FloatArray = NDArray[np.float64]
 
 #: Conda environment SU2 was installed into, tried before the bare name.
-_DEFAULT_SU2_PREFIXES = (
-    "/config/miniconda3/envs/su2/bin",
-)
+_DEFAULT_SU2_PREFIXES = ("/config/miniconda3/envs/su2/bin",)
 
 
 def find_su2(executable: str = "SU2_CFD") -> Path:
@@ -172,9 +170,7 @@ class SU2Result:
     def pressure_coefficient(self) -> _FloatArray:
         """:math:`C_p` along the body, from the pressure ratio and Mach."""
         gamma = 1.4
-        return np.asarray(
-            2.0 / (gamma * self.mach**2) * (self.pressure_ratio - 1.0)
-        )
+        return np.asarray(2.0 / (gamma * self.mach**2) * (self.pressure_ratio - 1.0))
 
 
 def _config(
@@ -327,9 +323,7 @@ def surface_axial_force(
 
     closed_r = np.concatenate([r_lateral, [corner_radius]])
     closed_p = np.concatenate([p_lateral, [p_lateral[-1]]])
-    forebody = np.pi * float(
-        np.trapezoid(closed_p - freestream_pressure, closed_r**2)
-    )
+    forebody = np.pi * float(np.trapezoid(closed_p - freestream_pressure, closed_r**2))
 
     base = 0.0
     if np.any(base_face):
@@ -340,9 +334,7 @@ def surface_axial_force(
         # against r^2 weights the rim by its area, where a plain mean over
         # nodes would weight the axis as heavily and the rim is nearly all of
         # the area.
-        base = -np.pi * float(
-            np.trapezoid(base_p - freestream_pressure, base_r**2)
-        )
+        base = -np.pi * float(np.trapezoid(base_p - freestream_pressure, base_r**2))
 
     scale = dynamic_pressure * reference_area
     return (
@@ -397,15 +389,9 @@ def run_su2(
         shutil.copy(mesh.path, local_mesh)
 
     area = reference_area if reference_area is not None else profile.reference_area
-    length = (
-        reference_length
-        if reference_length is not None
-        else 2.0 * profile.maximum_radius
-    )
+    length = reference_length if reference_length is not None else 2.0 * profile.maximum_radius
     config = work / "case.cfg"
-    config.write_text(
-        _config(local_mesh, mach, settings, area, length, temperature, pressure)
-    )
+    config.write_text(_config(local_mesh, mach, settings, area, length, temperature, pressure))
 
     # One MPI rank per partition. Worth it above roughly 50,000 cells and a
     # net loss below: the domain decomposition and halo exchange cost more
@@ -588,14 +574,8 @@ def _read_history(path: Path) -> _History:
 
     residual_index = find("rms[rho]", "rms_density")
     drag_index = find("cd", "drag")
-    residual = (
-        float(rows[-1][residual_index]) if residual_index is not None else float("nan")
-    )
-    drag = (
-        np.array([float(row[drag_index]) for row in rows])
-        if drag_index is not None
-        else empty
-    )
+    residual = float(rows[-1][residual_index]) if residual_index is not None else float("nan")
+    drag = np.array([float(row[drag_index]) for row in rows]) if drag_index is not None else empty
     return _History(residual, len(rows), drag)
 
 
@@ -736,6 +716,7 @@ def surface_force_breakdown(
     # tolerance and hashing is O(n) where a nearest-neighbour search would be
     # O(n log n) with a tree this does not otherwise need.
     scale = float(np.max(np.abs(vertices))) or 1.0
+
     def key(array: _FloatArray) -> Any:
         return np.round(array / (match_tolerance * scale)).astype(np.int64)
 
