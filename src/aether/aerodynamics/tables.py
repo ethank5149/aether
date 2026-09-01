@@ -30,8 +30,10 @@ them together.
 from __future__ import annotations
 
 import json
+import threading
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Hashable, Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -369,6 +371,8 @@ class SweepRun:
         max_points: int | None = None,
         time_budget: float | None = None,
         report_every: int = 25,
+        workers: int = 1,
+        group_key: Callable[[float, float], Hashable] | None = None,
     ) -> AeroTable:
         """Evaluate outstanding points, then return the table so far.
 
@@ -381,6 +385,21 @@ class SweepRun:
             that is not.
         report_every:
             Points between progress callbacks.
+        workers, group_key:
+            Evaluate ``workers`` groups of points concurrently, where
+            ``group_key(mach, alpha)`` says which group a point belongs to.
+            Points inside a group are evaluated **in order, on one thread**;
+            groups are independent.
+
+            Both are needed together, and the grouping is not an optimisation
+            hint — it is a correctness contract. A solver that caches work
+            across points (a mesh, a continuation seed) shares mutable state
+            between any two points that could touch the same cached entry, so
+            the caller must group by whatever identifies that entry. For the
+            CFD solver that is the mesh key. Passing ``workers > 1`` without a
+            ``group_key`` is refused rather than silently serialised, because
+            the caller asking for concurrency has to say what is safe to run
+            concurrently — this module cannot know.
 
         Notes
         -----
@@ -421,32 +440,79 @@ class SweepRun:
                 }
             )
 
+        if workers > 1 and group_key is None:
+            msg = (
+                "workers > 1 needs a group_key saying which points may not run "
+                "concurrently; see SweepRun.run"
+            )
+            raise ValueError(msg)
+
+        lock = threading.Lock()
+        halt = threading.Event()
+
+        def spent() -> bool:
+            """Has this slice used up its budget? Checked under the lock."""
+            if max_points is not None and evaluated >= max_points:
+                return True
+            return time_budget is not None and time.perf_counter() - started >= time_budget
+
+        def evaluate(handle: Any, mach: float, alpha: float) -> None:
+            nonlocal evaluated
+            coefficients = self.solver.solve(mach, alpha)
+            record = {
+                "name": self.name,
+                "solver": self.solver.name,
+                "mach": mach,
+                "alpha": alpha,
+                "reference_area": self.reference_area,
+                "reference_length": self.reference_length,
+                **coefficients.as_dict(),
+            }
+            with lock:
+                handle.write(json.dumps(record) + "\n")
+                # Flushed per point on purpose: a sweep whose results
+                # sit in a buffer is not checkpointed, it only looks it.
+                handle.flush()
+                done[self._key(mach, alpha)] = record
+                evaluated += 1
+                due = evaluated % max(report_every, 1) == 0
+            if due:
+                emit()
+
         try:
             with self.store.open("a") as handle:
-                for mach, alpha in outstanding:
-                    if max_points is not None and evaluated >= max_points:
-                        break
-                    if time_budget is not None and time.perf_counter() - started >= time_budget:
-                        break
-                    coefficients = self.solver.solve(mach, alpha)
-                    record = {
-                        "name": self.name,
-                        "solver": self.solver.name,
-                        "mach": mach,
-                        "alpha": alpha,
-                        "reference_area": self.reference_area,
-                        "reference_length": self.reference_length,
-                        **coefficients.as_dict(),
-                    }
-                    handle.write(json.dumps(record) + "\n")
-                    # Flushed per point on purpose: a sweep whose results
-                    # sit in a buffer is not checkpointed, it only looks it.
-                    handle.flush()
-                    done[self._key(mach, alpha)] = record
-                    evaluated += 1
-                    if evaluated % max(report_every, 1) == 0:
-                        emit()
+                if workers <= 1 or group_key is None:
+                    for mach, alpha in outstanding:
+                        if spent():
+                            break
+                        evaluate(handle, mach, alpha)
+                else:
+                    groups: dict[Hashable, list[tuple[float, float]]] = {}
+                    for mach, alpha in outstanding:
+                        groups.setdefault(group_key(mach, alpha), []).append((mach, alpha))
+
+                    def consume(points: list[tuple[float, float]]) -> None:
+                        for mach, alpha in points:
+                            # Checked before each point rather than only at the
+                            # top: a group is a chain, and a worker that starts
+                            # a two-hour point after the budget has expired
+                            # makes `time_budget` a suggestion.
+                            with lock:
+                                if halt.is_set() or spent():
+                                    halt.set()
+                                    return
+                            evaluate(handle, mach, alpha)
+
+                    with ThreadPoolExecutor(max_workers=workers) as pool:
+                        futures = [pool.submit(consume, points) for points in groups.values()]
+                        for future in futures:
+                            # Re-raised here rather than swallowed: a group that
+                            # dies leaves its remaining points unwritten, and a
+                            # table one chain short that reports itself complete
+                            # is the failure this module exists to prevent.
+                            future.result()
         except KeyboardInterrupt:
+            halt.set()
             emit(final=True)
             return self.table(done)
         emit(final=True)
