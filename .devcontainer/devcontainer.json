@@ -1,0 +1,63 @@
+{
+  "name": "aether",
+  "build": { "dockerfile": "Dockerfile", "context": "." },
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+
+  // Mounted as *siblings* of the workspace, not inside it. Bind targets placed
+  // under /workspace appear in the repository as empty directories that git can
+  // track and `git clean` can delete, and the reference share in particular
+  // holds third-party papers that must never enter a public history. Kept
+  // outside, there is nothing to .gitignore and nothing to get wrong.
+  //
+  // These four paths are specific to the machine this was developed on; on any
+  // other host, edit them or drop the ones you do not have. Nothing in the
+  // image depends on them existing -- the test suite skips what it cannot find.
+  "mounts": [
+    "source=/mnt/user/datasets,target=/data,type=bind",
+    "source=/mnt/user/reference/project-aether,target=/reference,type=bind",
+    "source=/mnt/user/results/project-aether,target=/results,type=bind",
+    "source=/mnt/user/source,target=/source,type=bind"
+  ],
+
+  "containerEnv": {
+    "AETHER_DATA_ROOT": "/data",
+    "AETHER_RESULTS": "/results",
+    "SU2_RUN": "/opt/conda/envs/su2/bin"
+  },
+
+  // 99:100 is the share owner on the development host. `updateRemoteUserUID`
+  // must stay false: it defaults true on Linux and would rewrite the container
+  // user's UID to match whoever launched the editor, putting root-owned files
+  // back into the bind mounts.
+  "remoteUser": "aether",
+  "containerUser": "aether",
+  "updateRemoteUserUID": false,
+
+  // Host networking for Open MPI, which is unhappy behind Docker's bridge for
+  // multi-rank runs. `--gpus all` requires the NVIDIA container toolkit on the
+  // host; without it the container will not start, so drop it on a machine
+  // that has no GPU rather than expecting a fallback.
+  "runArgs": ["--net=host", "--gpus", "all"],
+
+  "postCreateCommand": "pip install --no-build-isolation -e '/workspace[dev,viz,atmosphere,certification]'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "charliermarsh.ruff",
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/conda/envs/aether/bin/python",
+        "python.testing.pytestEnabled": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

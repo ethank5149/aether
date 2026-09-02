@@ -1,0 +1,91 @@
+# The scientific environment, pinned to what the project is known to run on.
+#
+# Python 3.14 rather than a rounder number: it is what the working host
+# environment resolved to, and every compiled dependency here (cantera, gmsh,
+# pymsis, h5py) already has a conda-forge build for it. Pinning lower would be
+# a change to the environment being reproduced, not a safety margin.
+name: aether
+channels:
+  - conda-forge
+dependencies:
+  - python=3.14
+  - pip
+
+  # -- kernel numerics -----------------------------------------------------
+  - numpy>=2.5
+  - scipy>=1.18
+  - pandas
+  - pyproj>=3.6          # WGS84 geodesics (Karney), not a haversine approximation
+
+  # -- atmosphere and gas chemistry ---------------------------------------
+  - cantera>=3.0         # equilibrium air for the real-gas normal shock
+                         # (pymsis is pip-only; see the pip section below)
+
+  # -- meshing and CFD post-processing ------------------------------------
+  # gmsh from conda-forge rather than the pip wheel: the wheel links libXft
+  # and libXinerama and fails at import with an OSError that names neither.
+  # The conda package brings its own, so the X libraries below are belt and
+  # braces rather than the fix.
+  - gmsh>=4.12
+  - python-gmsh>=4.12
+  - xorg-libxft
+  - xorg-libxinerama
+  - h5py>=3.10
+
+  # Rigorous interval (ball) arithmetic behind `aether.certification`. Imported
+  # lazily by the library, so its absence surfaces only as failing tests.
+  - python-flint>=0.8
+
+  # -- GPU and CUDA development ------------------------------------------
+  # The full toolkit, not just the runtime: nvcc, headers and dev libraries, so
+  # anything staged under /workspace/source (SU2 with -Denable-cuda, Mutation++)
+  # can actually be compiled in here rather than only run.
+  #
+  # CUDA 12, not 13: the host runs driver 610 with a 12.9 runtime and a proven
+  # cupy 14.1.1 against it. aether's `cuda` extra names `cupy-cuda13x`, a
+  # different CUDA major that would be the wrong build on this machine.
+  - cuda-version=12.9
+  - cuda-toolkit=12.9      # nvcc, cudart-dev, cublas/cufft/cusolver dev, nvrtc
+  - cuda-nvcc=12.9
+  - cuda-cudart-dev
+  - cuda-nvtx-dev
+  - cuda-profiler-api
+
+  # -- trajectory optimisation --------------------------------------------
+  # Optional to the package, required for anything whose accuracy matters:
+  # on the brachistochrone benchmark under the same SLSQP optimizer, Dymos is
+  # four orders of magnitude closer to the analytic optimum than the in-house
+  # pseudospectral path.
+  - openmdao>=3.45
+
+  # -- figures, animation, notebooks --------------------------------------
+  - matplotlib>=3.8
+  - pillow>=10.0
+  - ffmpeg               # matplotlib's MP4 writer; without it sweep_animation
+                         # falls back to GIF or fails outright
+  - jupyterlab
+  - notebook
+  - ipywidgets>=8.1      # the widget UI in cfd-workflow.ipynb
+  - ipykernel
+  - tqdm>=4.66
+
+  # -- toolchain -----------------------------------------------------------
+  - pytest>=8.0
+  - ruff>=0.4
+  - mypy>=1.10
+  - hatchling            # build backend for the two editable installs
+  - nicegui              # staged for the planned browser front end
+
+  # Pip only where conda-forge has no package. Dymos is not on conda-forge at
+  # any version; OpenMDAO above is, and is left there so pip resolves only the
+  # one leaf rather than pulling its own copy of the stack underneath it.
+  - pip:
+      - dymos>=1.15
+      # Thermosphere above 86 km. A compiled reference implementation rather
+      # than a transcription of the 1976 standard, which cannot be checked
+      # once transcribed.
+      - pymsis>=0.10
+      # conda-forge's cupy for CUDA 12 pins scipy <1.17 and this environment
+      # needs >=1.18; the wheel carries no such pin, which is exactly how the
+      # host runs cupy 14.1.1 and scipy 1.18.0 side by side.
+      - cupy-cuda12x>=14
