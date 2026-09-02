@@ -40,6 +40,13 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
 ]
+# Rigorous interval arithmetic for the certification layer. `aether.certification`
+# imports it lazily, so the package installs and the rest of it runs without
+# this -- but every test in `tests/test_certification.py` needs it, and it was
+# undeclared until a clean container environment failed all 21 of them.
+certification = [
+    "python-flint>=0.8",
+]
 # GPU batch backend; pick the wheel matching the local CUDA major version.
 cuda = [
     "cupy-cuda13x>=13.0",

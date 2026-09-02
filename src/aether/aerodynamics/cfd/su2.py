@@ -48,6 +48,7 @@ Two things, and both are supplied elsewhere rather than pretended away:
 from __future__ import annotations
 
 import csv
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -71,19 +72,45 @@ __all__ = [
 
 _FloatArray = NDArray[np.float64]
 
-#: Conda environment SU2 was installed into, tried before the bare name.
+#: Last-resort locations, tried only after ``SU2_RUN`` and ``PATH``.
+#:
+#: Absolute paths in library code are not portable and this list is not how the
+#: solver is meant to be found -- ``SU2_RUN`` is SU2's own convention and is
+#: what the container sets. What remains here is a courtesy for an interactive
+#: checkout on the machine this project grew up on, where neither is set.
 _DEFAULT_SU2_PREFIXES = ("/config/miniconda3/envs/su2/bin",)
 
 
 def find_su2(executable: str = "SU2_CFD") -> Path:
     """Locate the SU2 binary, or say clearly that it is not there.
 
-    Looked for on ``PATH`` first and in the known conda prefix second. SU2 is
-    a compiled dependency that cannot be pip-installed into the working
-    environment, so it lives in its own; hard-coding that is worse than
-    searching for it and better than failing with ``FileNotFoundError`` from
-    somewhere deep in ``subprocess``.
+    In order: the ``SU2_RUN`` environment variable, then ``PATH``, then a
+    last-resort prefix list.
+
+    ``SU2_RUN`` is SU2's own convention for the directory its binaries live in,
+    and is what makes this portable: an image, a module system or a local build
+    each set it to their own location and nothing here has to know where that
+    is. It is consulted *before* ``PATH`` so that an environment which has
+    deliberately named a solver gets that one, rather than whichever build
+    happens to be earlier in the search path.
+
+    SU2 is a compiled dependency that cannot be pip-installed into the working
+    environment, so it lives in its own; searching for it is better than
+    failing with ``FileNotFoundError`` from somewhere deep in ``subprocess``.
     """
+    run_dir = os.environ.get("SU2_RUN")
+    if run_dir:
+        candidate = Path(run_dir) / executable
+        if candidate.exists():
+            return candidate
+        # Named but wrong: better to say so than to fall through to a different
+        # solver, which would silently run a build the caller did not choose.
+        msg = (
+            f"SU2_RUN is set to {run_dir!r} but {executable} is not there. "
+            f"Point it at the directory holding the SU2 binaries, or unset it "
+            f"to fall back to PATH."
+        )
+        raise FileNotFoundError(msg)
     found = shutil.which(executable)
     if found is not None:
         return Path(found)
@@ -92,10 +119,11 @@ def find_su2(executable: str = "SU2_CFD") -> Path:
         if candidate.exists():
             return candidate
     msg = (
-        f"{executable} not found on PATH or in {_DEFAULT_SU2_PREFIXES}. SU2 is "
-        f"a compiled solver; install it into its own environment "
-        f"(conda create -n su2 -c conda-forge su2) and either add it to PATH "
-        f"or pass the path explicitly."
+        f"{executable} not found via SU2_RUN, on PATH, or in "
+        f"{_DEFAULT_SU2_PREFIXES}. SU2 is a compiled solver; install it into "
+        f"its own environment (conda create -n su2 -c conda-forge su2) and set "
+        f"SU2_RUN to its bin directory, add it to PATH, or pass the path "
+        f"explicitly."
     )
     raise FileNotFoundError(msg)
 
