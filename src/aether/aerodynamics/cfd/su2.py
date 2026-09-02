@@ -120,10 +120,10 @@ def find_su2(executable: str = "SU2_CFD") -> Path:
             return candidate
     msg = (
         f"{executable} not found via SU2_RUN, on PATH, or in "
-        f"{_DEFAULT_SU2_PREFIXES}. SU2 is a compiled solver; install it into "
-        f"its own environment (conda create -n su2 -c conda-forge su2) and set "
-        f"SU2_RUN to its bin directory, add it to PATH, or pass the path "
-        f"explicitly."
+        f"{_DEFAULT_SU2_PREFIXES}. It is a compiled solver and is not "
+        f"pip-installable; install it into its own environment "
+        f"(conda create -n su2 -c conda-forge su2) and set SU2_RUN to its bin "
+        f"directory, add it to PATH, or pass the path explicitly."
     )
     raise FileNotFoundError(msg)
 
