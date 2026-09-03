@@ -74,7 +74,18 @@ dependencies:
   - ruff>=0.4
   - mypy>=1.10
   - hatchling            # build backend for the two editable installs
-  - nicegui              # staged for the planned browser front end
+  # The remote CFD panel (`aether_gambit.cfd.dashboard`). NiceGUI is a
+  # FastAPI/Quasar app, and the pin below is not optional dressing:
+  #
+  # Unpinned, this environment solved to pydantic 1.10.22 against fastapi
+  # 0.125.0 -- a pairing that installs cleanly, passes every solver check, and
+  # then dies at import with `cannot import name 'TypeAdapter' from 'pydantic'`,
+  # because modern fastapi reaches for the v2 API. That pydantic-core 2.48 was
+  # pulled in alongside is the tell: v2 was wanted and pydantic itself got
+  # dragged back a major version by something else in the graph. Naming the
+  # constraint here is what keeps the solve honest.
+  - nicegui
+  - pydantic>=2
 
   # Pip only where conda-forge has no package. Dymos is not on conda-forge at
   # any version; OpenMDAO above is, and is left there so pip resolves only the

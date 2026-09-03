@@ -39,7 +39,10 @@
   // multi-rank runs. `--gpus all` requires the NVIDIA container toolkit on the
   // host; without it the container will not start, so drop it on a machine
   // that has no GPU rather than expecting a fallback.
-  "runArgs": ["--net=host", "--gpus", "all"],
+  // Pinned so the container is addressable by name rather than by the
+  // `vsc-<folder>-<hash>-uid` the CLI generates. `aether-gambit` takes its own
+  // name, so the two never collide and both can run at once.
+  "runArgs": ["--name", "aether", "--net=host", "--gpus", "all"],
 
   "postCreateCommand": "pip install --no-build-isolation -e '/workspace[dev,viz,atmosphere,certification]'",
 
