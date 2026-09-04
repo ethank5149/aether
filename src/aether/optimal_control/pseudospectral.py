@@ -135,6 +135,17 @@ class OCPProblem:
     #: mass depletion, an altitude crossing, a target speed — rather than at a
     #: freely chosen time. Empty by default, so the transcription is unchanged.
     terminal_constraints: tuple[Callable[[_FloatArray], float], ...] = ()
+    #: Called once per NLP iteration as ``progress(iteration, cost, violation)``.
+    #: ``None`` by default, so the transcription is unchanged.
+    #:
+    #: Worth passing on anything long. A phase is allowed four hundred SLSQP
+    #: iterations and emits nothing until it stops, which from outside is
+    #: indistinguishable from a hang -- the same problem the mesher solved by
+    #: reporting stages. The callback is given the running cost and the largest
+    #: equality-constraint violation, which together say whether an iteration
+    #: budget is being spent converging or thrashing.
+    progress: Callable[[int, float, float], None] | None = None
+
     #: Optional warm start ``(x, u, tf)`` with ``x`` shaped ``(N+1, nx)`` and
     #: ``u`` shaped ``(N+1, nu)``, both sampled at the LGL nodes. ``None`` keeps
     #: the straight-line cold start, which is adequate whenever ``xf_target``
@@ -625,6 +636,18 @@ def _solve_pseudospectral(problem: OCPProblem) -> OCPSolution:
     def ineq_constraints(z: _FloatArray) -> _FloatArray:
         return _nlp_constraints(z, problem, tau, diff_matrix)[n_eq:]
 
+    # SLSQP's callback is given only the iterate, so the iteration is counted
+    # here. The two numbers reported are the ones that distinguish converging
+    # from thrashing: the objective, and how far the collocation defects still
+    # are from zero.
+    reported = {"n": 0}
+
+    def _report(z: _FloatArray, *_ignored: object) -> None:
+        reported["n"] += 1
+        assert problem.progress is not None
+        violation = float(np.max(np.abs(eq_constraints(z)))) if n_eq else 0.0
+        problem.progress(reported["n"], float(_objective(z, problem)), violation)
+
     try:
         result = scipy.optimize.minimize(
             fun=lambda z: _objective(z, problem),
@@ -636,6 +659,7 @@ def _solve_pseudospectral(problem: OCPProblem) -> OCPSolution:
                 {"type": "ineq", "fun": ineq_constraints},
             ],
             options={"maxiter": problem.max_iter, "ftol": 1e-9, "disp": False, "iprint": 0},
+            callback=_report if problem.progress is not None else None,
         )
     except Exception as exc:
         return OCPSolution(
