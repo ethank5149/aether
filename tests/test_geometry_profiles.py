@@ -1,0 +1,406 @@
+"""One curve, two representations.
+
+The sphere-cone used to be derived twice -- once in
+:mod:`aether.aerodynamics.panels` for impact theory and once in
+:mod:`aether.geometry.bodies` for the solid -- with the same algebra written
+out in both places under different sampling conventions. They agreed, but
+only because nobody had changed one of them yet.
+
+These tests hold the two together. Both now sample
+:func:`aether.geometry.profiles.sphere_cone_meridian`, so the check is not
+that two derivations happen to match but that neither has quietly acquired a
+derivation of its own again.
+"""
+
+from __future__ import annotations
+
+import itertools
+
+import numpy as np
+import pytest
+
+from aether.geometry.profiles import (
+    sphere_cone_closure,
+    sphere_cone_meridian,
+    sphere_cone_tangency,
+)
+
+
+def test_the_cap_meets_the_cone_with_a_continuous_slope() -> None:
+    """C1 by construction: the sphere's slope equals the cone's at tangency.
+
+    That is the whole reason the cap stops where it does, so it is worth
+    measuring rather than trusting -- a tangency computed with ``cos`` where
+    it wanted ``sin`` still gives a plausible-looking body with a crease in
+    it.
+
+    Stated as a *convergence* rather than a tolerance, because the quantity
+    available on a sampled profile is a chord slope and a chord is only
+    first-order accurate to the tangent it subtends. Asserting a fixed number
+    would therefore be asserting a sampling density. What has to hold is that
+    the discrepancy is the chord's and vanishes with it: refine the cap
+    tenfold and the error falls tenfold. A real crease would not shrink.
+    """
+    nose_radius, half_angle = 0.06, np.radians(12.0)
+    exact = np.tan(half_angle)
+
+    errors = []
+    for intervals in (200, 2000, 20000):
+        station, radius = sphere_cone_meridian(2.0, nose_radius, half_angle, intervals, 400)
+        join = intervals
+        approaching = (radius[join] - radius[join - 1]) / (station[join] - station[join - 1])
+        leaving = (radius[join + 1] - radius[join]) / (station[join + 1] - station[join])
+        # The cone side is a straight line, so it is exact at any sampling.
+        assert leaving == pytest.approx(exact, rel=1e-12)
+        errors.append(abs(approaching - exact) / exact)
+
+    assert errors[0] < 0.02
+    for coarse, fine in itertools.pairwise(errors):
+        assert coarse / fine == pytest.approx(10.0, rel=0.05)
+
+
+def test_the_tangency_point_lies_on_both_the_sphere_and_the_cone() -> None:
+    nose_radius, half_angle = 0.05, np.radians(10.0)
+    x, r = sphere_cone_tangency(nose_radius, half_angle)
+    # on the sphere centred at (nose_radius, 0)
+    assert np.hypot(x - nose_radius, r) == pytest.approx(nose_radius)
+    # and the cone through it, extended back, has the right half-angle
+    assert np.arctan2(r, nose_radius - x) == pytest.approx(0.5 * np.pi - half_angle)
+
+
+def test_the_profile_starts_at_the_nose_and_advances() -> None:
+    station, radius = sphere_cone_meridian(2.0, 0.05, np.radians(10.0), 30, 30)
+    assert station[0] == pytest.approx(0.0)
+    assert radius[0] == pytest.approx(0.0)
+    assert np.all(np.diff(station) > 0.0)
+    assert np.all(np.diff(radius) > 0.0)
+
+
+def test_a_body_that_ends_inside_its_own_nose_is_refused() -> None:
+    with pytest.raises(ValueError, match="does not reach past the nose cap"):
+        sphere_cone_meridian(0.01, 0.5, np.radians(10.0), 10, 10)
+
+
+def test_a_segment_with_no_intervals_is_refused() -> None:
+    with pytest.raises(ValueError, match="at least one interval"):
+        sphere_cone_meridian(2.0, 0.05, np.radians(10.0), 0, 10)
+
+
+def test_the_panel_body_and_the_solid_body_are_the_same_curve() -> None:
+    """The consolidation, asserted where it can actually be seen.
+
+    Built through the two independent public entry points at matching
+    parameters, sampled onto a common set of stations, and compared. A future
+    edit that re-derived either one would move them apart.
+    """
+    from aether.aerodynamics.panels import sphere_cone as panel_body
+    from aether.geometry.bodies import sphere_cone as solid_body
+
+    length, nose_radius, half_angle = 2.0, 0.05, np.radians(10.0)
+    _, base_radius, _, _ = sphere_cone_closure(
+        length=length, base_radius=None, nose_radius=nose_radius, half_angle=half_angle
+    )
+
+    panels = panel_body(
+        length=length,
+        base_radius=base_radius,
+        nose_radius=None,
+        half_angle=half_angle,
+        n_axial=200,
+        n_circ=64,
+    )
+    solid = solid_body(half_angle=half_angle, nose_radius=nose_radius, length=length)
+
+    # The panel model's meridian, recovered from its own vertex net.
+    net = panels.surface.vertices
+    panel_station = net[:, 0, 0]
+    panel_radius = np.linalg.norm(net[:, 0, 1:], axis=1)
+
+    stations = np.linspace(0.15, length * 0.98, 60)
+    assert np.interp(stations, panel_station, panel_radius) == pytest.approx(
+        np.interp(stations, np.asarray(solid.station), np.asarray(solid.radius)), rel=2e-4
+    )
+
+
+def test_the_closure_is_consistent_from_whichever_parameter_is_solved() -> None:
+    """Moved here from the panel module with the rest of the shape maths."""
+    defaults = (1.75, 0.277, np.radians(8.2))
+    length, base, nose, angle = sphere_cone_closure(*defaults[:2], None, defaults[2])
+    reference = (length, base, nose, angle)
+    for omitted in range(4):
+        args: list[float | None] = list(reference)
+        args[omitted] = None
+        assert sphere_cone_closure(*args) == pytest.approx(reference, rel=1e-6)
+
+
+def test_over_and_under_specifying_the_closure_is_refused() -> None:
+    with pytest.raises(ValueError, match="exactly three"):
+        sphere_cone_closure(1.75, 0.277, 0.0286, np.radians(8.2))
+    with pytest.raises(ValueError, match="exactly three"):
+        sphere_cone_closure(1.75, 0.277, None, None)
+
+
+# ---------------------------------------------------------- the multiconic
+
+
+def _multiconic(cap: int = 40, segment: int = 40, fillet: int = 20):
+    from aether.geometry.profiles import multiconic_meridian
+
+    return multiconic_meridian(
+        0.05,
+        [1.0, 1.5],
+        [np.radians(12.0), np.radians(7.0)],
+        [0.1],
+        cap_intervals=cap - 1,
+        segment_intervals=segment - 1,
+        fillet_intervals=fillet - 1,
+    )
+
+
+def test_the_multiconic_profile_never_folds_back() -> None:
+    """The failure the tangent-length formula guards against.
+
+    A fillet of radius :math:`R_f` blending two lines meeting at deflection
+    :math:`\\delta` stands off the corner by :math:`R_f\\tan(\\delta/2)`. The
+    reciprocal form diverges as the cones become parallel -- the usual case --
+    and pushes both tangency points outside their own frusta, folding the
+    profile back through the nose. A panel integration sums unordered faces
+    and cannot see that; a mesh generator sees overlapping facets.
+    """
+    station, radius, _ = _multiconic()
+    assert np.all(np.diff(station) > 0.0), "profile folded back on itself"
+    assert np.all(np.diff(radius) > 0.0), "profile folded back on itself"
+    # The nose is a point, so only the tip sits on the axis.
+    assert radius[0] == pytest.approx(0.0)
+    assert np.all(radius[1:] > 0.0)
+
+
+def test_the_fillet_is_tangent_to_both_cones() -> None:
+    """C1 at the junction, which is what a tangent fillet means.
+
+    Measured as the perpendicular distance from the arc's centre to each cone
+    line: both must equal the fillet radius, or the blend is merely near the
+    corner rather than tangent to it.
+    """
+    _, _, junctions = _multiconic()
+    (junction,) = junctions
+    for angle, point in (
+        (np.radians(12.0), junction.stop),
+        (np.radians(7.0), junction.resume),
+    ):
+        along = np.array([np.cos(angle), np.sin(angle)])
+        offset = junction.centre - point
+        assert offset @ along == pytest.approx(0.0, abs=1e-12), "arc not tangent"
+        assert np.linalg.norm(offset) == pytest.approx(junction.radius, rel=1e-12)
+
+
+def test_the_junctions_lie_on_the_sampled_profile() -> None:
+    """The two representations must not disagree about where the blend is."""
+    station, radius, junctions = _multiconic()
+    points = np.column_stack([station, radius])
+    for junction in junctions:
+        for corner in (junction.stop, junction.resume):
+            assert np.linalg.norm(points - corner, axis=1).min() < 1e-9
+
+
+def test_a_single_segment_multiconic_is_a_sphere_cone() -> None:
+    """The family contains the simpler shape, so it had better reproduce it."""
+    from aether.geometry.profiles import multiconic_meridian, sphere_cone_meridian
+
+    station, radius, junctions = multiconic_meridian(
+        0.05,
+        [2.0],
+        [np.radians(10.0)],
+        [],
+        cap_intervals=39,
+        segment_intervals=39,
+        fillet_intervals=19,
+    )
+    assert junctions == ()
+    tangency, _ = sphere_cone_tangency(0.05, np.radians(10.0))
+    plain_x, plain_r = sphere_cone_meridian(tangency + 2.0, 0.05, np.radians(10.0), 39, 39)
+    assert station == pytest.approx(plain_x)
+    assert radius == pytest.approx(plain_r)
+
+
+def test_the_panel_multiconic_and_the_solid_multiconic_are_one_curve() -> None:
+    """The consolidation, through the two public entry points."""
+    from aether.aerodynamics.panels import blunted_multiconic as panel_body
+    from aether.geometry.bodies import blunted_multiconic as solid_body
+
+    shared = {
+        "nose_radius": 0.05,
+        "lengths": [1.0, 1.5],
+        "half_angles": [np.radians(12.0), np.radians(7.0)],
+        "fillet_radii": [0.1],
+    }
+    net = panel_body(**shared, n_axial_per_segment=60).surface.vertices
+    panel_station = net[:, 0, 0]
+    panel_radius = np.linalg.norm(net[:, 0, 1:], axis=1)
+
+    solid = solid_body(**{k: tuple(v) if isinstance(v, list) else v for k, v in shared.items()})
+    stations = np.linspace(0.2, 2.4, 80)
+    assert np.interp(stations, panel_station, panel_radius) == pytest.approx(
+        np.interp(stations, np.asarray(solid.station), np.asarray(solid.radius)), rel=1e-3
+    )
+
+
+def test_a_mismatched_multiconic_specification_is_refused() -> None:
+    from aether.geometry.profiles import multiconic_meridian
+
+    with pytest.raises(ValueError, match="lengths for"):
+        multiconic_meridian(0.05, [1.0, 1.5], [np.radians(10.0)], [0.1], 10, 10, 5)
+    with pytest.raises(ValueError, match="one fillet radius per junction"):
+        multiconic_meridian(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [], 10, 10, 5)
+
+
+# ------------------------------------------------- how the points are spent
+
+
+def test_intervals_are_shared_out_by_arc_length() -> None:
+    """A piece twice as long gets about twice the points."""
+    from aether.geometry.profiles import arc_length_intervals
+
+    counts = arc_length_intervals([1.0, 2.0, 1.0], 40)
+    assert sum(counts) == 40
+    assert counts[1] > max(counts[0], counts[2])
+    # Equal pieces get equal shares to within the one point that cannot be
+    # split between them -- the total is met exactly, so somebody takes it.
+    assert abs(counts[0] - counts[2]) <= 1
+    assert counts[1] / counts[0] == pytest.approx(2.0, rel=0.2)
+
+
+def test_a_curved_piece_is_floored_by_its_turning_angle() -> None:
+    """Arc length alone under-resolves a short, sharply turning piece.
+
+    The nose cap is a fiftieth of a biconic's meridian and turns through
+    eighty degrees. Proportional allocation alone gives it five intervals --
+    sixteen degrees a step, and a chord that misses the sphere by a percent of
+    its radius, at the one place on the body where geometry matters most.
+    """
+    from aether.geometry.profiles import arc_length_intervals
+
+    arcs = [0.068, 1.018, 0.009, 1.511]
+    turns = [np.radians(78.0), 0.0, np.radians(5.0), 0.0]
+
+    plain = arc_length_intervals(arcs, 137)
+    floored = arc_length_intervals(arcs, 137, turns=turns, max_turn=np.radians(5.0))
+
+    assert floored[0] > plain[0]
+    assert np.degrees(turns[0] / floored[0]) <= 5.0 + 1e-9
+    assert sum(floored) == 137
+    # The straight pieces give up the difference, and keep their own spacing
+    # comparable to one another.
+    assert floored[1] / arcs[1] == pytest.approx(floored[3] / arcs[3], rel=0.05)
+
+
+def test_an_impossible_budget_is_refused_with_what_it_needed() -> None:
+    from aether.geometry.profiles import arc_length_intervals
+
+    with pytest.raises(ValueError, match="cannot meet the per-piece floors"):
+        arc_length_intervals([1.0, 1.0], 3, turns=[np.radians(90.0), 0.0])
+
+
+def test_the_multiconic_arcs_alternate_frustum_and_fillet() -> None:
+    """Cap, then frustum and fillet in turn, ending on a frustum."""
+    from aether.geometry.profiles import multiconic_arcs
+
+    arcs, turns = multiconic_arcs(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [0.1])
+    assert len(arcs) == len(turns) == 4
+    assert turns[0] == pytest.approx(np.radians(78.0))  # the cap
+    assert turns[1] == 0.0 and turns[3] == 0.0  # frustums are straight
+    assert turns[2] == pytest.approx(np.radians(5.0))  # the fillet's deflection
+    assert arcs[2] == pytest.approx(0.1 * np.radians(5.0))
+
+
+def test_the_meridian_spacing_no_longer_varies_by_two_orders() -> None:
+    """The property the whole allocation exists for.
+
+    Spending a fixed count per piece gave the default biconic a spacing that
+    varied by a factor of 84 along one profile -- 0.46 mm across the fillet
+    against 39 mm along the aft frustum -- and a 74:1 cell aspect ratio where
+    they met.
+    """
+    from aether.geometry.profiles import arc_length_intervals, multiconic_arcs
+
+    arcs, turns = multiconic_arcs(0.05, [1.0, 1.5], [np.radians(12.0), np.radians(7.0)], [0.1])
+    counts = arc_length_intervals(arcs, 137, turns=turns)
+    spacings = [arc / count for arc, count in zip(arcs, counts, strict=True)]
+    assert max(spacings) / min(spacings) < 10.0
+
+
+def test_a_biconic_wall_has_no_slivers() -> None:
+    """End to end: the allocation is only worth having if this holds.
+
+    Before it, 1824 of 13056 faces were slivers, worst quality 0.023, all at
+    the junction. The repair also uses *fewer* faces, which is the same
+    trade the shoulder-fillet note in ``surface_quality`` describes.
+    """
+    from aether.aerodynamics.cfd.diagnostics import surface_quality
+    from aether.aerodynamics.panels import blunted_multiconic
+    from aether.geometry.mesh import VehicleMesh
+
+    quality = surface_quality(
+        VehicleMesh.from_surface_grid(blunted_multiconic().surface, name="biconic")
+    )
+    assert quality.usable, quality.summary()
+    assert quality.minimum > 0.1
+    assert quality.faces < 13056
+
+
+def test_a_revolved_hemisphere_has_the_area_a_hemisphere_has() -> None:
+    """The check `blunted_multiconic` cannot be asked for.
+
+    A hemisphere is only reachable through the multiconic generator by
+    degenerating a cone to 0.1 degrees, and that leaves a ring of panels 78 um
+    long against 2.5 mm around. Revolved directly there is no ring, and the
+    faceting deficit is the only error left -- second order in the meridian
+    count, which is what these three levels show.
+    """
+    import numpy as np
+
+    from aether.aerodynamics.panels import surface_of_revolution
+
+    radius = 0.045
+    exact = 2.0 * np.pi * radius**2
+    errors = []
+    for count in (24, 48, 96):
+        phi = np.linspace(0.0, 0.5 * np.pi, count + 1)
+        model = surface_of_revolution(
+            radius * (1.0 - np.cos(phi)), radius * np.sin(phi), n_circ=4 * count
+        )
+        errors.append(abs(float(np.sum(model.areas)) / exact - 1.0))
+
+    assert errors[0] < 2.0e-3
+    # Halving the spacing quarters the error, give or take the pole triangles.
+    assert 3.4 < errors[0] / errors[1] < 4.6
+    assert 3.4 < errors[1] / errors[2] < 4.6
+
+
+def test_a_revolved_meridian_drops_its_degenerate_pole_triangles() -> None:
+    """A meridian that starts on the axis has no panels at its first station."""
+    import numpy as np
+
+    from aether.aerodynamics.panels import surface_of_revolution
+
+    phi = np.linspace(0.0, 0.5 * np.pi, 11)
+    model = surface_of_revolution(1.0 - np.cos(phi), np.sin(phi), n_circ=16)
+    assert np.all(model.areas > 0.0)
+    # 10 bands x 16 stations x 2 triangles, less the 16 degenerate ones at the
+    # pole, where the quad collapses to a triangle.
+    assert len(model.areas) == 10 * 16 * 2 - 16
+
+
+def test_a_revolved_surface_refuses_a_meridian_it_cannot_use() -> None:
+    import pytest
+
+    from aether.aerodynamics.panels import surface_of_revolution
+
+    with pytest.raises(ValueError, match="matching 1-D arrays"):
+        surface_of_revolution([0.0, 1.0], [0.0, 1.0, 2.0])
+    with pytest.raises(ValueError, match="at least two points"):
+        surface_of_revolution([0.0], [0.0])
+    with pytest.raises(ValueError, match="cannot be negative"):
+        surface_of_revolution([0.0, 1.0], [0.0, -1.0])
+    with pytest.raises(ValueError, match="at least three stations"):
+        surface_of_revolution([0.0, 1.0], [0.0, 1.0], n_circ=2)

@@ -1,0 +1,164 @@
+%% =====================================================================
+%%  Shared preamble for the three-paper series.
+%%
+%%    Paper 1  Certified Analytical Bounds for Multi-Phase Hypersonic
+%%             Reachability                        (paper1/)
+%%    Paper 2  Certified contraction under sequential telemetry
+%%                                                 (paper2/)
+%%    Paper 3  Probabilistic bounds under process and measurement noise
+%%                                                 (paper3/)
+%%
+%%  Usage, from a paper directory:
+%%      \documentclass[english,11pt]{extarticle}
+%%      \input{../preamble}
+%%      \runninghead{Short Title}
+%%      ... \bibliography{../shared}
+%% =====================================================================
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=1in,bmargin=1in,lmargin=1in,rmargin=1in}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{units}
+\usepackage{enumitem}
+\usepackage{microtype}          % typographic polish: char protrusion, expansion
+\usepackage{xcolor}
+\usepackage{comment}
+\usepackage{tcolorbox}          % highlighted result boxes
+\tcbuselibrary{skins,breakable}
+\usepackage{fancyhdr}           % running header with the short title
+\usepackage[textsize=footnotesize]{todonotes}   % margin \todo{} notes; width follows \marginparwidth
+
+\makeatletter
+
+\numberwithin{equation}{section}
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+
+% ---- Theorem environments ----
+\@ifundefined{thm}{%
+  \theoremstyle{plain}%
+  \newtheorem{thm}{Theorem}[section]%
+}{}
+\@ifundefined{prop}{\newtheorem{prop}[thm]{Proposition}}{}
+\@ifundefined{lem}{\newtheorem{lem}[thm]{Lemma}}{}
+\@ifundefined{cor}{\newtheorem{cor}[thm]{Corollary}}{}
+\@ifundefined{conj}{\newtheorem{conj}[thm]{Conjecture}}{}
+\@ifundefined{defn}{%
+  \theoremstyle{definition}%
+  \newtheorem{defn}[thm]{Definition}%
+}{}
+\@ifundefined{assum}{%
+  \theoremstyle{definition}%
+  \newtheorem{assum}[thm]{Assumption}%
+}{}
+\@ifundefined{example}{\newtheorem{example}[thm]{Example}}{}
+\@ifundefined{remark}{%
+  \theoremstyle{remark}%
+  \newtheorem{remark}[thm]{Remark}%
+}{}
+
+% ---- Convenient macros ----
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\ip}[2]{\langle #1, #2 \rangle}
+\newcommand{\norm}[1]{\left\| #1 \right\|}
+\newcommand{\abs}[1]{\left| #1 \right|}
+\newcommand{\T}{^{\mathsf{T}}}          % transpose
+\newcommand{\dd}{\,\mathrm{d}}          % upright differential
+\newcommand{\D}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}     % total derivative
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}      % partial derivative
+
+% ---- Program-wide notation ----
+\newcommand{\Rset}{\mathcal{R}}          % reachable set
+\newcommand{\Mplus}{\mathcal{M}_+}       % cone of nonnegative Radon measures
+\newcommand{\Xset}{\mathcal{X}}          % state constraint set
+\newcommand{\Uset}{\mathcal{U}}          % control constraint set
+\newcommand{\Lie}{\mathcal{L}}           % Lie derivative / generator
+\newcommand{\modes}{\mathcal{Q}}         % mode alphabet (Paper 1, Section 2.2)
+\newcommand{\guard}{\mathcal{S}}         % guard surface
+\newcommand{\reset}{\mathcal{J}}         % reset map
+
+% The Henrion-Korda dual pair is conventionally (v, w). Both letters are
+% already body-frame velocity components in the state vector, and the
+% certificate is a function OF that state, so the two would collide inside a
+% single displayed equation. Capital Greek instead: distinct from latitude
+% \phi and heading \psi, which are lowercase. Named here so the choice is
+% changed in one place rather than hunted through the papers.
+\newcommand{\cert}{\Phi}               % Liouville supersolution, cert(t,x)
+\newcommand{\certT}{\Psi}              % terminal majorant, certT(x)
+
+\makeatother
+
+% ---- Highlighted-result box ----
+\newtcolorbox{keybox}[1][]{colback=blue!4,colframe=blue!45!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+
+% ---- Development annotations ----
+%  Three coloured boxes carrying the drafting ledger inside the source:
+%    decide -- a choice made, recorded so it is not silently re-opened
+%    gap    -- an obligation not yet discharged
+%    idea   -- a line of argument worth keeping, not yet load-bearing
+%  They are deliberately conspicuous. Set \draftnotesfalse below (or pass
+%  \PassOptionsToPackage before \input{preamble}) to compile a submission
+%  copy in which all three vanish, exactly as [disable]{todonotes} removes
+%  the \todo list --- the boxes must not survive into a submitted draft,
+%  and a single switch is the only reliable way to be sure of that.
+\newif\ifdraftnotes
+\draftnotestrue
+
+\newtcolorbox{decide@box}[1][]{colback=orange!4,colframe=orange!45!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+\newtcolorbox{gap@box}[1][]{colback=red!4,colframe=red!50!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+\newtcolorbox{idea@box}[1][]{colback=green!4,colframe=green!35!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+
+\ifdraftnotes
+  \newenvironment{decide}{\begin{decide@box}}{\end{decide@box}}
+  \newenvironment{gap}{\begin{gap@box}}{\end{gap@box}}
+  \newenvironment{idea}{\begin{idea@box}}{\end{idea@box}}
+\else
+  \excludecomment{decide}
+  \excludecomment{gap}
+  \excludecomment{idea}
+\fi
+
+% ---- Theorem-environment aliases ----
+%  The drafts write \begin{assumption} and \begin{lemma} in full; the
+%  counters above are declared as assum and lem. Alias rather than rename,
+%  so neither spelling is a compile error and no draft has to be rewritten
+%  to match a decision about abbreviation.
+\makeatletter
+\@ifundefined{assumption}{%
+  \newenvironment{assumption}[1][]{\begin{assum}[#1]}{\end{assum}}}{}
+\@ifundefined{lemma}{%
+  \newenvironment{lemma}[1][]{\begin{lem}[#1]}{\end{lem}}}{}
+\makeatother
+
+\usepackage{babel}
+
+% ---- Cross-references and links (load late: hyperref then cleveref) ----
+\usepackage[hidelinks,colorlinks=true,
+  linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
+\usepackage[nameinlink,capitalise]{cleveref}
+
+% ---- Running header: each paper calls \runninghead{Short Title} ----
+\newcommand{\runninghead}[1]{%
+  \pagestyle{fancy}%
+  \fancyhf{}%
+  \lhead{\small #1}%
+  \rhead{\small\thepage}%
+  \renewcommand{\headrulewidth}{0.3pt}%
+}

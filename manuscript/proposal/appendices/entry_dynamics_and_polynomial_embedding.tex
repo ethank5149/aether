@@ -1,0 +1,203 @@
+% =====================================================================
+%  Thesis proposal, Appendix: Coupled Entry Dynamics and Polynomial Embedding
+%  Owns: apx:dyn
+%
+%  Transcription of notes/embedding.md at commit 18cc0a2 (the author's own
+%  text) into LaTeX. Wording follows the note; nothing is added, removed, or
+%  strengthened. Two spelling fixes are marked in comments below.
+% =====================================================================
+
+\section{Coupled Entry Dynamics and Polynomial Embedding}
+\label{apx:dyn}
+
+\subsection{Coupled 6-DOF Entry Dynamics}
+\label{sub:apx_dyn_6dof}
+
+The entry vehicle state comprises the coupled translational, rotational,
+thermal, ablative, and modal subsystems. Position is carried in Cartesian
+Earth-centred Earth-fixed (ECEF) components and attitude as a quaternion from
+the ECEF frame to the body frame. No angle is a state, so the dynamics have no
+coordinate singularities anywhere on the globe; geocentric latitude and
+longitude are read out from the position after integration.
+
+\paragraph{Frames.}
+\begin{itemize}
+  \item $\mathcal E$: Earth-centred Earth-fixed (ECEF), rotating with the
+        constant planetary rate $\vec\omega_E = \omega_E\,\hat z_{\mathcal E}$.
+  \item $\mathcal B$: body frame, fixed at the instantaneous center of mass.
+\end{itemize}
+
+The attitude quaternion $\vec q = (q_0, q_1, q_2, q_3)^\top$ carries
+$\mathcal E \to \mathcal B$, with direction-cosine matrix
+\begin{equation}
+\label{eq:dcm}
+\mathbf R \equiv \mathbf R_{B/E}(\vec q)=
+\begin{pmatrix}
+q_0^2+q_1^2-q_2^2-q_3^2 & 2(q_1q_2+q_0q_3) & 2(q_1q_3-q_0q_2)\\
+2(q_1q_2-q_0q_3) & q_0^2-q_1^2+q_2^2-q_3^2 & 2(q_2q_3+q_0q_1)\\
+2(q_1q_3+q_0q_2) & 2(q_2q_3-q_0q_1) & q_0^2-q_1^2-q_2^2+q_3^2
+\end{pmatrix},
+\end{equation}
+quadratic in $\vec q$.
+
+\paragraph{Position Kinematics.}
+With $\vec r = (r_1, r_2, r_3)^\top$ the ECEF position and
+$\vec V = (u, v, w)^\top$ the planet-relative velocity resolved in
+$\mathcal B$, the kinematic equation is:
+\begin{equation}
+\label{eq:poskin}
+\dot{\vec r} = \mathbf R^\top \vec V.
+\end{equation}
+
+\paragraph{Translational Dynamics.}
+Newton's law holds in the inertial frame; transporting the planet-relative
+velocity through $\mathcal E$ into $\mathcal B$, with inertial body rates
+$\vec\omega = (p, q, r_b)^\top$, mass $m$, aerodynamic force $\vec F_a$, thrust
+$\vec F_t$, and the planetary rate resolved in the body frame
+$\vec\omega_E^{\mathcal B} = \mathbf R\,\omega_E\hat z_{\mathcal E}$, the
+translational dynamical equations are:
+\begin{equation}
+\label{eq:transdyn}
+\dot{\vec{V}}\big|_{\mathcal{B}} = \frac{1}{m}(\vec{F}_a + \vec{F}_t)
++ \mathbf R\,\vec{g}(\vec r)
+- (\vec\omega + \vec\omega_E^{\mathcal B})\times\vec{V}
+- \vec\omega_E^{\mathcal B}\times(\vec\omega_E^{\mathcal B}\times\mathbf R\,\vec{r}).
+\end{equation}
+
+Gravity, including the $J_2$ oblateness term, in ECEF components:
+\begin{equation}
+\label{eq:gravity}
+\vec g(\vec r) = -\frac{\mu}{\|\vec r\|^3}\left[\left(1
++ \frac{3}{2}J_2\frac{R_e^2}{\|\vec r\|^2}\left(1
+- 5\frac{r_3^2}{\|\vec r\|^2}\right)\right)\vec r
++ 3J_2\frac{R_e^2}{\|\vec r\|^2}\,r_3\,\hat z_{\mathcal E}\right].
+\end{equation}
+
+\begin{remark}
+This is the gradient of the $J_2$ potential
+$\frac{\mu}{\|\vec r\|}\bigl[1 - \tfrac12 J_2 (R_e/\|\vec r\|)^2(3 r_3^2/\|\vec r\|^2 - 1)\bigr]$;
+its radial and northward components reproduce the spherical form, with
+$r_3/\|\vec r\| = \sin\phi$.
+\end{remark}
+
+\paragraph{Rotational Dynamics / Euler's Equations.}
+With angular momentum $\vec h = \mathbf I\vec\omega$, combined aerodynamic /
+reaction control system (RCS) moments
+$\vec M = \vec M_a + \vec M_{\mathrm{rcs}}$, and the inertia tensor
+$\mathbf I = \mathbf I(s, \eta)$ depending on recession depth $s$ and modal
+amplitudes $\eta$ (so that $\dot{\mathbf I}\,\vec\omega$ is the variable-inertia
+term), the rotational dynamical equations are:
+\begin{equation}
+\label{eq:rotdyn}
+\mathbf{I}\,\dot{\vec\omega} = \vec{M} - \vec\omega\times(\mathbf{I}\vec\omega)
+- \dot{\mathbf{I}}\,\vec\omega.
+\end{equation}
+
+\paragraph{Quaternion Kinematics.}
+The quaternion is driven by the body rate \emph{relative to} $\mathcal E$,
+$\vec\omega_{B/E} = \vec\omega - \vec\omega_E^{\mathcal B}$. For
+$\vec a = (a_1, a_2, a_3)^\top$,
+\begin{equation}
+\label{eq:qkin}
+\dot{\vec{q}} = \tfrac{1}{2}\,\Omega(\vec\omega
+- \mathbf R\,\omega_E\hat z_{\mathcal E})\,\vec{q},
+\qquad
+\Omega(\vec a) = \begin{pmatrix}
+0 & -a_1 & -a_2 & -a_3\\
+a_1 & 0 & a_3 & -a_2 \\
+a_2 & -a_3 & 0 & a_1 \\
+a_3 & a_2 & -a_1 & 0
+\end{pmatrix}.
+\end{equation}
+
+\begin{remark}
+The rate is \textbf{polynomial} --- bilinear in $(\vec\omega, \vec q)$ and cubic
+in $\vec q$ through the Earth-rate term. With this $\Omega$ and $\mathbf R$ of
+\cref{eq:dcm}, $\dot{\mathbf R} = -[\vec\omega_{B/E}\times]\,\mathbf R$ holds
+identically, and $\Omega(\vec a)$ is skew for every $\vec a$, so $|\vec q|$ is
+preserved.
+\end{remark}
+
+\paragraph{Thermal.}
+% note: "sqaure-root" in the note, spelling corrected here
+With the density-square-root embedding $y = \sqrt{\rho/\rho_0}$ and
+$V = \sqrt{u^2+v^2+w^2}$, the modulus lift $\dot\chi = c\,\chi\,\dot T_w$
+replaces $T_w$ with a polynomial via Varma--Savageau--Voit recasting.
+Stagnation-point heating (Sutton--Graves, with nose radius $R_n$, sea-level
+density $\rho_0$) equations are then given by:
+\begin{equation}
+\label{eq:thermal}
+\dot Q_{\mathrm{tot}} = \dot Q = k_Q\sqrt{\rho_0/R_n}\,y\,V^3,
+\qquad
+\dot T_w = \frac{\dot Q - (T_w - T_\infty)/\tau_\text{cond}}{C_w}.
+\end{equation}
+
+\paragraph{Ablation.}
+With recession rate coupled to heat flux and mass loss from char-layer
+blow-off, the ablative equations are given by:
+\begin{equation}
+\label{eq:ablation}
+\dot s = \alpha_s \,\dot Q, \qquad \dot m = -\dot m_\text{abl}.
+\end{equation}
+
+\paragraph{Modal/Structural Elasticity.}
+With piston-theory forcing and temperature-dependent natural frequency, per
+mode $i$ our modal equations are:
+\begin{equation}
+\label{eq:modal}
+\ddot\eta_i + 2\zeta_i\,\omega_i(T)\,\dot\eta_i + \omega_i(T)^2\,\eta_i
+= Q_i(x, \eta, \dot\eta).
+\end{equation}
+
+\subsection{Polynomial Embedding via Adjunction}
+\label{sub:apx_dyn_embedding}
+
+A priori, the dynamics contain transcendental and rational terms. We repair
+each of these by adjoining one variable and one polynomial defining constraint,
+so the entire augmented system is polynomial in the augmented state:
+
+\begin{enumerate}
+  \item \textbf{Transcendental Incidence:} $\alpha = \operatorname{atan2}(w, u)$,
+        $\beta = \arcsin(v/V)$ are inverse-trigonometric functions of body
+        rates, we replace them with polynomial direction-cosine ratios
+        $(u/V, v/V, w/V)$.
+  \item \textbf{Square-Root Speed:} Since $V = \sqrt{u^2+v^2+w^2}$ carries a
+        square root, we adjoin $V$ with the velocity magnitude constraint
+        $V^2 = u^2+v^2+w^2$.
+  \item \textbf{Exponential Atmosphere:} Since $\rho = \rho_0 e^{-h/H_s}$ with
+        $h = \|\vec r\| - R_e$ appears in $\bar q = \tfrac12\rho V^2$, we adjoin
+        $y = \sqrt{\rho/\rho_0}$ with rate
+        $\dot y = -\frac{y}{2H_s}\,\tfrac{d}{dt}\|\vec r\|$, where the radial
+        rate $\tfrac{d}{dt}\|\vec r\| = \varrho\,(\mathbf R\vec r)\cdot\vec V$ is
+        polynomial once $\varrho$ (item 4) is adjoined.
+  \item \textbf{Reciprocal Radius:} Gravity carries $\|\vec r\|^{-3}$,
+        $\|\vec r\|^{-5}$, $\|\vec r\|^{-7}$, so we adjoin
+        $\varrho = 1/\|\vec r\|$ with $\varrho^2\,\|\vec r\|^2 = 1$,
+        $\varrho > 0$, and rate
+        $\dot\varrho = -\varrho^3\,(\mathbf R\vec r)\cdot\vec V$. Gravity is then
+        polynomial:
+        \begin{equation}
+        \label{eq:gravity_poly}
+        \vec g = -\mu\varrho^3\left[\left(1
+        + \tfrac32 J_2 R_e^2\varrho^2\left(1 - 5 r_3^2\varrho^2\right)\right)\vec r
+        + 3J_2R_e^2\varrho^2\,r_3\,\hat z_{\mathcal E}\right].
+        \end{equation}
+        No trigonometric adjunctions are needed: no angle is a state, and
+        latitude dependence enters only through $r_3\varrho = \sin\phi$.
+  \item \textbf{Quaternion Norm:} $|\vec q|^2 = 1$ is already a polynomial
+        invariant (skew-symmetry of $\Omega$ preserves it), no adjunction
+        necessary.
+  \item \textbf{Heat / Load-Factor Square Roots:} $\dot Q \propto y V^3$ is
+        already polynomial; however, $n = \|\vec F_a\|/(mg_0)$ requires squaring
+        to $(\bar q S)^2(C_X^2+C_Y^2+C_Z^2) \le (n_\text{max} m g_0)^2$.
+\end{enumerate}
+
+\paragraph{The Augmented State.}
+Collecting all coordinates:
+\begin{equation}
+\label{eq:augmented_state}
+\tilde{x} = \bigl(
+\underbrace{r_1,\,r_2,\,r_3,\,u,\,v,\,w,\,q_0,\,q_1,\,q_2,\,q_3,\,p,\,q,\,r_b}_{13,\ \text{core}},\;
+\underbrace{y,\,V,\,\varrho,\,Q_{\mathrm{tot}},\,m,\,s,\,\chi}_{7,\ \text{adjoined}},\,
+\underbrace{\eta,\,\dot\eta}_{2n_\eta,\ \text{modal}}\bigr).
+\end{equation}

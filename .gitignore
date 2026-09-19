@@ -1,0 +1,41 @@
+# NOTE: this repository is public. There is deliberately no ignore rule for
+# controlled material here — controlled work lives in a separate repository,
+# not in an ignored subdirectory of this one. An ignored directory is one
+# `git add -f` away from being published; a separate repository is not.
+#
+# The one-way dependency is enforced by `tools/check_boundary.py`.
+
+.kopiaignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Local datasets and regenerated results (`make verify`)
+datasets/
+results/
+
+# Tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# LaTeX build artifacts. main.pdf beside the source is tracked; everything
+# else latexmk writes is not.
+manuscript/**/*.aux
+manuscript/**/*.bbl
+manuscript/**/*.blg
+manuscript/**/*.fdb_latexmk
+manuscript/**/*.fls
+manuscript/**/*.log
+manuscript/**/*.out
+manuscript/**/*.tdo
+manuscript/**/*.toc
+# The editor passes -synctex=1, and the .synctex.gz has to sit beside the
+# PDF for the viewer's inverse search to resolve.
+manuscript/**/*.synctex.gz

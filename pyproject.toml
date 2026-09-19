@@ -1,0 +1,155 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aether"
+version = "0.1.0"
+description = "AETHER — a fixed-grid spectral method for coupled moving-boundary problems, with batched uncertainty quantification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ethan Knox", email = "ethank5149@gmail.com" }]
+keywords = [
+    "moving-boundary-problems",
+    "stefan-problem",
+    "boundary-immobilization",
+    "ultraspherical-spectral-methods",
+    "imex-time-integration",
+    "uncertainty-quantification",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
+dependencies = [
+    # Geodesics on WGS84 (Karney 2013) -- replaced a haversine approximation
+    # documented as erring up to 0.5%, and is faster than what it replaced.
+    "pyproj>=3.6",
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+# Rigorous interval arithmetic for the certification layer. `aether.certification`
+# imports it lazily, so the package installs and the rest of it runs without
+# this -- but every test in `tests/test_certification.py` needs it, and it was
+# undeclared until a clean container environment failed all 21 of them.
+certification = [
+    "python-flint>=0.8",
+]
+# GPU batch backend; pick the wheel matching the local CUDA major version.
+cuda = [
+    "cupy-cuda13x>=13.0",
+]
+# Thermosphere above 86 km. A compiled reference implementation rather
+# than a transcription of the 1976 standard's species-diffusion model,
+# which cannot be independently checked once transcribed.
+atmosphere = [
+    "pymsis>=0.10",
+]
+# Rendering. matplotlib arrived with `viz.scene`, whose overlays draw onto
+# Axes; Pillow reads the imagery tiles. Optional because the numerics do not
+# need either, and a headless install that only builds tables should not pull
+# a plotting stack.
+viz = [
+    "matplotlib>=3.8",
+    "pillow>=10.0",
+    "rasterio>=1.3",
+    # Progress bars for flow-field rendering.
+    "tqdm>=4.66",
+]
+# gmsh installs from pip but may not *import*. The wheel bundles a library
+# linked against X11 (libXft, libXcursor, libXinerama); pip cannot install
+# system libraries, so `pip install gmsh` succeeds and the import then fails on
+# a headless machine with `libXft.so.2: cannot open shared object file`. The
+# meshing never opens a window — the same build just also serves the GUI.
+# `conda install -c conda-forge gmsh` pulls them in;
+# `aether.geometry.backend.require_gmsh` says all of this when it happens.
+#
+# **SU2 is not pip-installable at all** — a compiled solver in its own
+# environment (conda create -n su2 -c conda-forge su2). `find_su2` looks for it
+# on PATH and says so plainly when it is absent.
+cfd = [
+    "gmsh>=4.12",
+    # Volumetric field and table archives. The tables themselves round-trip
+    # through the JSONL checkpoint, which needs nothing; h5py is for handing
+    # a finished sweep to a post-processor.
+    "h5py>=3.10",
+]
+# ERA5 reanalysis: measured wind and temperature profiles.
+reanalysis = [
+    "cfgrib>=0.9",
+    "xarray>=2024.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aether"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not slow'"
+markers = [
+    "slow: long-running sweeps, deselected by default (pytest -m slow)",
+]
+filterwarnings = [
+    "error",
+    # scipy.linalg.eig on some LAPACK builds emits benign runtime warnings for
+    # near-defective pencils; the modal layer checks results explicitly instead.
+    "default::scipy.linalg.LinAlgWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "RET", "SIM", "NPY", "RUF"]
+ignore = [
+    "E741",   # ambiguous variable names — mathematical notation (l, I) mirrors the manuscript
+    "RUF001", # typographic dashes/minus signs in report strings are deliberate
+    "RUF002", # same, in docstrings quoting the manuscript
+    "RUF003", # same, in comments
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Single-capital and subscripted names in the geometry generators are the
+# symbols their formulae are written in — R for a fillet radius, L1/L2 for
+# segment lengths, N_vec/T_vec for the normal and tangent of a mitred joint.
+# Renaming them to satisfy pep8 would make the code harder to check against
+# the derivation it implements, which is the only way it can be checked.
+"src/aether/aerodynamics/panels.py" = ["N803", "N806"]
+
+[tool.mypy]
+# numpy >= 2.3 ships stubs using PEP 695 `type` statements, which mypy
+# only parses when targeting >= 3.12; runtime code remains 3.10-compatible.
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+files = ["src/aether"]
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "cupy.*"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+# gmsh and cantera arrived with the aerodynamics and aerothermal packages;
+# each is wrapped behind a typed facade here, so the untyped surface is one
+# call wide in each case.
+module = ["gmsh", "tqdm.*", "pymsis.*", "cantera.*", "xarray.*", "rasterio.*", "h5py"]
+ignore_missing_imports = true
