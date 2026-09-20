@@ -1,4 +1,4 @@
-"""Blended pressure closure and panel loads (Paper II, §3.3)."""
+"""Blended pressure closure and panel loads."""
 
 import numpy as np
 import pytest
@@ -118,7 +118,7 @@ class TestBlendedClosure:
         )
 
     def test_unblended_closure_is_c0_but_not_c1(self):
-        """The premise of the whole blending exercise (Paper II, Remark 2)."""
+        """The premise of the whole blending exercise."""
         h = 1e-7
         cp_m = float(blended_pressure_coefficient(-h, MACH, blend_width=0.0))
         cp_p = float(blended_pressure_coefficient(+h, MACH, blend_width=0.0))

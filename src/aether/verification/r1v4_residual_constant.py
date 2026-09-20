@@ -1,4 +1,4 @@
-"""R1-V4 — the residual constant :math:`C_{\\mathcal R}`, for Paper 1 §4.7.
+"""R1-V4 — the residual constant :math:`C_{\\mathcal R}`, for the thesis proposal.
 
 \\Cref{thm:dimension_reduction} thickens the skeleton-plus-impulses by a
 ball of radius :math:`\\varrho(\\varepsilon)=C_{\\mathcal R}\\sqrt\\varepsilon`,
@@ -183,7 +183,7 @@ def run_r1v4(output_dir: Path) -> VerificationReport:
             "sqrt(eps) and eq:red_containment states the wrong functional form"
         ),
         passed=True,
-        source="Paper I §8",
+        source="task definition",
     )
 
     # --- 1. the exponent -----------------------------------------------

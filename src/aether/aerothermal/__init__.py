@@ -1,4 +1,4 @@
-"""Hypersonic aerothermodynamic correlations (Paper II, §4).
+"""Hypersonic aerothermodynamic correlations.
 
 Stagnation convective heating by Fay–Riddell with the Lewis exponent
 stated (Eq. 4.1), the modified-Newtonian stagnation velocity gradient

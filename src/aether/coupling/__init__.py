@@ -1,5 +1,4 @@
-"""Structure–fluid coupling: quadrature-consistent slosh force regularization
-(Paper I, §3.3)."""
+"""Structure–fluid coupling: quadrature-consistent slosh force regularization."""
 
 from __future__ import annotations
 

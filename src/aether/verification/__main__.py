@@ -6,9 +6,12 @@ import argparse
 import sys
 from pathlib import Path
 
+from aether.verification.integration import run_integration
 from aether.verification.p2v1_ultraspherical import run_p2v1
 from aether.verification.p2v4_blending import run_p2v4
+from aether.verification.p2v5_coast import run_p2v5
 from aether.verification.p2v8_aerothermal import run_p2v8
+from aether.verification.p2v67_gnc import run_p2v67
 from aether.verification.p2v123_plates import run_p2v123
 from aether.verification.r1v1_timescales import run_r1v1
 from aether.verification.r1v2_attitude_gap import run_r1v2
@@ -21,6 +24,7 @@ from aether.verification.v3_integrators import run_v3
 from aether.verification.v4_fiat import run_v4_fiat
 from aether.verification.v4_thermal import run_v4
 from aether.verification.v5_filter import run_v5
+from aether.verification.v7_dispersion import run_v7
 from aether.verification.v8_throughput import run_v8
 
 
@@ -37,9 +41,12 @@ def main() -> int:
         (run_v4, "v4-thermal"),
         (run_v4_fiat, "v4-fiat"),
         (run_v5, "v5-filter"),
+        (run_v7, "v7-dispersion"),
         (run_v8, "v8-throughput"),
         (run_p2v1, "p2v1-ultraspherical"),
         (run_p2v4, "p2v4-blending"),
+        (run_p2v5, "p2v5-coast"),
+        (run_p2v67, "p2v67-gnc"),
         (run_p2v8, "p2v8-aerothermal"),
         (run_p2v123, "p2v123-plates"),
         (run_r1v1, "r1v1-timescales"),
@@ -47,6 +54,7 @@ def main() -> int:
         (run_r1v3, "r1v3-impulse-rank"),
         (run_r1v4, "r1v4-residual-constant"),
         (run_r1v5, "r1v5-augmented-field"),
+        (run_integration, "int-coupled"),
     ):
         report = runner(args.output)
         path = report.write(args.output, stem)

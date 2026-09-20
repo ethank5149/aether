@@ -1,6 +1,6 @@
 """V2 — slosh regularization: exact force transfer, moment error.
 
-Paper I, §8: *"Total force and first moment transferred versus σ, N, and
+Acceptance criterion: *"Total force and first moment transferred versus σ, N, and
 station x_s; Prop. 1. Failure criterion: force error above machine
 precision; moment error not O(σ²) in the interior."*
 

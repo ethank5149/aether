@@ -1,4 +1,4 @@
-"""Caret waverider geometry (Paper I §6, the lifting exemplar).
+"""Caret waverider geometry (the lifting exemplar).
 
 The cone is the certified exemplar because its sharp limit has an exact
 solution; the waverider is here because the cone cannot exercise the

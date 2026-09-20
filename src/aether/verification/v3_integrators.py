@@ -1,6 +1,6 @@
 """V3 — time integration: achieved Δt and wall clock across strategies.
 
-Paper I, §8: *"Achieved Δt and wall-clock for explicit, modally
+Acceptance criterion: *"Achieved Δt and wall-clock for explicit, modally
 truncated, and IMEX strategies; Prop. 2. Failure criterion: explicit Δt
 not scaling as N⁻⁴."*
 

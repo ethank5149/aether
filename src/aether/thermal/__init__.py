@@ -1,6 +1,6 @@
 """Charring-ablation thermal kernel on a fixed computational domain.
 
-Implements Paper I, §3.4: three-component Arrhenius decomposition
+Implements three-component Arrhenius decomposition
 kinetics (Eq. 3.14), the Landau transformation rendering the recession
 front stationary in computational coordinates (Eqs. 3.15–3.16), the
 in-depth energy equation with pyrolysis-gas convection and grid-velocity

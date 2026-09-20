@@ -1,4 +1,4 @@
-"""Landau transformation to a fixed computational domain (Paper I, §3.4.2).
+"""Landau transformation to a fixed computational domain.
 
 With recession depth :math:`s(t)`, the physical domain
 :math:`y \\in [s(t), L_{\\mathrm{TPS}}]` shrinks as the surface recedes;

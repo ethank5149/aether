@@ -1,6 +1,6 @@
 """Structural kernel: variable-rigidity beam, null-space BCs, modal solve.
 
-Implements Paper I, §3.1–§3.2 and §3.6: the product-rule Euler–Bernoulli
+Implements the product-rule Euler–Bernoulli
 stiffness operator on a Chebyshev grid, free-free boundary conditions by
 null-space projection, the reduced generalized eigenproblem, and the
 temporal-integration strategies whose comparison is verification task V3.

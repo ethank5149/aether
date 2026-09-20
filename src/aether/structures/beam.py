@@ -1,6 +1,6 @@
 """Assembly of the collocated variable-rigidity Euler–Bernoulli operator.
 
-Paper I, Eq. (3.5): the stiffness operator retains the full product-rule
+the stiffness operator retains the full product-rule
 expansion,
 
 .. math::
@@ -15,7 +15,7 @@ near-constant over a bending wavelength, which fails across stage joints
 and in regions of thermal softening — so all three terms are kept.
 
 All derivative matrices here are *physically scaled*: the
-:math:`(2/L)^k` factors of Paper I, Eq. (3.3) are carried inside
+:math:`(2/L)^k` factors are carried inside
 :class:`~aether.spectral.ChebyshevGrid`, so no scaling factor appears in
 this module. That is deliberate — the affine factor is flagged by the
 paper as "a common source of error", and centralizing it in one place is
@@ -54,7 +54,7 @@ class BeamOperators:
         Nodal mass-per-length samples :math:`\\mathbf{m}`.
     stiffness:
         The unconstrained collocation operator :math:`\\mathbf{K}`,
-        shape ``(N + 1, N + 1)``. Not symmetric (Paper I, Remark 1).
+        shape ``(N + 1, N + 1)``. Not symmetric.
     mass_matrix:
         :math:`\\mathbf{M} = \\mathrm{diag}(\\mathbf{m})`, stored dense
         for uniformity with the projected algebra downstream.
@@ -78,7 +78,7 @@ def assemble_beam(grid: ChebyshevGrid, profile: MaterialProfile) -> BeamOperator
 
     The rigidity derivatives entering the product-rule terms are computed
     spectrally from the nodal samples (``diag(D EI)``, ``diag(D² EI)``),
-    exactly as written in Paper I, Eq. (3.5) — not from the profile's
+    exactly as written — not from the profile's
     analytic derivatives, which exist so that tests can quantify the
     difference.
 
@@ -98,7 +98,7 @@ def assemble_beam(grid: ChebyshevGrid, profile: MaterialProfile) -> BeamOperator
     a, _ = grid.interval
     if a != 0.0:
         raise ValueError(
-            f"beam domain must start at x = 0 per Paper I convention, got interval {grid.interval}"
+            f"beam domain must start at x = 0 by convention, got interval {grid.interval}"
         )
     profile.validate_on(grid.x)
 

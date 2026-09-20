@@ -1,4 +1,4 @@
-"""Mindlin–Reissner anisotropic plate kernel (Paper II, §5).
+"""Mindlin–Reissner anisotropic plate kernel.
 
 Three-field :math:`(w, \\phi_x, \\phi_y)` first-order shear-deformation
 plates on a fixed bivariate ultraspherical grid: the moment/shear

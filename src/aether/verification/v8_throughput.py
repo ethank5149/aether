@@ -1,6 +1,6 @@
 """V8 — batch throughput: replicates per second versus N_MC and N.
 
-Paper I, §8: *"Replicates per second versus N_MC and N; achieved
+Acceptance criterion: *"Replicates per second versus N_MC and N; achieved
 occupancy; CPU baseline comparison. Failure criterion: sublinear scaling
 in N_MC below device saturation."*
 
@@ -326,7 +326,7 @@ extern "C" __global__ void rk4_stage(const double* y, const double* beta,
                 f"installed but cannot read the counters here: {reason}. That "
                 f"is a host-level driver setting, not a code gap, and it is "
                 f"reported rather than worked around. Warp-divergence "
-                f"measurement (Paper I, Remark 9) is blocked by the same gate; "
+                f"measurement is blocked by the same gate; "
                 f"the common-outer-grid design that mitigates divergence is "
                 f"already the only execution mode implemented.",
             )

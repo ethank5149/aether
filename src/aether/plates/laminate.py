@@ -1,6 +1,6 @@
 """Orthotropic laminate rigidities for the Mindlin–Reissner kernel.
 
-Paper II, Eqs. (5.3)–(5.4): the moment resultants follow from the
+the moment resultants follow from the
 flexural rigidity tensor :math:`\\mathbf{D}_{ij}` and the transverse
 shears from :math:`\\kappa_s^2 G_{xz} h`, :math:`\\kappa_s^2 G_{yz} h`,
 with the shear correction factor :math:`\\kappa_s^2 = 5/6` following
@@ -9,7 +9,7 @@ and is available as a named constant rather than a magic number, since
 the paper states both.
 
 Rigidities are held constant over the planform in this implementation.
-Paper II constructs :math:`\\mathbf{D}_{ij}(\\xi, \\eta)` by hyperbolic
+The full model constructs :math:`\\mathbf{D}_{ij}(\\xi, \\eta)` by hyperbolic
 blending across material interfaces; the Kronecker assembly in
 :mod:`aether.plates.mindlin` multiplies each term by a scalar
 coefficient, and extending it to separable (rank-1) coefficient fields
@@ -31,7 +31,7 @@ __all__ = [
     "isotropic_laminate",
 ]
 
-#: Reissner's shear correction factor (Paper II, §5.2 default).
+#: Reissner's shear correction factor.
 SHEAR_CORRECTION_REISSNER = 5.0 / 6.0
 #: Mindlin's alternative; differs from Reissner's by under 2%.
 SHEAR_CORRECTION_MINDLIN = np.pi**2 / 12.0
@@ -44,7 +44,7 @@ class OrthotropicLaminate:
     Attributes
     ----------
     d11, d12, d22, d66:
-        Flexural rigidity components (N·m) of Paper II, Eq. (5.3).
+        Flexural rigidity components (N·m).
     shear_xz, shear_yz:
         Transverse shear moduli :math:`G_{xz}`, :math:`G_{yz}` (Pa).
     thickness:
@@ -106,7 +106,7 @@ class OrthotropicLaminate:
 
         Flexural rigidities scale as :math:`h^3` and shear stiffness as
         :math:`h`, which is precisely the :math:`h^{-1}`-growing
-        stiffness ratio that drives shear locking (Paper II, Remark 3) —
+        stiffness ratio that drives shear locking —
         so this is the constructor the II-V2 thickness sweep uses.
         """
         ratio = (float(thickness) / self.thickness) ** 3

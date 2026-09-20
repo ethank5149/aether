@@ -52,6 +52,8 @@ from aether.certification.rigorous import (
     MathOps,
     VectorField,
     enclose_field,
+    interval,
+    outward,
 )
 from aether.certification.tube import Box, rough_enclosure
 
@@ -138,24 +140,27 @@ def mean_value_step(
     # Taylor remainder; without it the expansion is not an enclosure at all.
     field_on_enclosure = enclose_field(field, enclosure, control)
 
+    # All of it in Arb, so the sums and products carry their rounding error:
+    # the float version of this loop could land a bound inward by an ulp.
+    import flint
+
+    h = flint.arb(dt)
     result: Box = []
     for i in range(n):
-        low = centre[i] + dt * centre_field[i][0]
-        high = centre[i] + dt * centre_field[i][1]
-        spread = 0.0
-        remainder = 0.0
+        spread = flint.arb(0)
+        remainder = flint.arb(0)
         for j in range(n):
-            lo_j, hi_j = jacobian[i][j]
-            magnitude = max(abs(lo_j), abs(hi_j))
+            entry = interval(*jacobian[i][j])
             # (I + h J)(X - c): an interval matrix on a symmetric box, so each
             # column contributes |entry| * half_j to the half-width.
-            coefficient = (
-                max(abs(1.0 + dt * lo_j), abs(1.0 + dt * hi_j)) if i == j else dt * magnitude
+            coefficient = abs(1 + h * entry) if i == j else h * abs(entry)
+            spread += flint.arb(coefficient.upper()) * flint.arb(half[j])
+            remainder += flint.arb(abs(entry).upper()) * flint.arb(
+                abs(interval(*field_on_enclosure[j])).upper()
             )
-            spread += coefficient * half[j]
-            lo_f, hi_f = field_on_enclosure[j]
-            remainder += magnitude * max(abs(lo_f), abs(hi_f))
-        result.append(
-            (low - spread - 0.5 * dt * dt * remainder, high + spread + 0.5 * dt * dt * remainder)
-        )
+        centre_step = flint.arb(centre[i]) + h * interval(*centre_field[i])
+        slack = spread + h * h * remainder / 2
+        low, _ = outward(centre_step - slack)
+        _, high = outward(centre_step + slack)
+        result.append((low, high))
     return result

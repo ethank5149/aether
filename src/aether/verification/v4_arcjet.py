@@ -1,6 +1,6 @@
 """I-V4 (reference-case leg) — recession against published arcjet PICA tests.
 
-Paper I, §8, V4: *"Ablation: method of manufactured solutions; recession
+Acceptance criterion: *"Ablation: method of manufactured solutions; recession
 within 5% of a FIAT reference case."*
 
 This is the leg that has been outstanding since the roadmap was written.

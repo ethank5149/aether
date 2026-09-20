@@ -1,4 +1,4 @@
-"""Attitude-manifold hyperbolicity (task R1-V2, Paper 1 §4.5).
+"""Attitude-manifold hyperbolicity (task R1-V2).
 
 The load-bearing claim is the *bank invariance* identity: rotating a body
 about the oncoming flow direction does not change which of its panels face

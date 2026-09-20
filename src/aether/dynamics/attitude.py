@@ -1,4 +1,4 @@
-"""Attitude kinematics with Baumgarte stabilization (Paper II, §3.1).
+"""Attitude kinematics with Baumgarte stabilization.
 
 The quaternion evolves by :math:`\\dot{\\mathbf{q}} = \\tfrac{1}{2}
 \\bm{\\Omega}(\\bm{\\omega})\\mathbf{q}` (Eq. 3.1). The unit-norm
@@ -7,8 +7,7 @@ general Runge–Kutta method, which drifts off the constraint manifold at
 the order of the local truncation error and accumulates over a long
 trajectory. Rather than renormalizing after each step — cheap, but it
 silently perturbs the embedded error estimate the adaptive controller
-relies on — the correction is applied inside the right-hand side
-(Paper I, Eq. 3.30):
+relies on — the correction is applied inside the right-hand side:
 
 .. math::
 
@@ -19,8 +18,8 @@ which renders the unit sphere *attracting* rather than merely invariant
 and keeps the correction visible to the error controller.
 
 **Convention.** Scalar part first, :math:`\\mathbf{q} = [q_0,
-\\bm{q}_{1:3}]`, Hamilton (not JPL) product, mapping ECI to body axes
-(Paper II, Appendix B). Mixing Hamilton and JPL produces a transpose
+\\bm{q}_{1:3}]`, Hamilton (not JPL) product, mapping ECI to body axes. Mixing Hamilton and JPL
+produces a transpose
 error that is easy to introduce and hard to detect, since both yield
 valid rotation matrices — which is why the convention is asserted in
 the tests rather than left to a comment.
@@ -91,7 +90,7 @@ def quaternion_norm_error(quaternion: ArrayLike) -> _FloatArray:
 
 
 def dcm_from_quaternion(quaternion: ArrayLike) -> _FloatArray:
-    """Direction cosine matrix :math:`\\mathbf{C}_E^B` (Paper II, Eq. B.1).
+    """Direction cosine matrix :math:`\\mathbf{C}_E^B`.
 
     Maps ECI components to body components -- the **passive** sense. Returns
     shape ``(..., 3, 3)``.

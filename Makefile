@@ -26,7 +26,7 @@ verify:
 check: boundary lint typecheck test verify
 
 example:
-	$(PYTHON) -m examples.capsule.entry
+	$(PYTHON) -m examples.artemis1.entry
 
 # ---------------------------------------------------------------- proposal
 proposal:

@@ -1,6 +1,6 @@
 """II-V1 (block leg), II-V2 and II-V3 — the Mindlin–Reissner plate kernel.
 
-Paper II, §8:
+Acceptance criterion:
 
 - **V1** *"κ of the assembled Mindlin–Reissner block operator versus N;
   comparison against dense Chebyshev collocation. Failure criterion: κ
@@ -185,8 +185,8 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
     slope_int = float(np.polyfit(log_n, np.log(kappa_interior), 1)[0])
     slope_col = float(np.polyfit(log_n, np.log(kappa_column), 1)[0])
     slope_proj = float(np.polyfit(log_n, np.log(kappa_projected), 1)[0])
-    # The stated criterion is about the *assembled block operator*. Paper II's
-    # Remark in §5.4 is explicit that the conditioning claim "does not
+    # The stated criterion is about the *assembled block operator*. The
+    # conditioning claim explicitly "does not
     # automatically survive the addition of dense boundary rows", so the
     # boundary-projected pencil is measured and reported but is not what the
     # criterion governs.
@@ -210,7 +210,7 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         f"operator is not merely O(N) but essentially **O(1)**-conditioned: κ "
         f"moves from {kappa_interior[0]:.0f} to {kappa_interior[-1]:.0f} while "
         f"the problem size grows {(cond_ns[-1] / cond_ns[0]) ** 2:.0f}-fold. "
-        "Paper I's dense collocation on the *fourth-order* beam grows as O(N⁸); "
+        "Dense collocation on the *fourth-order* beam grows as O(N⁸); "
         "the Mindlin–Reissner system is second order in each field, which halves "
         "the derivative order and — as §5.2 argues — the conditioning penalty "
         "with it.",
@@ -248,7 +248,7 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         "measurand: differentiation shifts by its order, so its trailing rows "
         "are structurally zero and its κ₂ is infinite at every N — and for the "
         "free-free perimeter the three rigid-body directions are excluded from "
-        "the projected pencil for the same reason, the trap Paper I's V1 "
+        "the projected pencil for the same reason, the trap V1 "
         "documents for the free-free beam.",
     )
     write_csv(
@@ -300,9 +300,9 @@ def run_p2v123(output_dir: Path) -> VerificationReport:
         f"thick section — to a plateau of {thin_plateau:.4f}, and at "
         f"h/L = 1e-3 it differs from that plateau by **{stiffening:+.3%}**, "
         f"against the criterion of 1% spurious stiffening → "
-        f"{'**PASS**' if lock_ok else '**FAIL**'}. Paper II's Remark 3 claims "
-        "high-order spectral discretizations are *markedly less susceptible* to "
-        "locking but explicitly declines to claim immunity; this measures it. "
+        f"{'**PASS**' if lock_ok else '**FAIL**'}. High-order spectral "
+        "discretizations are expected to be *markedly less susceptible* to "
+        "locking, not immune to it; this measures it. "
         "The rigid-separation column records the cost that is really paid as the "
         "section thins: the shear-to-bending stiffness ratio grows as h⁻², and "
         "the rigid-body modes separate from the elastic spectrum by "

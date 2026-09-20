@@ -1,4 +1,4 @@
-"""Three-component Arrhenius decomposition kinetics (Paper I, Eq. 3.14).
+"""Three-component Arrhenius decomposition kinetics.
 
 Each component decomposes in the material frame by
 

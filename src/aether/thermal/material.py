@@ -1,4 +1,4 @@
-"""Charring material model (Paper I, §3.4.1).
+"""Charring material model.
 
 The solid is three components — two resin constituents (A, B) and a
 filler (C) — each with an independent Arrhenius decomposition law; the
@@ -42,7 +42,7 @@ GAS_CONSTANT = 8.31446261815324
 
 @dataclass(frozen=True)
 class ArrheniusComponent:
-    """One decomposing solid component of Paper I, Eq. (3.14).
+    """One decomposing solid component.
 
     Attributes
     ----------

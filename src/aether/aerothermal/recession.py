@@ -1,4 +1,4 @@
-"""Leading-edge single-temperature recession balance (Paper II, §4.4).
+"""Leading-edge single-temperature recession balance.
 
 Non-pyrolyzing refractory leading edges (C/C, ZrB₂–SiC) recede by
 surface oxidation and mechanical removal with no in-depth reaction zone
@@ -10,8 +10,8 @@ and no pyrolysis gas; for that material class the Stefan-type balance
     = \\dot q_{\\mathrm{total}} - \\varepsilon\\sigma_S T_w^4
     - k_{\\mathrm{mat}}\\,\\partial T/\\partial n|_{\\mathrm{wall}}
 
-is the *physically correct* model, not a simplification — the paper's
-Remark resolves the apparent inconsistency with Paper I explicitly: the
+is the *physically correct* model, not a simplification — the apparent
+inconsistency with the charring model resolves by region: the
 charring formulation of :mod:`aether.thermal` applies to acreage
 phenolics, this balance to refractory edges, selected per region from
 the material map. Applying either to the other class is wrong in a
@@ -38,7 +38,7 @@ def stefan_recession_rate(
     material_density: float,
     ablation_enthalpy: float,
 ) -> _FloatArray:
-    """Recession rate :math:`\\dot s` of Paper II, Eq. (4.6), m/s.
+    """Recession rate :math:`\\dot s`, m/s.
 
     Parameters
     ----------

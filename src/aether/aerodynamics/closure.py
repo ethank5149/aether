@@ -1,4 +1,4 @@
-"""Blended windward/leeward pressure closure (Paper II, §3.3).
+"""Blended windward/leeward pressure closure.
 
 Modified Newtonian pressure alone is inadequate for slender waveriders
 at moderate incidence: it assigns zero pressure coefficient to every
@@ -72,7 +72,7 @@ def _check_gamma(gamma: float) -> float:
 
 
 def rayleigh_pitot_cp_max(mach: float, gamma: float = 1.4) -> float:
-    """:math:`C_{p,\\max}` behind a normal shock (Paper II, Eq. 3.5).
+    """:math:`C_{p,\\max}` behind a normal shock.
 
     Uses the Rayleigh–Pitot relation
 

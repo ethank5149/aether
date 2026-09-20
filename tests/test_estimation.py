@@ -1,4 +1,4 @@
-"""Adaptive filter (Paper I, §4.1–4.2): gate calibration, inflation bounds."""
+"""Adaptive filter: gate calibration, inflation bounds."""
 
 import numpy as np
 import pytest

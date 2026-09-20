@@ -1,9 +1,9 @@
-"""Free-free modal solution of the reduced pencil (Paper I, §3.2, §3.6).
+"""Free-free modal solution of the reduced pencil.
 
 Solves the generalized eigenproblem
 :math:`\\hat{\\mathbf{K}}\\hat{\\mathbf{w}} = \\lambda\\hat{\\mathbf{M}}\\hat{\\mathbf{w}}`
 by the QZ algorithm. Because the collocation stiffness operator is not
-symmetric (Paper I, Remark 1), the computed spectrum is nominally
+symmetric, the computed spectrum is nominally
 complex; physical correctness requires it to be real and non-negative up
 to rounding, and this module *verifies* that instead of assuming it,
 recording the worst imaginary contamination as a diagnostic and failing
@@ -18,7 +18,7 @@ Mode normalization uses the quadrature mass norm
 :math:`\\sum_j w_j^{\\mathrm{CC}} m_j W_j^2 = 1` (the discrete
 :math:`\\int m w^2\\,dx`), which is the physically meaningful inner
 product on a collocation grid and makes the effective-mass participation
-used for modal truncation (Paper I, §3.6) exact by construction.
+used for modal truncation exact by construction.
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ class ModalSolution:
     def truncate(self, n_modes: int) -> ModalBasis:
         """Retain the lowest ``n_modes`` modes (rigid modes included).
 
-        This is the modal-truncation mitigation of Paper I, §3.6: it
+        This is the modal-truncation mitigation: it
         caps :math:`\\omega_{\\max}` at :math:`\\omega_{n_m}` and thereby
         restores a workable explicit step size. The retained-mode
         translation participation quantifies the approximation.

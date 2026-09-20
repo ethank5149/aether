@@ -1,4 +1,4 @@
-"""Ultraspherical (Gegenbauer) spectral method (Paper II, §5.4 and Appendix A).
+"""Ultraspherical (Gegenbauer) spectral method.
 
 Coefficient-space spectral discretization after Olver & Townsend (2013):
 the solution lives in the Chebyshev basis, its :math:`k`-th derivative
@@ -8,7 +8,7 @@ coefficients enter as banded multiplication operators built from the
 Jacobi (multiplication-by-:math:`x`) recurrence, so an assembled
 :math:`k`-th order variable-coefficient operator is banded — in contrast
 to the dense :math:`\\mathcal{O}(N^{2k})`-conditioned collocation
-matrices of Paper I — with boundary conditions appended as dense rows
+matrices of :mod:`aether.spectral` — with boundary conditions appended as dense rows
 rather than substituted.
 """
 

@@ -3,7 +3,7 @@
 Constructs smooth non-polynomial fields — so spectral convergence is
 visible rather than trivially exact — with every partial derivative in
 closed form, and the equation-level sources that make them an exact
-solution of Paper I, Eqs. (3.14)–(3.18) under the solver's
+solution under the solver's
 ``eta_frame`` density-rate convention:
 
 .. math::

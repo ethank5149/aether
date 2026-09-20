@@ -96,7 +96,7 @@ precondition for the lateral channel rather than a separate concern.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import scipy.integrate
@@ -155,16 +155,27 @@ class EntryBody:
         how much of the flight is controllable: crossrange capability scales
         roughly with its square.
     max_bank:
-        Largest bank magnitude the body will command (rad). Bounding it
-        matters because the drag tracker's authority is
-        :math:`\\cos\\sigma`, which goes to zero at 90 degrees — an
-        unbounded command can ask for a bank that leaves no vertical lift
-        at all and drops the body out of the atmosphere.
+        Largest bank magnitude the body will command (rad), in
+        :math:`(0, \\pi]`. A glider keeps it below 90 degrees, because
+        :math:`\\cos\\sigma` is its only source of vertical lift and a bank
+        past 90 degrees pulls it down out of the glide. A capsule flies the
+        whole range: lift-down is how it stays in the atmosphere on a steep
+        or fast entry, and a skip entry needs both halves.
+    density:
+        Atmospheric density (kg/m³) as a function of geometric altitude (m).
+        Defaults to the exponential :func:`atmospheric_density`, which is the
+        model the certified entry field is written against. A skip entry
+        exits and re-enters between 60 and 120 km, where the exponential
+        model overstates density by one to two orders of magnitude, so a
+        trajectory that skips should be flown through a standard atmosphere
+        (:func:`aether.atmosphere.model.tabulate` of
+        :func:`aether.atmosphere.model.earth_atmosphere`).
     """
 
     ballistic_coefficient: float
     lift_to_drag: float
     max_bank: float = np.deg2rad(80.0)
+    density: Callable[[float], float] | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if not (np.isfinite(self.ballistic_coefficient) and self.ballistic_coefficient > 0.0):
@@ -173,17 +184,18 @@ class EntryBody:
             )
         if not (np.isfinite(self.lift_to_drag) and self.lift_to_drag > 0.0):
             raise ValueError(f"lift_to_drag must be finite and > 0, got {self.lift_to_drag}")
-        if not (0.0 < self.max_bank < 0.5 * np.pi):
-            raise ValueError(
-                f"max_bank must lie in (0, pi/2); at pi/2 the vertical lift "
-                f"component vanishes and the drag tracker loses all "
-                f"authority. Got {self.max_bank}"
-            )
+        if not (0.0 < self.max_bank <= np.pi):
+            raise ValueError(f"max_bank must lie in (0, pi], got {self.max_bank}")
+
+    def air_density(self, altitude: float) -> float:
+        """Density (kg/m³) of the atmosphere this body flies through."""
+        if self.density is None:
+            return float(atmospheric_density(altitude))
+        return float(self.density(max(float(altitude), 0.0)))
 
     def drag_acceleration(self, altitude: float, speed: float) -> float:
         """Drag deceleration (m/s²)."""
-        rho = float(atmospheric_density(altitude))
-        return 0.5 * rho * speed**2 / self.ballistic_coefficient
+        return 0.5 * self.air_density(altitude) * speed**2 / self.ballistic_coefficient
 
     def lift_acceleration(self, altitude: float, speed: float) -> float:
         """Lift acceleration magnitude (m/s²), before banking."""

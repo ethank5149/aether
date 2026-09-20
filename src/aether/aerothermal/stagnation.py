@@ -1,7 +1,7 @@
-"""Stagnation-point convective heating (Paper II, §4.1).
+"""Stagnation-point convective heating.
 
-Fay–Riddell (Eq. 4.1) with the terms Paper II insists on specifying
-because the equation "is frequently quoted without them": the Lewis
+Fay–Riddell with the terms that have to be specified because the equation
+is frequently quoted without them: the Lewis
 exponent is an explicit argument with the two physically distinct values
 named (0.52 equilibrium boundary layer, 0.63 frozen with fully catalytic
 wall), the dissociation enthalpy enters through the bracket, and the
@@ -153,7 +153,7 @@ class WallCatalycity(Enum):
 #: footnote to Eq. (63)         as printed                    0.76
 #: ===========================  ==========================  ========
 #:
-#: The 0.763 in general circulation (and in Paper II, Eq. 4.1) appears
+#: The 0.763 in general circulation (and appears
 #: nowhere in the source, but it sits inside that band and is as defensible
 #: as any of them. No reading supports a third significant figure. All four
 #: are named so the choice is explicit rather than inherited.
@@ -169,7 +169,7 @@ FAY_RIDDELL_COEFFICIENT_LITERATURE = 0.763
 FAY_RIDDELL_FACTOR_PR071 = 0.94
 #: Eq. (58)/(62): the one fitted constant everything else descends from.
 FAY_RIDDELL_NUSSELT_COEFFICIENT = 0.67
-#: Sutton–Graves constant for Earth air, SI units (Paper II, §4.1 Remark).
+#: Sutton–Graves constant for Earth air, SI units.
 SUTTON_GRAVES_EARTH = 1.7415e-4
 
 
@@ -186,7 +186,7 @@ def newtonian_velocity_gradient(
     freestream_pressure: ArrayLike,
     stagnation_density: ArrayLike,
 ) -> _FloatArray:
-    """Stagnation velocity gradient :math:`(du_e/dx)_s` (Paper II, Eq. 4.2).
+    """Stagnation velocity gradient :math:`(du_e/dx)_s`.
 
     .. math::
 
@@ -278,7 +278,7 @@ def fay_riddell(
     coefficient: float = FAY_RIDDELL_COEFFICIENT_LITERATURE,
     catalycity: WallCatalycity = WallCatalycity.EQUILIBRIUM,
 ) -> _FloatArray:
-    """Fay–Riddell stagnation convective heat flux (Paper II, Eq. 4.1), W/m².
+    """Fay–Riddell stagnation convective heat flux, W/m².
 
     .. math::
 
@@ -375,7 +375,7 @@ def sutton_graves(
     :math:`\\dot q_s = k_{SG}\\sqrt{\\rho_\\infty/R_{\\mathrm{eff}}}\\,V_\\infty^3`
     (W/m²).
 
-    This is the fallback of the Remark in Paper II §4.1 for use before a
+    This is the fallback of the Remark for use before a
     boundary-layer edge solution exists. It is a correlation, not a
     theory; results computed here must not be reported as Fay–Riddell
     results.

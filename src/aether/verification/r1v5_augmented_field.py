@@ -320,7 +320,7 @@ def run_r1v5(output_dir: Path) -> VerificationReport:
             "i.e. an adjunction is not exact and the embedding carries a residual"
         ),
         passed=True,
-        source="Paper I §8",
+        source="task definition",
     )
 
     # --- 1. are the adjunctions exact? ---------------------------------

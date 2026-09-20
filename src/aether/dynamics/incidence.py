@@ -1,4 +1,4 @@
-"""Local incidence on the deformed surface (Paper II, §3.2).
+"""Local incidence on the deformed surface.
 
 Because a lifting body has significant planform curvature and deforms
 aeroelastically in flight, a single vehicle angle of attack does not
@@ -117,7 +117,7 @@ def deformed_normal(
 
 
 def local_incidence(normal: ArrayLike, velocity_body: ArrayLike) -> _FloatArray:
-    """Local incidence :math:`\\delta_c` (rad) from Paper II, Eq. (3.2).
+    """Local incidence :math:`\\delta_c` (rad).
 
     Positive windward, non-positive leeward. ``velocity_body`` need not
     be normalized.

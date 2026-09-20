@@ -1,6 +1,6 @@
 """Material property fields for the variable-rigidity beam.
 
-Assumption 1 of Paper I requires :math:`EI(x) \\in C^2([0, L])` with
+The stiffness operator assumes :math:`EI(x) \\in C^2([0, L])` with
 :math:`EI(x) > 0` — the regularity that licenses the product-rule
 expansion of the stiffness operator. Stepped configurations (stage
 joints) are therefore constructed by *hyperbolic blending* between
@@ -11,7 +11,7 @@ so no spectral accuracy is forfeited to a jump discontinuity.
 Analytic first and second derivatives are carried alongside each field so
 tests can distinguish spectral-differentiation error from model error;
 the operator assembly itself uses spectral derivatives of the sampled
-field, as written in Paper I, Eq. (3.5).
+field, as written.
 """
 
 from __future__ import annotations

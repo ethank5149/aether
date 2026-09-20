@@ -1,4 +1,4 @@
-"""Coast propagation and regime transition (Paper II, §7).
+"""Coast propagation and regime transition.
 
 The framework advances boost, coast and reentry **within one
 integration** rather than handing off between phase-specific
@@ -10,7 +10,7 @@ aerodynamic contribution to the right-hand side becomes numerically
 negligible *without any branch being taken*
 (:class:`RegimeTransition` measures exactly that).
 
-Paper II's Remark 5 states the cost honestly rather than presenting the
+The cost has to be stated honestly rather than presenting the
 choice as a pure gain: continuing to integrate a structural block that
 carries no energy through coast leaves the step-size controller subject
 to the :math:`\\mathcal{O}(N^{-4})` structural stability bound during a
@@ -141,8 +141,8 @@ def secular_rates(
 ) -> dict[str, float]:
     """First-order secular :math:`J_2` rates (rad/s).
 
-    Nodal regression and apsidal precession — the two effects Paper II
-    §7.1 names as the reason a spherical model is inadequate over a
+    Nodal regression and apsidal precession — the two effects that are the reason a spherical model
+    is inadequate over a
     fractional orbit:
 
     .. math::
@@ -175,7 +175,7 @@ def _atmospheric_density(altitude: _FloatArray | float) -> _FloatArray:
     """Exponential density, evaluated without any branch on altitude.
 
     The exponential simply underflows to zero far above the sensible
-    atmosphere, which is the mechanism Paper II §7.2 relies on: no
+    atmosphere, which is the mechanism relied on here: no
     Kármán-line switch is taken, the term just stops mattering.
     """
     alt = np.asarray(altitude, dtype=np.float64)
@@ -203,7 +203,7 @@ def propagate_coast(
         Arc length (s).
     include_j2:
         ``False`` propagates spherical gravity, for the secular
-        comparison of Paper II §7.1.
+        comparison.
     ballistic_coefficient:
         If given, retains atmospheric drag with this :math:`m/(C_D A)`
         (kg/m²) — the paper keeps drag through coast because perigee on
@@ -341,7 +341,7 @@ def compare_coast_strategies(
     it is carried through the whole coast; in the *frozen-structure*
     strategy it is dropped from the state once its modal energy falls
     below ``freeze_threshold`` of its initial value, which is the
-    "provably quiescent" condition Paper II's Remark 5 requires for the
+    "provably quiescent" condition required for the
     switch to be defensible.
 
     Returns

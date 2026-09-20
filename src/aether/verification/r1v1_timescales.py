@@ -1,6 +1,6 @@
-"""R1-V1 — timescale separation for the reachability series' Paper 1.
+"""R1-V1 — timescale separation, for the thesis proposal.
 
-Reachability Paper 1, §2.7: the three small parameters
+the three small parameters
 
 .. math::
 
@@ -90,7 +90,7 @@ def run_r1v1(output_dir: Path) -> VerificationReport:
             f"the fast scale the §4.6 elastic bubble requires"
         ),
         passed=True,
-        source="Reachability Paper 1 §2.7",
+        source="task definition",
     )
 
     eps_atm = _H_S / _R_E

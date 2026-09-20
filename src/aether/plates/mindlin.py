@@ -1,4 +1,4 @@
-"""Bivariate Mindlin–Reissner plate operator (Paper II, §5).
+"""Bivariate Mindlin–Reissner plate operator.
 
 The three-field system Eqs. (5.5)–(5.7) is *second order in each field*
 — the structural reason the formulation suits spectral discretization,
@@ -21,7 +21,7 @@ resultants out, the governing operator in :math:`\\mathbf{M}\\ddot{
 with :math:`S_x = \\kappa_s^2 G_{xz} h`, :math:`S_y = \\kappa_s^2 G_{yz}
 h`. Every entry is a sum of separable terms, so each assembles as a
 Kronecker product :math:`\\mathbf{A}_j \\otimes \\mathbf{B}_j` of
-one-dimensional ultraspherical factors (Paper II, Eq. 5.19) — the
+one-dimensional ultraspherical factors — the
 Sylvester structure is preserved in the assembly rather than being
 destroyed by forming a dense bivariate matrix.
 
@@ -45,7 +45,7 @@ assembly surfaces as an out-of-range deficiency rather than as quietly
 wrong frequencies.
 
 **Constraint handling.** Conditions are imposed by *null-space
-projection*, the same treatment Paper I §3.2 applies to the free-free
+projection*, the same treatment :mod:`aether.structures` applies to the free-free
 beam and for the same reason: it degrades gracefully under the corner
 redundancy where row replacement does not. The projection is a genuine
 Rayleigh–Ritz restriction because the residual is first mapped back to
@@ -325,7 +325,7 @@ class MindlinPlate:
     def _assemble_boundary(self) -> _FloatArray:
         """Boundary conditions as dense rows, three per edge.
 
-        Free edges impose Paper II, Eq. (5.9); simply-supported edges
+        Free edges impose the free-edge resultant conditions; simply-supported edges
         impose the hard-support triple (:math:`w = 0`, tangential
         rotation zero, normal moment zero), which admits a closed-form
         Mindlin solution and therefore supplies the exact reference the
@@ -367,7 +367,7 @@ class MindlinPlate:
                     )
                 )
                 # Q_x = kappa^2 Gxz h (phix + dw/dx) = 0, evaluated
-                # independently of the geometric slope (Paper II, §5.3)
+                # independently of the geometric slope
                 rows.append(
                     scipy.sparse.hstack(
                         [s_x * _kron2(ex1, ty0), s_x * _kron2(ex0, ty0), zero_blk], format="csr"
@@ -549,8 +549,8 @@ class MindlinPlate:
         For a uniformly free perimeter the three rigid-body directions
         are excluded: the operator annihilates them exactly, so the raw
         ratio is a rounding-floor artefact carrying no information about
-        the discretization (Paper I's V1 documents the same trap for the
-        free-free beam).
+        the discretization (the V1 verification task documents the same trap for
+        the free-free beam).
 
         Parameters
         ----------
@@ -626,7 +626,7 @@ def solve_plate_modes(
     """Free-vibration spectrum of the projected plate pencil.
 
     The strong-form operator is not symmetric (the same situation as
-    Paper I, Remark 1), so the spectrum's reality and non-negativity are
+    the beam operator), so the spectrum's reality and non-negativity are
     *verified* rather than assumed. The check is applied to the
     **resolved** part of the spectrum: the unresolved high tail of a
     truncated strong-form discretization does acquire complex pairs, and
@@ -767,7 +767,7 @@ def kirchhoff_free_free_reference() -> _FloatArray:
         These are the figures that circulate in the plate-vibration
         literature for the FFFF square plate. They are recorded as an
         *orientation* value only and are **not** verified against a
-        publisher record, so they do not satisfy Paper II's V3 criterion
+        publisher record, so they do not satisfy the V3 criterion
         ("published Rayleigh–Ritz values") under this repository's
         citation-audit standard. The verification runner treats them as
         an unverified cross-check and rests its verdict on the

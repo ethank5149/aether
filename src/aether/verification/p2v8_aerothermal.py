@@ -1,6 +1,6 @@
 """II-V8 — aerothermal correlations (implementation-verification leg).
 
-Paper II, §8: *"Stagnation heating against Fay–Riddell reference cases;
+Acceptance criterion: *"Stagnation heating against Fay–Riddell reference cases;
 recession against a FIAT comparison. Failure criterion: heating
 disagreement > 5% on reference conditions."*
 
@@ -220,7 +220,7 @@ def run_p2v8(output_dir: Path) -> VerificationReport:
         earth_radiative_heating_exponent(v_inf, rho_inf, radii[i_min])
     )
     report.add_section(
-        "Opposite-sign radius trade (Paper II §4.2) — on published data",
+        "Opposite-sign radius trade — on published data",
         f"With convective heating falling as R_eff^(−1/2) and the published "
         f"Tauber–Sutton correlation rising as R_eff^(+{trade_exponent:.3f}), "
         f"the total heating has an **interior optimum at R_eff ≈ "
@@ -273,7 +273,7 @@ def run_p2v8(output_dir: Path) -> VerificationReport:
         ["quantity", "value", "note"],
         [
             ["nose-radius exponent a", f"{exponent:.4f}",
-             "source requires a < 1; Paper II §4.2 describes it as ≈ 1.0"],
+             "source requires a < 1; often summarised as ≈ 1.0"],
             ["radiative flux (Eqs. 1–2)", f"{q_rad_ref / 1e6:.4f} MW/m²",
              "converted from the source's W/cm²"],
             ["convective flux (Sutton–Graves)", f"{q_conv_ref / 1e6:.4f} MW/m²",
@@ -293,8 +293,8 @@ def run_p2v8(output_dir: Path) -> VerificationReport:
         f"{'**PASS**' if published_ok else '**FAIL**'}. At the sample condition "
         f"radiative and convective heating are comparable "
         f"({q_rad_ref / q_conv_ref:.2f}×), which is the regime the paper was written "
-        f"for.\n\n**Two discrepancies against Paper II §4.2, both recorded "
-        f"rather than reconciled.** First, the paper describes the nose-radius "
+        f"for.\n\n**Two discrepancies against the usual summary, both recorded "
+        f"rather than reconciled.** First, the usual summary gives the nose-radius "
         f"exponent as *a ≈ 1.0*; the source makes it a function of velocity and "
         f"density, *a = 1.072×10⁶ V^(−1.88) ρ^(−0.325)*, and states explicitly "
         f"that **a < 1 must always be met**. It evaluates to {exponent:.3f} here "

@@ -1,10 +1,8 @@
 """AETHER — Aero-thermo-Elastic Trajectory & Hypersonic Estimation Research.
 
 The public numerics kernel: a fixed-grid spectral formulation for coupled
-moving-boundary problems, with batched uncertainty quantification. This is
-the implementation accompanying Knox (2026), *A Fixed-Grid Spectral Method
-for Coupled Moving-Boundary Problems, with Batched Uncertainty
-Quantification* (``manuscript/``).
+moving-boundary problems, with batched uncertainty quantification, and the
+implementation behind the thesis proposal in ``manuscript/``.
 
 - :mod:`aether.spectral` — Chebyshev–Gauss–Lobatto collocation operators
   built by the direct recurrence with the negative-sum trick,

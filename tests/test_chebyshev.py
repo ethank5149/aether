@@ -79,7 +79,7 @@ class TestDifferentiationMatrices:
             assert np.all(np.abs(dm[k].sum(axis=1)) <= 20 * EPS * row_scale)
 
     def test_first_matrix_matches_trefethen_formula(self):
-        """Spot-check the closed-form entries of Paper I, Eq. (A.1)."""
+        """Spot-check the closed-form entries."""
         n = 10
         d = chebyshev_diffmats(n, 1)[0]
         assert d[0, 0] == pytest.approx((2 * n**2 + 1) / 6.0, rel=1e-13)
@@ -171,7 +171,7 @@ class TestChebyshevGrid:
         assert g.weights.sum() == pytest.approx(length, rel=1e-14)
 
     def test_scaling_factor_carried(self):
-        """The (2/L)^k factor of Paper I Eq. (3.3): physical D^k equals
+        """The (2/L)^k factor: physical D^k equals
         (2/L)^k times the reference operator."""
         g = ChebyshevGrid(10, interval=(0.0, 4.0))
         ref = chebyshev_diffmats(10, 4)

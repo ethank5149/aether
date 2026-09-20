@@ -1,4 +1,4 @@
-"""Adaptive state estimation: χ² anomaly gating and IAE (Paper I, §4.1–4.2)."""
+"""Adaptive state estimation: χ² anomaly gating and IAE."""
 
 from __future__ import annotations
 

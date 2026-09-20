@@ -1,4 +1,4 @@
-"""Variable-coefficient assembly and bordered solve (Paper II, Eq. A.3).
+"""Variable-coefficient assembly and bordered solve.
 
 A :math:`k`-th order operator :math:`\\mathcal{L}u = \\sum_j a_j(x)
 u^{(j)}` on an interval assembles as
@@ -21,7 +21,7 @@ applies to the preconditioned ultraspherical operator; this module's
 :meth:`~UltrasphericalBVP.condition_number` therefore reports both the
 raw bordered system and its column-equilibrated form, and the II-V1
 runner records both — asserting only what the citation establishes and
-measuring the rest, per the Remark in Paper II §5.4.
+measuring the rest, per the Remark.
 """
 
 from __future__ import annotations

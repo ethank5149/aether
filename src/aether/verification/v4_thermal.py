@@ -1,6 +1,6 @@
 """V4 — ablation: method of manufactured solutions; FIAT reference case.
 
-Paper I, §8: *"Method of manufactured solutions on Eqs. (3.17)–(3.18);
+Acceptance criterion: *"Method of manufactured solutions on Eqs. (3.17)–(3.18);
 in-depth temperature and recession against a FIAT reference case.
 Failure criterion: recession disagreement > 5% on the reference case."*
 

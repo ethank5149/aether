@@ -1,4 +1,4 @@
-"""Chebyshev–Gauss–Lobatto spectral collocation primitives (Paper I, Appendix A)."""
+"""Chebyshev–Gauss–Lobatto spectral collocation primitives."""
 
 from __future__ import annotations
 

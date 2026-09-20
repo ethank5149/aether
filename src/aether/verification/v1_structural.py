@@ -1,6 +1,6 @@
 """V1 — structural operator: conditioning vs N; frequencies vs analytic.
 
-Paper I, §8: *"κ(K̂) versus N for uniform and stepped EI profiles;
+Acceptance criterion: *"κ(K̂) versus N for uniform and stepped EI profiles;
 free-free natural frequencies against the analytic uniform-beam
 solution. Failure criterion: relative frequency error > 1e-6 at N = 32
 for the uniform case."*
@@ -100,7 +100,7 @@ def run_v1(output_dir: Path) -> VerificationReport:
         "informative measurand is the elastic condition number σ₁/σ_{n-2}, whose "
         f"fitted log–log slope is **{slopes['uniform']:.2f}** (uniform) and "
         f"**{slopes['stepped']:.2f}** (stepped) over N ∈ [{_N_SWEEP[0]}, {_N_SWEEP[-1]}]. "
-        "Paper I, Remark 3 declined to assert a rate; the measured growth remains "
+        "No rate was asserted in advance; the measured growth remains "
         "of the same O(N⁸) order as the unprojected fourth-derivative operator, i.e. "
         "the projection removes the constraint-violating extremal modes but does not "
         "flatten the asymptotic rate for these profiles.",

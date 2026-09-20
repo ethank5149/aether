@@ -1,6 +1,6 @@
 """I-V4 (FIAT-formulation leg) — independent ablation solver verification.
 
-Paper I, §8, V4: *"Ablation: method of manufactured solutions; recession
+Acceptance criterion: *"Ablation: method of manufactured solutions; recession
 within 5% of a FIAT reference case."*
 
 **What this leg is, and what it is not.** FIAT is US-government-controlled
@@ -352,7 +352,7 @@ def run_v4_fiat(output_dir: Path) -> VerificationReport:
     # --- scope --------------------------------------------------------------
     report.add_section(
         "Relationship to the stated V4 criterion — still PENDING",
-        "The failure criterion in Paper I §8 is *recession within 5% of a "
+        "The failure criterion is *recession within 5% of a "
         "FIAT reference case*. This leg does not evaluate it and must not be "
         "read as doing so.\n\n"
         "What now exists is an **independent implementation of FIAT's "

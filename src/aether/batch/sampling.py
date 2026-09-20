@@ -2,7 +2,7 @@
 
 Sampling uses the counter-based Philox generator: given ``(seed,
 n_replicates)`` the draw is bit-reproducible across runs and platforms,
-which is the reproducibility posture of Paper I, §5.1 applied to the
+which is the reproducibility posture applied to the
 statistical layer. Parameters are sampled *jointly* in a fixed
 specification order, so adding a parameter to the end of a spec does not
 perturb the draws of the parameters before it.

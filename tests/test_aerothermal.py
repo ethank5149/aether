@@ -1,4 +1,4 @@
-"""Aerothermal correlations (Paper II, §4)."""
+"""Aerothermal correlations."""
 
 import numpy as np
 import pytest
@@ -88,7 +88,7 @@ class TestFayRiddell:
         assert float(q2 / q1) == pytest.approx(ratio_expected, rel=1e-12)
 
     def test_lewis_exponent_choice_matters_by_percent(self):
-        """Paper II: the bracketed factor differs by several percent
+        """The bracketed factor differs by several percent
         between equilibrium and frozen/catalytic."""
         q_eq = fay_riddell(**FR_ARGS, lewis_exponent=LEWIS_EXPONENT_EQUILIBRIUM)
         q_fr = fay_riddell(**FR_ARGS, lewis_exponent=LEWIS_EXPONENT_FROZEN_CATALYTIC)
@@ -278,7 +278,7 @@ class TestTauberSutton:
             )
 
     def test_opposite_radius_trade_produces_interior_optimum(self):
-        """Paper II §4.2: q_conv falls and q_rad rises with R_eff, so the
+        """q_conv falls and q_rad rises with R_eff, so the
         total has an interior minimum — the blunting trade. The surrogate
         coefficient is scaled so the two components cross near R = 1 m."""
         rho, v = 3.0e-4, 12000.0

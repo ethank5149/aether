@@ -1,4 +1,4 @@
-"""Thermal kernel (Paper I, §3.4): kinetics, Landau frame, solver, surface."""
+"""Thermal kernel: kinetics, Landau frame, solver, surface."""
 
 import numpy as np
 import pytest

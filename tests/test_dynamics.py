@@ -158,7 +158,7 @@ class TestDeformedNormal:
 
 class TestLocalIncidence:
     def test_sign_convention_windward_positive(self):
-        """Paper II, Remark 1: with n the OUTWARD normal, a panel facing
+        """With n the OUTWARD normal, a panel facing
         into the flow must give delta_c > 0. Dropping the negation
         inverts the entire pressure and heating distribution."""
         normal = np.array([0.0, 0.0, 1.0])  # upward-facing panel

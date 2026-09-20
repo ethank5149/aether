@@ -1,6 +1,6 @@
 """V5 — adaptive filter: recovery, parameter sensitivity, false-alarm rate.
 
-Paper I, §8: *"Recovery time after an injected separation transient;
+Acceptance criterion: *"Recovery time after an injected separation transient;
 sensitivity to (N_w, α_max, p); false-alarm rate against the design
 p = 10⁻³. Failure criterion: divergence on any replicate; measured
 false-alarm rate above 2p."*

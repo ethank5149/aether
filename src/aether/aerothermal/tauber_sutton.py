@@ -45,8 +45,8 @@ package is SI, so :func:`earth_radiative_heat_flux` converts by
 :math:`10^4` and says so. Forgetting the conversion is a four-order-of-
 magnitude error that still "looks like" a heat flux.
 
-**The exponent is not a constant.** Paper II, §4.2 describes the
-correlation with ":math:`a \\approx 1.0`". The source makes :math:`a` a
+**The exponent is not a constant.** The correlation is often summarised
+with ":math:`a \\approx 1.0`". The source makes :math:`a` a
 function of both velocity and density, capped by nose radius, and
 required to stay *below* one; over the paper's own validity envelope it
 runs about 0.25–0.6, never 1.0. The discrepancy is recorded here and in

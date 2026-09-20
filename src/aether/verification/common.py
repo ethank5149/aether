@@ -24,8 +24,8 @@ class VerificationReport:
     criterion: str
     passed: bool
     sections: list[str] = field(default_factory=list)
-    #: Source of the stated criterion; Paper II tasks carry the "II-" prefix
-    #: in ``task_id`` and are cited against §8 of the companion manuscript.
+    #: Where the stated criterion comes from, when it is not this task's own
+    #: definition.
     source: str = ""
 
     def add_section(self, heading: str, body: str) -> None:
@@ -56,7 +56,7 @@ class VerificationReport:
     def to_markdown(self) -> str:
         verdict = "**PASS**" if self.passed else "**FAIL**"
         stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        source = self.source or ("Paper II §8" if self.task_id.startswith("II-") else "Paper I §8")
+        source = self.source or "task definition"
         head = (
             f"# {self.task_id}: {self.title}\n\n"
             f"- **Failure criterion (stated in advance, {source}):** {self.criterion}\n"

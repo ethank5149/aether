@@ -1,4 +1,4 @@
-"""Lees heat-flux distribution over the planform (Paper II, §4.3).
+"""Lees heat-flux distribution over the planform.
 
 .. math::
 
@@ -30,7 +30,7 @@ def lees_distribution(
     running_length: ArrayLike,
     effective_radius: float,
 ) -> _FloatArray:
-    """Local heat flux from the stagnation value (Paper II, Eq. 4.5), W/m².
+    """Local heat flux from the stagnation value, W/m².
 
     Parameters
     ----------

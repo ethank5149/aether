@@ -58,7 +58,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from aether.certification.rigorous import VectorField, enclose_field
+from aether.certification.rigorous import VectorField, affine_bounds, enclose_field
 
 __all__ = [
     "Box",
@@ -124,8 +124,8 @@ def rough_enclosure(
         rates = enclose_field(field, candidate, control)
         # X + [0, h] f(Y): the interval [0, h] keeps the whole step, not its end.
         picard: Box = [
-            (lo_x + min(0.0, dt * lo_f), hi_x + max(0.0, dt * hi_f))
-            for (lo_x, hi_x), (lo_f, hi_f) in zip(box, rates, strict=True)
+            affine_bounds((lo_x, hi_x), (0.0, dt), rate)
+            for (lo_x, hi_x), rate in zip(box, rates, strict=True)
         ]
         if _contains(candidate, picard):
             return candidate
@@ -147,10 +147,14 @@ def reachable_step(
     """One verified step: every solution starting in ``box`` lands in the result."""
     enclosure = rough_enclosure(field, box, control, dt, **kwargs)  # type: ignore[arg-type]
     rates = enclose_field(field, enclosure, control)
-    return [
-        (lo_x + dt * lo_f, hi_x + dt * hi_f)
-        for (lo_x, hi_x), (lo_f, hi_f) in zip(box, rates, strict=True)
-    ]
+    # Each component's lower bound pairs the lower start with the lower rate,
+    # and likewise above: the two ends are separate trajectories, not a sum of
+    # two intervals, which would add their widths and double-count.
+    lows = [affine_bounds((lo_x, lo_x), (dt, dt), (lo_f, lo_f))[0]
+            for (lo_x, _), (lo_f, _) in zip(box, rates, strict=True)]
+    highs = [affine_bounds((hi_x, hi_x), (dt, dt), (hi_f, hi_f))[1]
+             for (_, hi_x), (_, hi_f) in zip(box, rates, strict=True)]
+    return list(zip(lows, highs, strict=True))
 
 
 def reachable_tube(

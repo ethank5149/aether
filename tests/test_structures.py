@@ -31,7 +31,7 @@ def make_uniform(n=32, length=1.0, ei=1.0, mass=1.0):
 def make_stepped(n=48, length=10.0):
     # blend_width must exceed the mid-domain node spacing pi*L/(2N) or the
     # tanh transition is unresolved and spectral convergence stalls
-    # (Paper I flags the same requirement for the slosh kernel bandwidth).
+    # (the slosh kernel bandwidth has the same requirement).
     profile = stepped_profile(
         segment_ei=[5.0e6, 1.2e6, 4.0e5],
         segment_mass=[300.0, 120.0, 60.0],

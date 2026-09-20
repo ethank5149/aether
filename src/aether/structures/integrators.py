@@ -1,10 +1,10 @@
-"""Temporal integration strategies for the structural block (Paper I, §3.6).
+"""Temporal integration strategies for the structural block.
 
 Three strategies appear in verification task V3:
 
 1. **Explicit** — any explicit RK method obeys the imaginary-axis limit
-   :math:`\\Delta t \\le C_{\\mathrm{RK}}/\\omega_{\\max}` of Paper I,
-   Prop. 2, with :math:`\\omega_{\\max} = \\mathcal{O}(N^4)`.
+   :math:`\\Delta t \\le C_{\\mathrm{RK}}/\\omega_{\\max}`, with :math:`\\omega_{\\max} =
+   \\mathcal{O}(N^4)`.
    :func:`explicit_dt_limit` computes the bound; the V3 runner drives
    SciPy's adaptive RK45 to *measure* the step it actually selects.
 2. **Modal truncation** — :class:`ModalPropagator` advances a truncated
@@ -14,7 +14,7 @@ Three strategies appear in verification task V3:
 3. **IMEX** — :class:`NewmarkIntegrator` treats the linear structural
    block implicitly with a factorization computed once and reused across
    every step and every Monte Carlo replicate (the columns of a batched
-   state), which is what preserves the batching argument of Paper I, §5.
+   state), which is what preserves the batching argument.
    Newmark with :math:`(\\beta, \\gamma) = (1/4, 1/2)` is
    unconditionally stable and non-dissipative, so it removes the CFL
    constraint without damping the modes it under-resolves.
@@ -36,7 +36,7 @@ __all__ = ["ModalPropagator", "NewmarkIntegrator", "explicit_dt_limit", "omega_m
 _FloatArray = NDArray[np.float64]
 
 #: Imaginary-axis stability-interval length of the fifth-order member of
-#: the RKF45 pair (Paper I, §3.6 quotes C_RK ≈ 3.0).
+#: the RKF45 pair, C_RK ≈ 3.0.
 C_RK_FEHLBERG5 = 3.0
 
 
@@ -56,8 +56,7 @@ def omega_max(k_hat: _FloatArray, m_hat: _FloatArray) -> float:
 
 
 def explicit_dt_limit(omega_maximum: float, c_rk: float = C_RK_FEHLBERG5) -> float:
-    """Explicit stability limit :math:`\\Delta t \\le C_{\\mathrm{RK}}/\\omega_{\\max}`
-    (Paper I, Eq. 3.24)."""
+    """Explicit stability limit :math:`\\Delta t \\le C_{\\mathrm{RK}}/\\omega_{\\max}`."""
     if not (np.isfinite(omega_maximum) and omega_maximum > 0.0):
         raise ValueError(f"omega_maximum must be finite and > 0, got {omega_maximum}")
     if not (np.isfinite(c_rk) and c_rk > 0.0):
@@ -82,7 +81,7 @@ class NewmarkIntegrator:
     \\hat{\\mathbf{C}} + \\beta\\Delta t^2 \\hat{\\mathbf{K}}` is LU-
     factorized once at construction; every subsequent step — and every
     replicate column of a batched state — costs one pair of triangular
-    solves, which is the IMEX cost model of Paper I, §3.6.
+    solves, which is the IMEX cost model.
 
     The default :math:`(\\beta, \\gamma) = (1/4, 1/2)` (average constant
     acceleration) is unconditionally stable and introduces no algorithmic

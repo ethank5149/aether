@@ -1,7 +1,7 @@
 """Chebyshev–Gauss–Lobatto collocation operators.
 
-Implements Paper I, Appendix A, including both accuracy remedies stated
-there:
+Implements the Chebyshev–Gauss–Lobatto construction, including both
+accuracy remedies:
 
 1. every derivative matrix is constructed *directly* from the
    Weideman–Reddy recurrence (Weideman & Reddy, ACM TOMS 26(4), 2000)
@@ -19,7 +19,7 @@ the domain endpoints.
 
 The node convention follows the papers: :math:`\\xi_j = \\cos(j\\pi/N)`,
 *descending* from :math:`+1` at :math:`j = 0` to :math:`-1` at
-:math:`j = N`. Under the affine map of Paper I, Eq. (3.3),
+:math:`j = N`. Under the affine map,
 :math:`x = \\tfrac{L}{2}(\\xi + 1)`, index 0 is therefore the :math:`x = L`
 end and index :math:`N` the :math:`x = 0` end.
 """
@@ -138,8 +138,8 @@ def clenshaw_curtis_weights(n: int) -> _FloatArray:
 
     Exact for polynomials of degree :math:`\\le N`; the weights are the
     integrals over :math:`[-1, 1]` of the Lagrange cardinal functions of
-    the grid. These are the :math:`w_i^{\\mathrm{CC}}` of Paper I,
-    Eq. (3.13). Ordering matches :func:`gauss_lobatto_nodes` (the weights
+    the grid. These are the :math:`w_i^{\\mathrm{CC}}`. Ordering matches
+    :func:`gauss_lobatto_nodes` (the weights
     are symmetric, so ordering is observable only through indexing).
     """
     _validate_order(n)
@@ -236,10 +236,10 @@ def barycentric_interpolate(
 class ChebyshevGrid:
     """CGL collocation grid on an interval, with physically scaled operators.
 
-    Encapsulates the affine map of Paper I, Eq. (3.3): a grid of order
+    Encapsulates the affine map: a grid of order
     :math:`N` on :math:`\\xi \\in [-1, 1]` mapped to
     :math:`x \\in [a, b]`, with every derivative matrix carrying its
-    :math:`(2/(b-a))^k` factor explicitly — the factor Paper I flags as
+    :math:`(2/(b-a))^k` factor explicitly — the factor that is
     "a common source of error" — and quadrature weights carrying
     :math:`(b-a)/2`.
 

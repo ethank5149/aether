@@ -1,4 +1,4 @@
-"""Mahalanobis-gated Innovation-Based Adaptive Estimation (Paper I, §4.1–4.2).
+"""Mahalanobis-gated Innovation-Based Adaptive Estimation.
 
 The detector is the normalized innovation squared (Eq. 4.4),
 :math:`d_k^2 = \\bm{\\nu}_k^\\top \\mathbf{S}_k^{-1} \\bm{\\nu}_k
@@ -124,12 +124,12 @@ class LinearModel:
 
 @dataclass(frozen=True)
 class AdaptiveConfig:
-    """IAE design parameters (Paper I, §4.2).
+    """IAE design parameters.
 
     Attributes
     ----------
     false_alarm_probability:
-        Design :math:`p` of the χ² gate (Eq. 4.5); Paper I takes
+        Design :math:`p` of the χ² gate, typically
         :math:`10^{-3}`.
     window_length:
         Sliding window :math:`N_w` — a genuine design parameter setting

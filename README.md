@@ -222,13 +222,32 @@ The one exception runs the other way: the certificate's exact-arithmetic verific
 script that checks the derived bound and exits nonzero on failure, and *that* script is the
 artifact carrying the guarantee.
 
-### The demonstration: Orion entry
+### The demonstration: Artemis I
 
-[`examples/capsule/`](examples/capsule/) flies a NASA Orion–class capsule from entry
-interface to parachute deploy. It uses published geometry and mass properties, CFD-built
-aerodynamic tables, entry guidance, and navigation through plasma blackout. It computes the
-reachable-set bound for the entry and uses it during the flight. Everything the
-demonstration needs is in this repository.
+[`examples/artemis1/`](examples/artemis1/) flies Orion's Artemis I lunar-return
+skip entry from its published entry interface to terminal speed, and every input is
+either taken from a NASA source cited where it is used or computed by this package
+from those numbers:
+
+- the Orion shape from the CEV wind-tunnel proportions, and its hypersonic drag from
+  the Newtonian panel method at the design L/D -- which lands the trim angle inside
+  the band the Orion aerodynamic database gives, without being asked to;
+- the flight through a predictor-corrector skip guidance in the PredGuid lineage
+  (`aether.guidance.skip`), against an atmosphere and an L/D that differ from the
+  guidance's model by what the flight's own estimators reported;
+- the flight flown with the body rolling at a finite rate, which is not a detail: a
+  reversal sweeps the lift vector through wings-level, and a loop that assumes the
+  commanded bank is reached instantly plans a trajectory the body cannot fly;
+- the reachable landing footprint from entry interface, skip apogee and the start of
+  the Final phase, with the target inside it as it shrinks;
+- a **certified** upper bound on the downrange still available, holding for every
+  admissible bank history and for atmospheres 0.85 to 1.15 times standard, discharged
+  in exact ball arithmetic and conditional on a stated corridor. Inner sweep and outer
+  certificate bracket the flown trajectory between them.
+
+Against the flight: Final phase at 538 s (flown 551 s), Terminal at 880 s (882 s),
+skip apogee 284 kft (287 kft), and the Terminal phase starting 2.0 nmi from the
+target (2.7 nmi).
 
 ### Package layout
 
@@ -249,12 +268,12 @@ demonstration needs is in this repository.
 | `dynamics/` | Quaternion attitude kinematics with norm-error diagnostics; incidence on a deformed surface |
 | `flight/` | The coupled simulator: thirteen rigid-body states augmented by mass, recession and retained structural modes, as one system of ODEs |
 | `orbital/` | Two-body astrodynamics over an arbitrary central body; atmospheric coast |
-| `guidance/` | Entry guidance: drag tracking and bank-angle modulation, and the entry trajectory as an optimal control problem |
+| `guidance/` | Entry guidance: drag tracking and bank-angle modulation; the entry trajectory as an optimal control problem; landing footprints by bank-schedule sweep, bracketed by the optimised outer edge |
 | `trajectory/` | Reference trajectories as pseudospectral polynomials; problem specification, objectives, constraints and phase triggers; an offline library handed to the guidance loop as its nominal |
 | `optimal_control/` | Legendre–Gauss–Lobatto direct transcription and Pontryagin refinement over an arbitrary problem |
 | `estimation/` | Adaptive state estimation (χ² anomaly gating and IAE), navigation through plasma blackout, and heterogeneous measurement models with their covariance |
-| `certification/` | Machinery answering "is this inequality *provably* true", as distinct from "did a float suggest so"; the entry field written for every arithmetic at once |
-| `batch/` | NumPy/CuPy backend abstraction; batched common-outer-grid integrator — a Monte Carlo batch as a rank-3 tensor operation |
+| `certification/` | Machinery answering "is this inequality *provably* true", as distinct from "did a float suggest so": rigorous enclosures and verified reachable tubes in Arb ball arithmetic, the entry field written for every arithmetic at once, monotone density enclosures, and a certified downrange bound that carries the corridor hypothesis it rests on |
+| `batch/` | NumPy/CuPy backend abstraction; batched common-outer-grid integrator — a Monte Carlo batch as a rank-3 tensor operation; terminal dispersion from measured ERA5 winds, with exact elliptical containment radii checked against Siouris Table 5.2 |
 | `viz/` | Textured WGS84 ellipsoid, terrain and Blue Marble Next Generation imagery tiles, vehicle glyphs, flow-field rendering, and `scene` — a chase-camera rig with polyline, mesh and glyph projection over the globe |
 | `verification/` | Executable verification tasks with failure criteria stated in advance |
 
@@ -275,7 +294,7 @@ CFD additionally needs SU2 and gmsh, which are not pip-installable; see
 ```bash
 make test                        # the test suite
 make verify                      # verification tasks -> results/
-make example                     # the Orion entry demonstration
+make example                     # the Artemis I skip entry
 ```
 
 Each verification task states its failure criterion **before** it runs and writes a

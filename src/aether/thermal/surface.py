@@ -1,4 +1,4 @@
-"""Surface energy balance and blowing reduction (Paper I, §3.4.4).
+"""Surface energy balance and blowing reduction.
 
 The surface balance (Eq. 3.19) equates net incoming flux — blowing-
 reduced convection, absorbed radiation, and the mass-transfer enthalpy
@@ -49,7 +49,7 @@ STEFAN_BOLTZMANN = 5.670374419e-8
 
 
 def blowing_correction(b_prime: ArrayLike, lam: float = 0.5) -> _FloatArray:
-    """Blowing reduction :math:`\\phi(B')` of Paper I, Eq. (3.20).
+    """Blowing reduction :math:`\\phi(B')`.
 
     Parameters
     ----------
@@ -115,7 +115,7 @@ class SurfaceEnvironment:
 
 @dataclass(frozen=True)
 class SurfaceEnergyBalance:
-    """Residual form and scalar solve of Paper I, Eq. (3.19)."""
+    """Residual form and scalar solve."""
 
     material: CharringMaterial
     environment: SurfaceEnvironment
@@ -208,8 +208,8 @@ class SurfaceThermochemistry:
     """:math:`C^2` spline interpolant of an offline thermochemistry table.
 
     Maps :math:`(T_w, B'_g) \\mapsto B'_c` — the non-dimensional char
-    consumption rate from equilibrium surface chemistry — per the Remark
-    in Paper I §3.4.4. Cubic tensor-product B-splines are :math:`C^2`,
+    consumption rate from equilibrium surface chemistry. Cubic tensor-product B-splines are
+    :math:`C^2`,
     placing the interpolation discontinuity in the third derivative.
     Queries outside the tabulated rectangle raise rather than
     extrapolate: an equilibrium table is meaningless outside its
@@ -272,7 +272,7 @@ class SurfaceThermochemistry:
         char_density: float,
     ) -> float:
         """:math:`\\dot s = B'_c\\,\\rho_e u_e C_H / \\rho_c` (m/s), from
-        :math:`\\dot m_c = \\rho_c \\dot s` (Paper I, below Eq. 3.19)."""
+        :math:`\\dot m_c = \\rho_c \\dot s`."""
         if not (np.isfinite(film_coefficient) and film_coefficient > 0.0):
             raise ValueError(f"film_coefficient must be > 0, got {film_coefficient}")
         if not (np.isfinite(char_density) and char_density > 0.0):

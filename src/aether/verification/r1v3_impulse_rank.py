@@ -1,4 +1,4 @@
-"""R1-V3 — the bubble impulse dimension :math:`m`, for Paper 1 §4.6.
+"""R1-V3 — the bubble impulse dimension :math:`m`, for the thesis proposal.
 
 \\Cref{thm:dimension_reduction} contains the certified reachable set in a
 skeleton plus a Minkowski sum of compact *impulse sets*
@@ -246,7 +246,7 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
             "and the skeleton-plus-impulse description constrains nothing"
         ),
         passed=True,
-        source="Paper I §8",
+        source="task definition",
     )
 
     _base, sol = impulse_of_pass(np.array([_ALPHA_0] * 4 + [0.0] * 4))

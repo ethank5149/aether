@@ -381,7 +381,11 @@ class TestEntryGuidance:
 
     def test_body_rejects_a_bank_limit_with_no_vertical_authority(self):
         with pytest.raises(ValueError, match="max_bank"):
-            EntryBody(ballistic_coefficient=200.0, lift_to_drag=2.0, max_bank=np.pi / 2.0)
+            EntryBody(ballistic_coefficient=200.0, lift_to_drag=2.0, max_bank=0.0)
+        with pytest.raises(ValueError, match="max_bank"):
+            EntryBody(ballistic_coefficient=200.0, lift_to_drag=2.0, max_bank=1.01 * np.pi)
+        # A capsule flies lift-down; the whole half-circle is admissible.
+        EntryBody(ballistic_coefficient=200.0, lift_to_drag=0.3, max_bank=np.pi)
         with pytest.raises(ValueError, match="lift_to_drag"):
             EntryBody(ballistic_coefficient=200.0, lift_to_drag=0.0)
         with pytest.raises(ValueError, match="ballistic_coefficient"):

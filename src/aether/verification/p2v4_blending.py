@@ -1,13 +1,13 @@
 """II-V4 — aerodynamic blending: integrated loads and trim vs blend width.
 
-Paper II, §8: *"Integrated normal force and pitching moment versus
+Acceptance criterion: *"Integrated normal force and pitching moment versus
 :math:`\\delta_{\\mathrm{blend}}`; sensitivity of trim solution. Failure
 criterion: trim incidence shifting by more than 0.1° across the
 blend-width sweep."*
 
 The blend exists because the windward Newtonian and leeward
 Prandtl–Meyer branches are :math:`C^0` but not :math:`C^1` at
-:math:`\\delta_c = 0` (Paper II, Remark 2) — a genuine violation of the
+:math:`\\delta_c = 0` — a genuine violation of the
 smoothness the framework otherwise maintains, occurring exactly at the
 shoulder line. The blend is a numerical expedient, so the question this
 task settles is whether it is *load-neutral*: if integrated forces and
@@ -151,7 +151,7 @@ def run_p2v4(output_dir: Path) -> VerificationReport:
     )
     seam_ok = seam_jump < 1e-6 and blended_mismatch < 0.05
     report.add_table(
-        "The seam at δ_c = 0 (Paper II, Remark 2)",
+        "The seam at δ_c = 0",
         ["quantity", "unblended", "blended (δ_blend = 0.05 rad)"],
         [
             ["C_p jump across the seam", f"{seam_jump:.2e}", "—"],

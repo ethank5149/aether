@@ -1,6 +1,6 @@
 """II-V1 — ultraspherical operator conditioning versus N (univariate leg).
 
-Paper II, §8: *"κ of the assembled Mindlin–Reissner block operator
+Acceptance criterion: *"κ of the assembled Mindlin–Reissner block operator
 versus N; comparison against dense Chebyshev collocation. Failure
 criterion: κ growing faster than O(N)."*
 
@@ -14,7 +14,7 @@ block-operator measurement remains pending item 9. Accuracy is
 cross-checked by solving the free-free beam eigenproblem and comparing
 against the analytic frequencies.
 
-Three condition numbers are reported per the Remark in Paper II §5.4
+Three condition numbers are reported per the Remark
 (assert what the citation establishes, measure the rest): the rectangular
 banded interior raw and under the leading-diagonal right preconditioner
 (the Olver–Townsend O(1) statement), and the bordered square system with
@@ -148,7 +148,7 @@ def run_p2v1(output_dir: Path) -> VerificationReport:
         "the O(1) statement of Olver & Townsend, reproduced. The bordered square "
         f"system (clamped–clamped) grows as N^{bordered_slopes['uniform']:.1f}: the "
         "dense boundary rows cost conditioning that the banded interior does not, "
-        "which is exactly the caveat the Remark in Paper II §5.4 raises and defers "
+        "which is exactly the caveat the Remark raises and defers "
         "to measurement. Free-free conditions are *not* used for this measurement: "
         "they leave the rigid-body null space, so the bordered free-free system is "
         "singular by construction and the configuration is a generalized "
@@ -174,14 +174,14 @@ def run_p2v1(output_dir: Path) -> VerificationReport:
                     [str(n), f"{coll[n]:.2e}", f"{ultra:.2e}", f"{coll[n] / ultra:.1e}"]
                 )
         report.add_table(
-            "Dense collocation (Paper I V1, elastic κ) vs ultraspherical interior",
+            "Dense collocation (V1, elastic κ) vs ultraspherical interior",
             ["N", "collocation κ (O(N⁸))", "ultraspherical κ (O(N))", "ratio"],
             comp_rows,
         )
     else:  # pragma: no cover - V1 results always precede this runner
         report.add_section(
             "Dense collocation comparison",
-            "Paper I V1 conditioning data not found in the output directory; "
+            "V1 conditioning data not found in the output directory; "
             "run V1 first for the side-by-side.",
         )
 
@@ -206,7 +206,7 @@ def run_p2v1(output_dir: Path) -> VerificationReport:
         f"Free-free beam eigenvalues from the ultraspherical pencil at N = {n} "
         f"match the analytic solution to **{freq_err:.1e}** relative "
         f"({'**PASS**' if freq_ok else '**FAIL**'}) — the same physical problem "
-        "Paper I's V1 verified in collocation form, now reproduced by the second, "
+        "V1 verified in collocation form, now reproduced by the second, "
         "independent discretization.",
     )
 

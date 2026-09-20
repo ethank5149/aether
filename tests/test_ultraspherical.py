@@ -1,4 +1,4 @@
-"""Ultraspherical spectral core (Paper II, §5.4, Appendix A)."""
+"""Ultraspherical spectral core."""
 
 import numpy as np
 import pytest
@@ -124,7 +124,7 @@ class TestOperators:
 
     def test_multiplication_bandwidth_tracks_coefficient_decay(self):
         """A narrow tanh blend needs more bandwidth than a wide one —
-        the Paper II Appendix A statement about slowly converging fields."""
+        slowly converging fields cost bandwidth."""
         n = 96
         x = cgl(n)
         narrow = multiplication_operator(chebyshev_coefficients(np.tanh(4.0 * x)), n, 2)
@@ -226,7 +226,7 @@ class TestBVP:
 
     def test_free_free_beam_eigenvalues_match_analytic(self):
         """Cross-validation of the two spectral methods: ultraspherical
-        free-free beam frequencies must match Paper I's analytic values.
+        free-free beam frequencies must match the analytic values.
 
         Homogeneous boundary rows are normalized to unit norm before the
         QZ solve: raw d = 3 evaluation rows carry m^6-scale entries that

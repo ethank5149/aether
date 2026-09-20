@@ -1,4 +1,4 @@
-"""Parametric sphere--cone geometry (Paper I §6, the certified exemplar).
+"""Parametric sphere--cone geometry (the certified exemplar).
 
 The shape is chosen because its sharp-cone limit has an exact solution to
 validate against, so these tests check the mesh against analysis rather

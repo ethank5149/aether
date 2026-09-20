@@ -1,4 +1,4 @@
-"""Plasma blackout and ionization-gated estimation (Paper II, §6.2).
+"""Plasma blackout and ionization-gated estimation.
 
 During entry the shock layer ionizes and the plasma sheath attenuates
 or reflects radio-frequency signals, severing GNSS updates. The electron
@@ -14,7 +14,7 @@ evanescent in the sheath. The filter responds by zeroing the GNSS rows
 of the observation matrix, so the update becomes a no-op for those
 channels and the solution propagates on inertial data alone.
 
-**Covariance growth is not quadratic.** Paper II's Prop. 3 gives
+**Covariance growth is not quadratic.** The closed form is
 
 .. math::
 
@@ -98,8 +98,8 @@ def saha_electron_density(
 
     Notes
     -----
-    Equilibrium ionization is assumed, which Paper II's Limitation 7
-    flags explicitly: at high altitude and high velocity the shock layer
+    Equilibrium ionization is assumed, which is a real limitation: at high altitude and high
+    velocity the shock layer
     is chemically frozen or in nonequilibrium and the electron density
     will be misestimated.
     """
@@ -125,7 +125,7 @@ def saha_electron_density(
 
 
 def plasma_frequency(electron_density: ArrayLike) -> _FloatArray:
-    """Plasma angular frequency :math:`\\omega_p` (rad/s), Paper II Eq. (6.4)."""
+    """Plasma angular frequency :math:`\\omega_p` (rad/s)."""
     n_e = np.asarray(electron_density, dtype=np.float64)
     if np.any(n_e < 0.0) or not np.all(np.isfinite(n_e)):
         raise ValueError("electron_density must be finite and >= 0")
@@ -197,7 +197,7 @@ class BlackoutGate:
 
 @dataclass(frozen=True)
 class InertialErrorBudget:
-    """Strapdown error sources entering Paper II, Eq. (6.5)."""
+    """Strapdown error sources entering the unaided covariance growth."""
 
     accel_psd: float
     """:math:`q_a`, accelerometer white-noise PSD ((m/s²)²/Hz)."""
@@ -220,7 +220,7 @@ class InertialErrorBudget:
 def unaided_position_variance(
     duration: ArrayLike, budget: InertialErrorBudget, channels: str = "all"
 ) -> _FloatArray:
-    """Closed-form :math:`P_{rr}(t)` of Paper II, Eq. (6.5) (m²).
+    """Closed-form :math:`P_{rr}(t)` (m²).
 
     Parameters
     ----------

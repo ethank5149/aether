@@ -1,4 +1,4 @@
-"""Free-free boundary conditions by null-space projection (Paper I, §3.2).
+"""Free-free boundary conditions by null-space projection.
 
 The free-free conditions — zero bending moment and zero shear at both
 ends,

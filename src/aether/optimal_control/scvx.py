@@ -1,4 +1,4 @@
-"""Successive convexification with exact :math:`\\ell_1` penalty (Paper II, §6.1).
+"""Successive convexification with exact :math:`\\ell_1` penalty.
 
 At iteration :math:`k` the nonlinear dynamics are linearized about the
 current reference and discretized (Eq. 6.1),
@@ -10,8 +10,8 @@ current reference and discretized (Eq. 6.1),
 
 with **free** virtual controls :math:`\\bm{\\nu}_i \\in \\mathbb{R}^{n_x}`.
 
-**Virtual controls are unconstrained, not sign-constrained** (Paper II,
-Remark 1). Constraining them to be non-negative — by false analogy with
+**Virtual controls are unconstrained, not sign-constrained**. Constraining them to be non-negative
+— by false analogy with
 inequality slacks — makes the subproblem infeasible in exactly the cases
 the virtual control exists to rescue, since linearization error has no
 preferred sign along any state axis, and it invalidates the exact-penalty
@@ -65,7 +65,7 @@ Dynamics = Callable[[_FloatArray, _FloatArray], _FloatArray]
 
 @dataclass(frozen=True)
 class SCvxConfig:
-    """Trust-region and penalty parameters (Paper II, §6.1)."""
+    """Trust-region and penalty parameters."""
 
     penalty_weight: float = 1.0e3
     """:math:`w_\\nu` of Eq. (6.2)."""

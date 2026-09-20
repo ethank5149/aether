@@ -1,4 +1,4 @@
-"""Mindlin–Reissner plate kernel (Paper II, §5)."""
+"""Mindlin–Reissner plate kernel."""
 
 import numpy as np
 import pytest
@@ -41,7 +41,7 @@ class TestLaminate:
         )
 
     def test_shear_correction_constants_differ_under_two_percent(self):
-        """Paper II: Mindlin's pi^2/12 differs from Reissner's 5/6 by under 2%."""
+        """Mindlin's pi^2/12 differs from Reissner's 5/6 by under 2%."""
         rel = abs(SHEAR_CORRECTION_MINDLIN - SHEAR_CORRECTION_REISSNER) / (
             SHEAR_CORRECTION_REISSNER
         )
@@ -155,7 +155,7 @@ class TestOperatorAssembly:
 class TestExactSimplySupported:
     def test_spectral_convergence_to_exact_mindlin(self, laminate):
         """Against the closed-form Mindlin solution the error must contract
-        exponentially and clear Paper II's 1e-5 criterion."""
+        exponentially and clear the 1e-5 criterion."""
         a, b = 1.0, 1.3
         exact = simply_supported_exact(laminate, a, b, 6)
         errs = []
@@ -233,7 +233,7 @@ class TestFreeFreeModes:
 
 class TestShearLocking:
     def test_no_locking_across_thickness_decades(self, laminate):
-        """Paper II, Remark 3 / II-V2: high-order spectral discretizations
+        """II-V2: high-order spectral discretizations
         are 'markedly less susceptible' to locking — measured, not assumed."""
         a = 1.0
         results = {}

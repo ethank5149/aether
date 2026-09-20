@@ -1,4 +1,4 @@
-"""Slosh regularization (Paper I, §3.3): bandwidth, normalization, transfer."""
+"""Slosh regularization: bandwidth, normalization, transfer."""
 
 import numpy as np
 import pytest
@@ -97,7 +97,7 @@ class TestSloshCoupling:
         assert c.n_tanks == 1
 
     def test_moment_bias_grows_near_endpoint(self, grid):
-        """Paper I remark: stations within ~2 sigma of an end acquire a
+        """Stations within ~2 sigma of an end acquire a
         moment bias absent in the interior."""
         sigma = 0.4
         x_ref = 0.5 * L

@@ -1,4 +1,4 @@
-"""Tauber–Sutton shock-layer radiative heating (Paper II, §4.2).
+"""Tauber–Sutton shock-layer radiative heating.
 
 .. math::
 
@@ -15,8 +15,8 @@ be theirs, consistent with the repository's citation-audit posture.
 
 The :math:`R_{\\mathrm{eff}}` dependence is of *opposite sign* to the
 convective correlation: blunting increases radiative heating while
-reducing convective, so the optimal nose radius is a genuine trade
-(Paper II, §4.2) — the II-V8 runner demonstrates the interior optimum.
+reducing convective, so the optimal nose radius is a genuine trade — the II-V8 runner demonstrates
+the interior optimum.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ class TauberSuttonRadiation:
         freestream_density: ArrayLike,
         freestream_velocity: ArrayLike,
     ) -> _FloatArray:
-        """Radiative stagnation heat flux (Paper II, Eq. 4.4), W/m².
+        """Radiative stagnation heat flux, W/m².
 
         Velocities outside the tabulated range raise — the correlation
         is a fit with no validity beyond its table.

@@ -1,4 +1,4 @@
-"""R1-V2 — normal hyperbolicity of the attitude manifold, for Paper 1 §4.5.
+"""R1-V2 — normal hyperbolicity of the attitude manifold, for the thesis proposal.
 
 \\Cref{prop:skeleton_dimension} removes the attitude and rate block from the
 skeleton on the strength of a singular-perturbation argument, and that
@@ -197,7 +197,7 @@ def run_r1v2(output_dir: Path) -> VerificationReport:
         title="Normal hyperbolicity of the attitude manifold",
         criterion=_CRITERION,
         passed=True,
-        source="Paper I §8",
+        source="task definition",
     )
     base = curved_lifting_body()
     model = PanelModel(

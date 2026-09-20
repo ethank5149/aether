@@ -1,4 +1,4 @@
-"""Common-outer-grid batched integration (Paper I, §5.2).
+"""Common-outer-grid batched integration.
 
 One classical RK4 sweep advances the whole replicate ensemble on a
 shared fixed time grid — the mitigation the paper's Remark 9 prescribes

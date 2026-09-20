@@ -1,4 +1,4 @@
-"""The global state vector (Paper I, §3.5).
+"""The global state vector.
 
 The bulk rigid-body kinematics are coupled to the spectral grids in a
 *single* state vector (Eq. 3.20):
@@ -24,7 +24,7 @@ configuration, not of the flight regime, and
 Nothing in the right-hand side can add or remove a degree of freedom.
 
 This module carries *enthalpy-adjacent* temperature rather than enthalpy
-as the thermal state. Paper I argues for enthalpy because it stays
+as the thermal state. Enthalpy is the natural choice because it stays
 continuous across the pyrolysis zone where :math:`c_p` varies sharply;
 the charring solver of :mod:`aether.thermal` integrates temperature
 directly, so temperature is what is carried here and the enthalpy
@@ -49,7 +49,7 @@ class StateLayout:
 
     Computed once from the configuration; every slice below is a compile
     -time constant of the trajectory, which is what makes the batched
-    rank-3 tensor argument of Paper I §5.2 available.
+    rank-3 tensor argument available.
     """
 
     n_modes: int

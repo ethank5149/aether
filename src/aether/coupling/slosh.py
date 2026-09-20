@@ -1,11 +1,11 @@
 """Quadrature-consistent regularization of localized slosh forces.
 
-Paper I, §3.3: a point load on a spectral grid is a Dirac delta whose
+a point load on a spectral grid is a Dirac delta whose
 Chebyshev coefficients do not decay, producing Gibbs oscillations across
 the entire domain. The load is regularized by a Gaussian kernel, with
 two details that determine admissibility:
 
-**Bandwidth** (Paper I, "Bandwidth" paragraph). CGL nodes are not
+**Bandwidth**. CGL nodes are not
 uniformly spaced — local spacing is :math:`h(\\xi) \\approx
 \\pi\\sqrt{1 - \\xi^2}/N`, which is :math:`\\mathcal{O}(N^{-1})` at the
 center and :math:`\\mathcal{O}(N^{-2})` at the ends — so a single global
@@ -14,7 +14,7 @@ wide at the ends. The bandwidth is chosen per station as
 :math:`\\sigma^{(k)} = \\gamma\\,h(x_s^{(k)})` with
 :math:`\\gamma \\in [1, 2]`.
 
-**Exact force transfer** (Paper I, Eq. 3.13 and Prop. 1). The Gaussian
+**Exact force transfer**. The Gaussian
 integrates to unity over :math:`\\mathbb{R}`, not over the truncated
 domain, and the discrete system sees the quadrature sum, not the
 integral. The kernel is therefore normalized *discretely* against the
@@ -74,7 +74,7 @@ def local_node_spacing(grid: ChebyshevGrid, station: ArrayLike) -> _FloatArray:
 def kernel_bandwidth(grid: ChebyshevGrid, station: ArrayLike, gamma: float = 1.5) -> _FloatArray:
     """Station-adapted bandwidth :math:`\\sigma = \\gamma\\,h(x_s)`.
 
-    Paper I prescribes :math:`\\gamma \\in [1, 2]`: below 1 the kernel
+    The resolvability band is :math:`\\gamma \\in [1, 2]`: below 1 the kernel
     is unresolved and reintroduces the oscillations it exists to
     suppress; large values over-smear the load and artificially stiffen
     the response. Values outside that band are rejected rather than
@@ -82,14 +82,14 @@ def kernel_bandwidth(grid: ChebyshevGrid, station: ArrayLike, gamma: float = 1.5
     """
     if not (np.isfinite(gamma) and 1.0 <= gamma <= 2.0):
         raise ValueError(
-            f"gamma must lie in the resolvability band [1, 2] of Paper I §3.3, got {gamma}"
+            f"gamma must lie in the resolvability band [1, 2], got {gamma}"
         )
     return gamma * local_node_spacing(grid, station)
 
 
 def normalized_kernel(grid: ChebyshevGrid, station: float, sigma: float) -> _FloatArray:
-    """Discretely normalized Gaussian kernel :math:`\\tilde{\\delta}_\\sigma`
-    (Paper I, Eq. 3.13) sampled at the grid nodes.
+    """Discretely normalized Gaussian kernel :math:`\\tilde{\\delta}_\\sigma` sampled at the grid
+    nodes.
 
     Satisfies :math:`\\sum_j w_j^{\\mathrm{CC}} \\tilde{\\delta}_j = 1`
     to rounding by construction. The (analytically cancelling) Gaussian
@@ -187,7 +187,7 @@ class SloshCoupling:
         return SloshCoupling(self._grid, stations, self._gamma)
 
     def load(self, forces: ArrayLike) -> _FloatArray:
-        """Nodal distributed load for slosh forces (Paper I, Eq. 3.12).
+        """Nodal distributed load for slosh forces.
 
         Parameters
         ----------
@@ -216,8 +216,8 @@ class SloshCoupling:
         """Discrete first moment about ``x_ref``,
         :math:`\\sum_j w_j (x_j - x_{\\mathrm{ref}}) q_j`.
 
-        Exact only to :math:`\\mathcal{O}(\\sigma^2)` in the interior
-        (Paper I, Remark after Prop. 1); V2 measures the constant and
+        Exact only to :math:`\\mathcal{O}(\\sigma^2)` in the interior;
+        V2 measures the constant and
         the endpoint degradation.
         """
         lever = self._grid.x - float(x_ref)

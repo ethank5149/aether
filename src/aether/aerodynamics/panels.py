@@ -1,4 +1,4 @@
-"""Panel model, integrated loads, and trim (Paper II, §3.3).
+"""Panel model, integrated loads, and trim.
 
 The distributed forcing on the collocation grid is
 :math:`\\mathbf{Q}_{\\mathrm{aero}} = q_{\\mathrm{dyn}}\\mathbf{C}_p`
@@ -384,7 +384,7 @@ def sphere_cone(
     """Blunted sphere--cone: a spherical cap tangent to a conical frustum.
 
     The canonical high-ballistic-coefficient entry shape, and the one the
-    reachability series uses as its certified exemplar --- chosen because
+    thesis proposal uses as its certified exemplar --- chosen because
     the sharp-cone limit has an *exact* solution (Taylor--Maccoll,
     :mod:`aether.aerodynamics.conical`) to validate against, which no
     lifting body offers.
@@ -545,7 +545,7 @@ def caret_lifting_body(
        representative of a real waverider.
 
        That is deliberate. This function is the panel method's *lifting
-       exemplar* — the shape used in Paper I §6 to exercise objects an
+       exemplar* — the shape used to exercise objects an
        axisymmetric body cannot, because a cone trims at zero incidence where
        it makes no lift. It needs to lift and to have a shoulder line that
        sweeps through zero deflection; it does not need to be on-design.

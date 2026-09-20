@@ -1,6 +1,6 @@
 """Semi-discrete charring-ablation solver on the fixed Landau grid.
 
-Method of lines for Paper I, Eqs. (3.14)–(3.18) on a Chebyshev grid over
+Method of lines for the charring-ablation equations on a Chebyshev grid over
 :math:`\\eta \\in [0, 1]`. Node convention follows the descending CGL
 ordering of :mod:`aether.spectral`: **index 0 is the back face**
 (:math:`\\eta = 1`) and **index** :math:`N_T` **is the ablating surface**
@@ -14,7 +14,7 @@ The state advanced in time is
     \\in \\mathbb{R}^{4(N_T+1)+1},
 
 with every field stored at fixed :math:`\\eta` nodes; no node is ever
-created, destroyed, or interpolated (Paper I, §3.4.2). The energy
+created, destroyed, or interpolated. The energy
 equation (3.17) is collocated directly — the conduction term as the
 nested spectral derivative :math:`\\partial_\\eta(k\\,\\partial_\\eta T)`
 — and the gas-flux continuity equation (3.18) is solved spectrally each
@@ -100,7 +100,7 @@ class CharringThermalSolver:
     frame:
         Landau transform for the TPS stack thickness.
     density_rate_convention:
-        ``"eta_frame"`` (Paper I, Eqs. 3.17–3.18 as printed, default) or
+        ``"eta_frame"`` (the density-rate form in the immobilised frame, default) or
         ``"material_frame"`` (CMA convention); see the module docstring.
     """
 
@@ -201,7 +201,7 @@ class CharringThermalSolver:
         energy_source: SourceField | None = None,
         density_sources: tuple[SourceField, SourceField, SourceField] | None = None,
     ) -> _FloatArray:
-        """Time derivative of the packed state (Paper I, Eqs. 3.14–3.18).
+        """Time derivative of the packed state.
 
         Parameters
         ----------

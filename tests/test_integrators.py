@@ -1,4 +1,4 @@
-"""Temporal integration strategies (Paper I, §3.6) — V3 groundwork."""
+"""Temporal integration strategies — V3 groundwork."""
 
 import numpy as np
 import pytest

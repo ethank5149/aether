@@ -1,4 +1,4 @@
-"""Coupled single-trajectory simulator (Paper I, §3.5; Paper II, §7.2).
+"""Coupled single-trajectory simulator.
 
 This is the assembly the whole framework exists to support: rigid-body
 translation and attitude, the null-space-reduced structural block, and
@@ -11,7 +11,7 @@ Three couplings are closed here rather than asserted:
 1. **Aerothermal → thermal → aerothermal.** Stagnation heating drives
    the surface energy balance, which drives recession, which grows
    :math:`R_{\\mathrm{eff}}`, which *reduces* convective heating as
-   :math:`R_{\\mathrm{eff}}^{-1/2}` (Paper II, Eq. 4.2). Nose blunting is
+   :math:`R_{\\mathrm{eff}}^{-1/2}`. Nose blunting is
    self-limiting, and capturing that requires the recession to feed back
    within the same time step — which it does, because both live in one
    right-hand side.
@@ -19,13 +19,13 @@ Three couplings are closed here rather than asserted:
    modal coordinates through the mode shapes.
 3. **Regime → regime.** The atmosphere decays smoothly, so the
    aerodynamic and aerothermal terms become numerically negligible above
-   the sensible atmosphere *without any branch being taken*
-   (Paper II, §7.2). There is no `if altitude > ...` anywhere in the
+   the sensible atmosphere *without any branch being taken*. There is no `if altitude > ...`
+   anywhere in the
    right-hand side, and the integration-invariance test asserts it.
 
 The state dimension is fixed by :class:`~aether.flight.state.StateLayout`
 at construction and cannot change during flight. That is the property
-the batching argument of Paper I §5.2 rests on.
+the batching argument rests on.
 """
 
 from __future__ import annotations
@@ -280,7 +280,7 @@ class FlightSimulator:
         # 6-DOF block already carries: integrating them here too double-counts
         # rigid motion, and because they have no restoring term the modal
         # coordinate then grows without bound under any steady load. The
-        # structural state of Paper I Eq. (3.20) is the elastic deformation.
+        # structural state is the elastic deformation.
         n_rigid = self._modes.n_rigid
         available = self._modes.frequencies.size - n_rigid
         n_modes = min(self._cfg.n_modes, available)
@@ -408,7 +408,7 @@ class FlightSimulator:
     # -------------------------------------------------------------------- RHS
     def effective_radius(self, recession: float) -> float:
         """:math:`R_{\\mathrm{eff}}` grown by recession — the feedback that
-        makes nose blunting self-limiting (Paper II, §4.1)."""
+        makes nose blunting self-limiting."""
         return self._cfg.nose_radius + float(recession)
 
     def _close_thermal_boundaries(
@@ -439,7 +439,7 @@ class FlightSimulator:
         Both are algebraic constraints on a state the integrator advances,
         so they are differentiated in time to give rates for the two
         boundary nodes, and the resulting constraint drift is removed by
-        **Baumgarte stabilization** — the same device Paper I applies to
+        **Baumgarte stabilization** — the same device applied to
         the quaternion norm, and for the same reason: it keeps the
         correction inside the right-hand side where the error controller
         can see it, instead of projecting after each step.
@@ -729,8 +729,8 @@ class FlightSimulator:
         """Advance the coupled system with a single integrator call.
 
         The default is BDF, and the choice is not incidental. The
-        structural block makes the coupled system stiff — Paper I,
-        Prop. 2 — and a *fully* implicit method removes the constraint
+        structural block makes the coupled system stiff, and a *fully* implicit method removes the
+        constraint
         entirely: measured cost is flat in the retained mode count
         (~400 right-hand-side evaluations whether the highest retained
         mode is 0 or 1432 rad/s). LSODA, which is supposed to detect

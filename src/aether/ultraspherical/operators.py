@@ -1,9 +1,9 @@
-"""Sparse ultraspherical operator primitives (Paper II, Appendix A).
+"""Sparse ultraspherical operator primitives.
 
 All operators act on *coefficient vectors*. The solution is expanded in
 Chebyshev polynomials :math:`T_m`; its :math:`k`-th derivative is
 represented in the ultraspherical basis :math:`C^{(k)}` via the
-derivative relation (Paper II, Eq. A.1)
+derivative relation
 
 .. math::
 
@@ -81,8 +81,8 @@ def chebyshev_values(coeffs: ArrayLike, points: ArrayLike) -> _FloatArray:
 
 
 def diff_operator(n: int, order: int) -> _Sparse:
-    """The sparse differentiation operator :math:`\\mathcal{D}_k`
-    (Paper II, Eq. 5.18): Chebyshev coefficients in, :math:`C^{(k)}`
+    """The sparse differentiation operator :math:`\\mathcal{D}_k`: Chebyshev coefficients in,
+    :math:`C^{(k)}`
     coefficients of the :math:`k`-th derivative out.
 
     Single superdiagonal at offset ``order`` with entries
@@ -101,8 +101,8 @@ def conversion_operator(n: int, lam: int) -> _Sparse:
     """The tridiagonal conversion :math:`\\mathcal{S}_\\lambda`.
 
     ``lam = 0`` maps Chebyshev :math:`T` to :math:`C^{(1)}`; ``lam >= 1``
-    maps :math:`C^{(\\lambda)}` to :math:`C^{(\\lambda+1)}` via Paper II,
-    Eq. (A.2). Both are upper-triangular with a main diagonal and one
+    maps :math:`C^{(\\lambda)}` to :math:`C^{(\\lambda+1)}` via the conversion
+    relation. Both are upper-triangular with a main diagonal and one
     superdiagonal at offset 2.
     """
     _validate_size(n)
@@ -139,7 +139,7 @@ def derivative_in_basis(n: int, derivative: int, basis: int, scale: float = 1.0)
     (:math:`j = 0` gives the pure conversion chain).
 
     This is the per-direction building block of the tensor-product
-    assembly of Paper II, Eq. (5.19): every term of a bivariate operator
+    assembly: every term of a bivariate operator
     is a Kronecker product of two such factors, so all terms land in one
     common output basis :math:`C^{(\\lambda)} \\otimes C^{(\\lambda)}`.
 
@@ -209,7 +209,7 @@ def multiplication_operator(
     banded with bandwidth equal to the truncation length. Coefficients
     below ``tol`` (relative to the largest) are truncated; slowly
     decaying coefficient expansions therefore cost bandwidth, which is
-    Paper II's stated reason for hyperbolically blended property fields.
+    the reason for hyperbolically blended property fields.
     """
     _validate_size(n)
     if lam < 0:
@@ -257,7 +257,7 @@ def evaluation_row(n: int, endpoint: int, derivative: int = 0) -> _FloatArray:
     \\frac{m^2 - i^2}{2i + 1}` and
     :math:`T_m^{(d)}(-1) = (-1)^{m+d}\\,T_m^{(d)}(1)`; boundary
     conditions are *appended* as such rows, never substituted into the
-    banded interior (Paper II, §5.4).
+    banded interior.
     """
     _validate_size(n)
     if endpoint not in (-1, 1):

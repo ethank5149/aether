@@ -1,4 +1,4 @@
-""":math:`J_2`-perturbed gravity (Paper II, §7.1).
+""":math:`J_2`-perturbed gravity.
 
 Over a fractional orbit a spherical gravity model accumulates
 unacceptable secular error; the dominant correction is the :math:`J_2`
@@ -42,7 +42,7 @@ _FloatArray = NDArray[np.float64]
 
 @dataclass(frozen=True)
 class GravityModel:
-    """Central-body constants (Paper II, §7.1 values)."""
+    """Central-body constants."""
 
     mu: float
     """Standard gravitational parameter (m³/s²)."""
@@ -60,7 +60,7 @@ class GravityModel:
             raise ValueError(f"j2 must be finite, got {self.j2}")
 
 
-#: Earth constants exactly as quoted in Paper II, §7.1.
+#: Earth constants exactly as quoted.
 EARTH = GravityModel(mu=3.986004418e14, radius=6378137.0, j2=1.08263e-3)
 
 
@@ -84,7 +84,7 @@ def two_body_acceleration(position: ArrayLike, model: GravityModel = EARTH) -> _
 
 
 def j2_acceleration(position: ArrayLike, model: GravityModel = EARTH) -> _FloatArray:
-    """The :math:`J_2` perturbation of Paper II, Eq. (7.2) (m/s²)."""
+    """The :math:`J_2` perturbation (m/s²)."""
     r = _as_position(position)
     radius = np.linalg.norm(r, axis=-1, keepdims=True)
     z_ratio = 5.0 * (r[..., 2:3] / radius) ** 2
@@ -103,7 +103,7 @@ def j2_acceleration(position: ArrayLike, model: GravityModel = EARTH) -> _FloatA
 def gravitational_acceleration(
     position: ArrayLike, model: GravityModel = EARTH, include_j2: bool = True
 ) -> _FloatArray:
-    """Total gravity (Paper II, Eq. 7.1); ``include_j2 = False`` gives the
+    """Total gravity; ``include_j2 = False`` gives the
     spherical model the paper measures the secular difference against."""
     accel = two_body_acceleration(position, model)
     if include_j2:

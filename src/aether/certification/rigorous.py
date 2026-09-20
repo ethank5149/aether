@@ -43,8 +43,10 @@ __all__ = [
     "NUMPY_OPS",
     "MathOps",
     "VectorField",
+    "affine_bounds",
     "enclose_field",
     "interval",
+    "outward",
 ]
 
 
@@ -147,4 +149,30 @@ def enclose_field(
     """
     state = [interval(low, high) for low, high in box]
     values = field(state, interval(*control), ARB_OPS)
-    return [(float(value.lower()), float(value.upper())) for value in values]
+    return [outward(value) for value in values]
+
+
+def outward(value: Any) -> tuple[float, float]:
+    """``(lower, upper)`` floats that contain an Arb ball.
+
+    Converting an Arb endpoint to a float rounds to nearest, which can move it
+    *inward* by half a unit in the last place. One ``nextafter`` step outward on
+    each side restores containment; an enclosure that is a hair too wide is
+    sound, and one that is a hair too narrow is not.
+    """
+    return (
+        float(np.nextafter(float(value.lower()), -np.inf)),
+        float(np.nextafter(float(value.upper()), np.inf)),
+    )
+
+
+def affine_bounds(
+    x: tuple[float, float], h: tuple[float, float], f: tuple[float, float]
+) -> tuple[float, float]:
+    """Outward-rounded bounds on :math:`x + h f` for interval ``x``, ``h`` and ``f``.
+
+    The update every verified step is made of, done in Arb so the product and
+    the sum carry their own rounding error rather than dropping it.
+    """
+    value = interval(*x) + interval(*h) * interval(*f)
+    return outward(value)
