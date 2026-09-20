@@ -85,9 +85,23 @@ def test_the_estimate_stops_at_zero_and_the_fraction_at_one() -> None:
 def test_the_description_says_only_what_it_knows() -> None:
     bare = SolveProgress(7, None, None, None, 1.0, None).describe()
     assert bare == "iter 7"
-    full = SolveProgress(120, 6000, -0.25, 0.42, 60.0, 2.0).describe()
+    full = SolveProgress(
+        120, 6000, -0.25, 0.42, 60.0, 2.0, residual_of="rms[Rho]"
+    ).describe()
     for fragment in ("iter 120/6000", "rms[Rho] -0.250", "CD +0.42000", "120 it/min", "ETA"):
         assert fragment in full
+
+
+def test_an_unnamed_residual_is_reported_without_a_gap() -> None:
+    """A run whose history has no recognisable residual column still reports
+    the number it read. Labelling it with an empty name would leave a double
+    space, which reads as a field that failed to render rather than one that
+    was never there."""
+    line = SolveProgress(120, 6000, -0.25, None, 60.0, 2.0).describe()
+    assert "-0.250 (+0.00 dex)" in line
+    # The join separator is two spaces; a stray leading space on the part
+    # (from formatting an empty name) would produce three consecutive spaces.
+    assert "   " not in line
 
 
 def test_a_job_measures_its_rate_from_successive_readings(tmp_path: Path) -> None:

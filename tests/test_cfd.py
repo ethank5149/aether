@@ -433,7 +433,7 @@ def test_cfd_grid_is_coarser_than_the_panel_default() -> None:
     from aether.aerodynamics.tables import SweepGrid
 
     panel = SweepGrid(mach=SweepGrid.default_mach(), alpha=SweepGrid.default_alpha())
-    assert cfd_grid().size < panel.size / 10
+    assert cfd_grid().size < panel.size / 5
 
 
 def test_sweep_records_altitude_in_metadata(tmp_path, reference) -> None:

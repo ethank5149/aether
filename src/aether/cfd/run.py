@@ -160,7 +160,12 @@ class SolveProgress:
         parts = [f"iter {self.iteration}" + (f"/{self.total}" if self.total else "")]
         if self.residual is not None:
             fallen = self.drops.get(self.residual_of, 0.0)
-            parts.append(f"{self.residual_of} {self.residual:+.3f} ({fallen:+.2f} dex)")
+            # A reading whose equation is not known still reports the number.
+            # Naming it with an empty string instead would leave a stray
+            # separator in the line, which reads as a missing field rather than
+            # an absent one.
+            named = f"{self.residual_of} " if self.residual_of else ""
+            parts.append(f"{named}{self.residual:+.3f} ({fallen:+.2f} dex)")
         if self.drag is not None:
             parts.append(f"CD {self.drag:+.5f}")
         if self.rate:
