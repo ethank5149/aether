@@ -40,6 +40,12 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
 ]
+docs = [
+    "sphinx>=7.0",
+    "furo>=2024.05.06",
+    "sphinx-design>=0.5",
+    "sphinx-copybutton>=0.5",
+]
 # Rigorous interval arithmetic for the certification layer. `aether.certification`
 # imports it lazily, so the package installs and the rest of it runs without
 # this -- but every test in `tests/test_certification.py` needs it, and it was

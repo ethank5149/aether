@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install test lint typecheck verify boundary check example proposal clean-proposal
+.PHONY: install test lint typecheck verify boundary check example proposal clean-proposal docs docs-serve docs-clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
@@ -27,6 +27,16 @@ check: boundary lint typecheck test verify
 
 example:
 	$(PYTHON) -m examples.artemis1.entry
+
+# Documentation targets
+docs:
+	$(PYTHON) -m sphinx -b html docs docs/_build/html
+
+docs-serve:
+	$(PYTHON) -m sphinx -b livehtml docs docs/_build/html
+
+docs-clean:
+	rm -rf docs/_build
 
 # ---------------------------------------------------------------- proposal
 proposal:

@@ -25,6 +25,10 @@ results/
 .pytest_cache/
 .ruff_cache/
 
+# Sphinx documentation build artifacts
+/docs/_build/
+/docs/.doctrees/
+
 # LaTeX build artifacts. main.pdf beside the source is tracked; everything
 # else latexmk writes is not.
 manuscript/**/*.aux
