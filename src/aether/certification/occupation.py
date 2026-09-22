@@ -37,9 +37,14 @@ from aether.certification.sos import (
 
 __all__ = [
     "CorridorParams",
+    "GuidanceLaw",
     "OccupationBound",
+    "SensorMeasurement",
+    "SegmentResult",
+    "TrackingResult",
     "corridor_certificate",
     "corridor_moment_bound",
+    "track_footprint",
 ]
 
 _RHO0 = 1.225
@@ -260,6 +265,111 @@ class OccupationBound:
             f"(degree-{self.certificate_degree} certificate, "
             f"SDP {self.sdp_status})"
         )
+
+
+@dataclass(frozen=True)
+class SensorMeasurement:
+    """A sensor observation constraining the vehicle state at one point in flight.
+
+    Unset fields (``None``) leave that state component unconstrained by this
+    measurement; the previous estimate carries forward unchanged.
+    """
+
+    speed_ms: float | None = None
+    speed_unc_ms: float = 0.0
+    altitude_m: float | None = None
+    altitude_unc_m: float = 0.0
+    fpa_rad: float | None = None
+    fpa_unc_rad: float = 0.0
+
+
+@dataclass(frozen=True)
+class SegmentResult:
+    """Occupation-measure bound at one point in the tracking sequence."""
+
+    bound: OccupationBound
+    segment_params: CorridorParams
+    entry_state: tuple[float, float, float, float]
+    entry_half_widths: tuple[float, float, float, float]
+
+
+@dataclass(frozen=True)
+class TrackingResult:
+    """Result of sequential predict-update tracking.
+
+    ``segments[0]`` is the pre-measurement bound from the entry state.
+    ``segments[k+1]`` is the bound after incorporating ``measurements[k]``.
+    ``terminal_footprint_m`` is the tightest (last) remaining-range bound.
+    """
+
+    segments: list[SegmentResult]
+    terminal_footprint_m: float
+
+
+@dataclass(frozen=True)
+class GuidanceLaw:
+    r"""Polynomial feedback control law :math:`u = \kappa(V, y, \sin\gamma, \cos\gamma)`.
+
+    The polynomial is specified in **physical** (un-normalised) variables.
+    It is internally normalised and substituted into the dynamics to produce
+    an autonomous (control-free) system, collapsing the occupation measure
+    from 5 to 4 variables.
+
+    Parameters
+    ----------
+    control_poly
+        A 4-variable :class:`Polynomial` mapping ``(V, y, sinγ, cosγ)`` to
+        the bank-angle parameter ``u ∈ [-1, 1]``.
+    """
+
+    control_poly: Polynomial
+
+
+def _substitute_guidance(
+    dynamics_5var: list[Polynomial],
+    guidance_norm: Polynomial,
+) -> list[Polynomial]:
+    r"""Substitute :math:`\bar u = \bar\kappa(\bar x)` into 5-variable dynamics.
+
+    Returns 4-variable autonomous dynamics.
+    """
+    max_u = 0
+    for f in dynamics_5var:
+        for mono in f:
+            max_u = max(max_u, mono[4])
+
+    kappa_pow: list[Polynomial] = [constant_poly(4, 1.0)]
+    for _ in range(max_u):
+        kappa_pow.append(poly_multiply(kappa_pow[-1], guidance_norm))
+
+    result: list[Polynomial] = []
+    for f in dynamics_5var:
+        f_auto: Polynomial = {}
+        for mono, coeff in f.items():
+            state_mono = mono[:4]
+            u_pow = mono[4]
+            term: Polynomial = {state_mono: coeff}
+            if u_pow > 0:
+                term = poly_multiply(term, kappa_pow[u_pow])
+            f_auto = poly_add(f_auto, term)
+        result.append(f_auto)
+    return result
+
+
+def _project_constraints_4var(
+    constraints_5var: list[Polynomial],
+) -> list[Polynomial]:
+    """Project 5-variable constraint polynomials to 4 variables (drop u)."""
+    result: list[Polynomial] = []
+    for p in constraints_5var:
+        p4: Polynomial = {}
+        for mono, coeff in p.items():
+            if mono[4] != 0:
+                continue
+            key = mono[:4]
+            p4[key] = p4.get(key, 0.0) + coeff
+        result.append(p4)
+    return result
 
 
 def _occupation_constraint_polys_cr(
@@ -698,14 +808,19 @@ def _solve_moment_scs(
     occ_constraints: list[Polynomial] | None = None,
     term_constraints: list[Polynomial] | None = None,
     initial_half_widths: tuple[float, float, float, float] | None = None,
+    n_occ_vars: int = _N_VARS,
 ) -> tuple[float, str]:
-    """Build and solve the moment SDP directly via SCS (no cvxpy)."""
+    """Build and solve the moment SDP directly via SCS (no cvxpy).
+
+    *n_occ_vars* is the number of occupation-measure variables (5 for the
+    standard system, 4 when a guidance law has been substituted).
+    """
     import scipy.sparse as sp
     import scs
 
     dyn_degs = [poly_degree(f) for f in dynamics_norm]
 
-    occ_basis_2d = monomial_basis(_N_VARS, 2 * order)
+    occ_basis_2d = monomial_basis(n_occ_vars, 2 * order)
     n_occ = len(occ_basis_2d)
     occ_idx: dict[tuple[int, ...], int] = {m: i for i, m in enumerate(occ_basis_2d)}
 
@@ -743,7 +858,7 @@ def _solve_moment_scs(
     # ---- equality block (trig + Liouville) --------------------------------
     s_max = params.s_max
 
-    for mono in monomial_basis(_N_VARS, max(0, 2 * order - 2)):
+    for mono in monomial_basis(n_occ_vars, max(0, 2 * order - 2)):
         ms = list(mono); ms[_S] += 2
         mc = list(mono); mc[_C] += 2
         _add(row, occ_idx[tuple(ms)], s_max ** 2)
@@ -800,8 +915,10 @@ def _solve_moment_scs(
                 continue
             ar = list(alpha_4); ar[i] -= 1
             for beta, fc in dynamics_norm[i].items():
-                ok_t = (ar[0] + beta[0], ar[1] + beta[1],
-                        ar[2] + beta[2], ar[3] + beta[3], beta[4])
+                ok_t = tuple(
+                    (ar[j] + beta[j]) if j < 4 else beta[j]
+                    for j in range(n_occ_vars)
+                )
                 if ok_t in occ_idx:
                     _add(row, occ_idx[ok_t], -alpha_4[i] * fc)
         if initial_half_widths is not None:
@@ -821,7 +938,7 @@ def _solve_moment_scs(
     tau_1d = (
         1.0 / (2.0 * params.speed_low_ms ** 2) - 1.0 / (2.0 * params.speed_high_ms ** 2)
     ) / (D0 * params.y_min ** 2)
-    _add(row, occ_idx[(0,) * _N_VARS], 1.0)
+    _add(row, occ_idx[(0,) * n_occ_vars], 1.0)
     b_list.append(tau_multiplier * tau_1d)
     row += 1
 
@@ -863,15 +980,15 @@ def _solve_moment_scs(
                 b_list.append(0.0)
                 row += 1
 
-    occ_d = monomial_basis(_N_VARS, order)
+    occ_d = monomial_basis(n_occ_vars, order)
     _add_psd(occ_d, occ_idx, 0)
 
     term_d = monomial_basis(_N_T, order)
     _add_psd(term_d, term_idx, n_occ)
 
     if order >= 2:
-        loc_o = monomial_basis(_N_VARS, order - 1)
-        for vi in range(_N_VARS):
+        loc_o = monomial_basis(n_occ_vars, order - 1)
+        for vi in range(n_occ_vars):
             _add_psd(loc_o, occ_idx, 0, loc=True, loc_var=vi)
         loc_t = monomial_basis(_N_T, order - 1)
         for vj in range(_N_T):
@@ -882,7 +999,7 @@ def _solve_moment_scs(
         loc_d = order - (g_deg + 1) // 2
         if loc_d >= 0:
             _add_psd_poly(
-                monomial_basis(_N_VARS, loc_d), occ_idx, 0, g_poly
+                monomial_basis(n_occ_vars, loc_d), occ_idx, 0, g_poly
             )
 
     for g_poly in (term_constraints or []):
@@ -958,6 +1075,7 @@ def _solve_moment_clarabel(
     occ_constraints: list[Polynomial] | None = None,
     term_constraints: list[Polynomial] | None = None,
     initial_half_widths: tuple[float, float, float, float] | None = None,
+    n_occ_vars: int = _N_VARS,
 ) -> tuple[float, str]:
     """Build and solve the moment SDP directly via Clarabel (no cvxpy).
 
@@ -965,13 +1083,16 @@ def _solve_moment_clarabel(
     Clarabel's interior-point solver for tighter bounds.  The PSD cone
     vectorisation is upper-triangular column-major (Clarabel convention)
     vs lower-triangular column-major (SCS convention).
+
+    *n_occ_vars* is the number of occupation-measure variables (5 for the
+    full system, 4 when a guidance law eliminates the control).
     """
     import clarabel
     import scipy.sparse as sp
 
     dyn_degs = [poly_degree(f) for f in dynamics_norm]
 
-    occ_basis_2d = monomial_basis(_N_VARS, 2 * order)
+    occ_basis_2d = monomial_basis(n_occ_vars, 2 * order)
     n_occ = len(occ_basis_2d)
     occ_idx: dict[tuple[int, ...], int] = {m: i for i, m in enumerate(occ_basis_2d)}
 
@@ -1009,7 +1130,7 @@ def _solve_moment_clarabel(
     # ---- equality block (trig + Liouville) --------------------------------
     s_max = params.s_max
 
-    for mono in monomial_basis(_N_VARS, max(0, 2 * order - 2)):
+    for mono in monomial_basis(n_occ_vars, max(0, 2 * order - 2)):
         ms = list(mono); ms[_S] += 2
         mc = list(mono); mc[_C] += 2
         _add(row, occ_idx[tuple(ms)], s_max ** 2)
@@ -1066,8 +1187,10 @@ def _solve_moment_clarabel(
                 continue
             ar = list(alpha_4); ar[i] -= 1
             for beta, fc in dynamics_norm[i].items():
-                ok_t = (ar[0] + beta[0], ar[1] + beta[1],
-                        ar[2] + beta[2], ar[3] + beta[3], beta[4])
+                ok_t = tuple(
+                    (ar[j] + beta[j]) if j < 4 else beta[j]
+                    for j in range(n_occ_vars)
+                )
                 if ok_t in occ_idx:
                     _add(row, occ_idx[ok_t], -alpha_4[i] * fc)
         if initial_half_widths is not None:
@@ -1087,7 +1210,7 @@ def _solve_moment_clarabel(
     tau_1d = (
         1.0 / (2.0 * params.speed_low_ms ** 2) - 1.0 / (2.0 * params.speed_high_ms ** 2)
     ) / (D0 * params.y_min ** 2)
-    _add(row, occ_idx[(0,) * _N_VARS], 1.0)
+    _add(row, occ_idx[(0,) * n_occ_vars], 1.0)
     b_list.append(tau_multiplier * tau_1d)
     row += 1
 
@@ -1129,15 +1252,15 @@ def _solve_moment_clarabel(
                 b_list.append(0.0)
                 row += 1
 
-    occ_d = monomial_basis(_N_VARS, order)
+    occ_d = monomial_basis(n_occ_vars, order)
     _add_psd_upper(occ_d, occ_idx, 0)
 
     term_d = monomial_basis(_N_T, order)
     _add_psd_upper(term_d, term_idx, n_occ)
 
     if order >= 2:
-        loc_o = monomial_basis(_N_VARS, order - 1)
-        for vi in range(_N_VARS):
+        loc_o = monomial_basis(n_occ_vars, order - 1)
+        for vi in range(n_occ_vars):
             _add_psd_upper(loc_o, occ_idx, 0, loc=True, loc_var=vi)
         loc_t = monomial_basis(_N_T, order - 1)
         for vj in range(_N_T):
@@ -1148,7 +1271,7 @@ def _solve_moment_clarabel(
         loc_d = order - (g_deg + 1) // 2
         if loc_d >= 0:
             _add_psd_upper_poly(
-                monomial_basis(_N_VARS, loc_d), occ_idx, 0, g_poly
+                monomial_basis(n_occ_vars, loc_d), occ_idx, 0, g_poly
             )
 
     for g_poly in (term_constraints or []):
@@ -1489,6 +1612,7 @@ def corridor_moment_bound(
     tau_multiplier: float = 10.0,
     initial_half_widths: tuple[float, float, float, float] | None = None,
     cross_range: bool = False,
+    guidance_law: GuidanceLaw | None = None,
 ) -> OccupationBound:
     r"""Primal (moment) relaxation for the downrange bound.
 
@@ -1509,6 +1633,11 @@ def corridor_moment_bound(
     tau_multiplier:
         Safety factor on the τ-time upper bound (default 10).
         The 1-D drag-only τ is multiplied by this factor.
+    guidance_law:
+        When provided, the control is substituted out of the dynamics,
+        collapsing the occupation measure from 5 to 4 variables.  This
+        dramatically tightens the bound by restricting trajectories to
+        those produced by the specific guidance law.
     """
     if cross_range:
         offsets_cr, scales_cr = _normalise_bounds_cr(params)
@@ -1535,19 +1664,36 @@ def corridor_moment_bound(
     occ_cons = _occupation_constraint_polys(params, offsets, scales)
     term_cons = _terminal_constraint_polys(params, offsets, scales)
 
+    # --- Guidance-law substitution: eliminate control variable ---------------
+    n_ov = _N_VARS  # occupation variable count
+    if guidance_law is not None:
+        guidance_norm = poly_substitute_affine(
+            guidance_law.control_poly, offsets[:4], scales[:4],
+        )
+        dynamics_norm = _substitute_guidance(dynamics_norm, guidance_norm)
+        range_rate_norm = {
+            m[:4]: c for m, c in range_rate_norm.items() if m[4] == 0
+        }
+        occ_cons = _project_constraints_4var(occ_cons)
+        n_ov = 4
+
     use_direct = backend in ("scs", "clarabel") or (backend == "auto" and order >= 5)
     if use_direct:
         if backend == "clarabel":
             solver_fn = _solve_moment_clarabel
         else:
             solver_fn = _solve_moment_scs
-        obj_val, status = solver_fn(
-            params, order, dynamics_norm, range_rate_norm,
-            offsets, scales, entry_state, verbose,
+        kw: dict[str, Any] = dict(
             tau_multiplier=tau_multiplier,
             occ_constraints=occ_cons,
             term_constraints=term_cons,
             initial_half_widths=initial_half_widths,
+        )
+        kw["n_occ_vars"] = n_ov
+        obj_val, status = solver_fn(
+            params, order, dynamics_norm, range_rate_norm,
+            offsets, scales, entry_state, verbose,
+            **kw,
         )
         bound = float("inf") if obj_val is None else max(0.0, obj_val)
         return OccupationBound(
@@ -1850,4 +1996,157 @@ def corridor_moment_bound(
         corridor=params,
         sdp_status=status,
         W_coefficients={},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sequential tracking framework
+# ---------------------------------------------------------------------------
+
+
+def _segment_corridor(
+    corridor: CorridorParams,
+    state: tuple[float, ...],
+    half_widths: tuple[float, ...],
+) -> CorridorParams:
+    """Tighten corridor bounds to the reachable envelope from *state*."""
+    V, y = state[0], state[1]
+    dV, dy = half_widths[0], half_widths[1]
+
+    new_speed_high = min(corridor.speed_high_ms, V + dV)
+    new_speed_high = max(new_speed_high, corridor.speed_low_ms + 1.0)
+
+    y_min_state = max(y - dy, 1e-10)
+    h_max_state = -2.0 * _H_SCALE * float(np.log(y_min_state))
+    new_ceiling = min(corridor.altitude_ceiling_m, h_max_state)
+    new_ceiling = max(new_ceiling, corridor.altitude_floor_m + 100.0)
+
+    if (abs(new_speed_high - corridor.speed_high_ms) < 1.0
+            and abs(new_ceiling - corridor.altitude_ceiling_m) < 1.0):
+        return corridor
+
+    return CorridorParams(
+        speed_high_ms=new_speed_high,
+        speed_low_ms=corridor.speed_low_ms,
+        altitude_ceiling_m=new_ceiling,
+        altitude_floor_m=corridor.altitude_floor_m,
+        ballistic_coefficient=corridor.ballistic_coefficient,
+        lift_to_drag=corridor.lift_to_drag,
+        gamma_max_rad=corridor.gamma_max_rad,
+        q_max_pa=corridor.q_max_pa,
+        heat_rate_max_w_m2=corridor.heat_rate_max_w_m2,
+        nose_radius_m=corridor.nose_radius_m,
+        g_load_max=corridor.g_load_max,
+        terminal_altitude_max_m=corridor.terminal_altitude_max_m,
+    )
+
+
+def _apply_measurement(
+    meas: SensorMeasurement,
+    prev_state: tuple[float, float, float, float],
+    prev_hw: tuple[float, float, float, float],
+) -> tuple[tuple[float, float, float, float], tuple[float, float, float, float]]:
+    """Set-membership update: replace observed components, keep unobserved."""
+    V, y, s, c = prev_state
+    dV, dy = prev_hw[0], prev_hw[1]
+
+    if meas.speed_ms is not None:
+        V = meas.speed_ms
+        dV = meas.speed_unc_ms
+
+    if meas.altitude_m is not None:
+        y = float(np.exp(-meas.altitude_m / (2.0 * _H_SCALE)))
+        dy = (
+            y * meas.altitude_unc_m / (2.0 * _H_SCALE)
+            if meas.altitude_unc_m > 0
+            else 0.0
+        )
+
+    if meas.fpa_rad is not None:
+        s = float(np.sin(meas.fpa_rad))
+        c = float(np.cos(meas.fpa_rad))
+
+    return (V, y, s, c), (dV, dy, 0.0, 0.0)
+
+
+def track_footprint(
+    corridor: CorridorParams,
+    entry_state: tuple[float, float, float, float],
+    entry_half_widths: tuple[float, float, float, float],
+    measurements: list[SensorMeasurement],
+    *,
+    order: int = 4,
+    backend: str = "scs",
+    tau_multiplier: float = 10.0,
+    verbose: bool = False,
+    guidance_law: GuidanceLaw | None = None,
+) -> TrackingResult:
+    r"""Sequential predict-update tracker producing a terminal landing footprint.
+
+    For each sensor measurement the state estimate is updated
+    (set-membership intersection), the corridor is tightened to the reachable
+    envelope from the updated state, and the occupation-measure bound on
+    remaining range is solved.  The terminal footprint is the bound from the
+    latest measurement.
+
+    Parameters
+    ----------
+    corridor
+        Physical corridor parameters (full envelope).
+    entry_state
+        ``(V₀, y₀, sin γ₀, cos γ₀)`` at tracking acquisition.
+    entry_half_widths
+        ``(ΔV, Δy, 0, 0)`` initial tracking uncertainty.
+        Angle half-widths should be zero (sin/cos coupling).
+    measurements
+        Sensor observations in chronological order.
+    guidance_law
+        Optional polynomial guidance law for tighter bounds.
+    """
+    segments: list[SegmentResult] = []
+    state = entry_state
+    hw = entry_half_widths
+
+    def _solve(
+        st: tuple[float, ...],
+        h: tuple[float, ...],
+        p: CorridorParams,
+    ) -> OccupationBound:
+        use_hw = h if any(v > 0 for v in h) else None
+        return corridor_moment_bound(
+            p,
+            order=order,
+            entry_state=st,
+            backend=backend,
+            tau_multiplier=tau_multiplier,
+            initial_half_widths=use_hw,
+            verbose=verbose,
+            guidance_law=guidance_law,
+        )
+
+    seg_params = _segment_corridor(corridor, state, hw)
+    segments.append(
+        SegmentResult(
+            bound=_solve(state, hw, seg_params),
+            segment_params=seg_params,
+            entry_state=state,
+            entry_half_widths=hw,
+        )
+    )
+
+    for meas in measurements:
+        state, hw = _apply_measurement(meas, state, hw)
+        seg_params = _segment_corridor(corridor, state, hw)
+        segments.append(
+            SegmentResult(
+                bound=_solve(state, hw, seg_params),
+                segment_params=seg_params,
+                entry_state=state,
+                entry_half_widths=hw,
+            )
+        )
+
+    return TrackingResult(
+        segments=segments,
+        terminal_footprint_m=segments[-1].bound.max_downrange_m,
     )
