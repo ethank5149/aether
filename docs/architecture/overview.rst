@@ -156,9 +156,10 @@ Aerothermodynamics and CFD
    * - Module
      - Role
    * - :mod:`aether.aerodynamics`
-     - Modified-Newtonian and Prandtl–Meyer impact, panels, skin friction,
-       real-gas and free-molecular closures; axisymmetric Euler CFD for the
-       sub- and transonic band.
+     - Modified-Newtonian and Prandtl–Meyer impact, :mod:`aether.aerodynamics.panels`
+       on an arbitrary surface-of-revolution mesh — the drag and L/D database
+       the example panel-method produces; skin friction, real-gas and
+       free-molecular closures.
    * - :mod:`aether.aerodynamics.cfd`
      - Axisymmetric Euler CFD subpackage (shock-fitted grids, solver).
    * - :mod:`aether.aerothermal`
@@ -172,6 +173,35 @@ Aerothermodynamics and CFD
        preflight checks, a run registry and worker that survive a dropped
        connection, and the sweep that turns solved runs into aerodynamic
        tables; plasma sheath and RF blackout from the shock layer.
+
+.. figure:: /_static/cfd_combined.png
+   :align: center
+   :width: 90%
+   :alt: Orion capsule Cp distribution and shock structure
+
+   Orion capsule at hypersonic trim (19° AoA, L/D = 0.30): modified-Newtonian
+   :math:`C_p` along the meridian showing windward and leeward distributions
+   (left), and the capsule in its flow field with the Billig bow-shock envelope
+   at M ≈ 25 (right). The panel method comes from
+   :mod:`aether.aerodynamics.panels` and the shock correlation from
+   :mod:`aether.cfd.shock`.
+
+.. figure:: /_static/hero_plasma_sheath.png
+   :align: center
+   :width: 90%
+   :alt: Plasma sheath electron density around the Orion capsule
+
+   Electron density in the plasma sheath surrounding the Orion capsule at
+   M |approx| 25, computed from Saha equilibrium ionisation
+   (:func:`aether.cfd.plasma.saha_electron_density`). The green dashed contour
+   marks the GPS L1 blackout boundary (:math:`n_e = 3.1 \times 10^{16}`
+   m\ :sup:`-3`); the orange dotted contour marks S-band (2.2 GHz) cutoff.
+   Peak :math:`n_e \approx 10^{22}` m\ :sup:`-3` in the stagnation region —
+   deep RF blackout that severs GNSS and telemetry. The shock-layer
+   thermodynamics use the :mod:`aether.cfd.shock` Billig correlation for
+   geometry and the :mod:`aether.cfd.plasma` module for ionisation physics.
+
+.. |approx| unicode:: U+2248
 
 Geometry and Sensing
 ~~~~~~~~~~~~~~~~~~~~

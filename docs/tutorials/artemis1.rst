@@ -86,7 +86,21 @@ Key Outputs
   downrange, valid for all admissible bank histories and atmospheres within
   the stated corridor (0.85–1.15× standard).
 - **Verification against flight data**: Skip apogee, phase times, and terminal
-  conditions compared to the flown Artemis I trajectory.
+   conditions compared to the flown Artemis I trajectory.
+
+.. figure:: /_static/hero_trajectory_footprint.png
+   :align: center
+   :width: 100%
+   :alt: Artemis I trajectory and reachable footprint
+
+   Top: altitude vs. downrange for the simulated skip entry, colored by speed,
+   with the four PredGuid guidance phases shaded. Bottom-left: the bank-angle
+   command history with bank reversals marked. Bottom-right: the reachable
+   landing footprint from entry interface (4.7 M km²), skip apogee
+   (345 K km²), and the start of the Final phase (255 K km²), with individual
+   simulated landings as scatter points. The footprint shrinks as the capsule
+   spends energy, with the target inside every set. Computed by
+   :func:`aether.guidance.footprint.entry_footprint`.
 
 Code Walkthrough
 ----------------
