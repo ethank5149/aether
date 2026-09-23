@@ -102,6 +102,18 @@ Key Outputs
    spends energy, with the target inside every set. Computed by
    :func:`aether.guidance.footprint.entry_footprint`.
 
+.. figure:: /_static/hero_globe_trajectory.png
+   :align: center
+   :width: 100%
+   :alt: Artemis I trajectory on a 3D globe
+
+   The same simulated trajectory rendered on a ray-traced WGS84 globe with
+   Blue Marble Next Generation imagery, using the :mod:`aether.viz.scene`
+   rendering pipeline. The trajectory arc from the south Pacific to Baja
+   California is coloured by speed (red = 11 km/s at entry interface,
+   blue = terminal). Reachable landing footprints from skip apogee and the
+   Final phase are drawn on the surface near the splashdown point.
+
 Code Walkthrough
 ----------------
 
