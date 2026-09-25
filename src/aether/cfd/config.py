@@ -1133,7 +1133,12 @@ class SU2Case:
                 # longer, because it is applied afterwards to the whole history
                 # file rather than to a rolling buffer inside the solver.
                 f"CONV_CAUCHY_ELEMS= {min(int(self.numerics.force_window), 1000)}",
-                f"CONV_STARTITER= {int(self.numerics.minimum_iterations)}",
+                # Must be at least CONV_CAUCHY_ELEMS so the first evaluation
+                # has a full window.  At STARTITER + 1 with a 1000-element
+                # window, SU2 has 1 value and the criterion is trivially
+                # satisfied — the M=25 second-order run exited at iteration
+                # 3001 this way while the force was still moving.
+                f"CONV_STARTITER= {max(int(self.numerics.minimum_iterations), min(int(self.numerics.force_window), 1000))}",
                 "",
             ]
 

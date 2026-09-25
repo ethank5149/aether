@@ -281,6 +281,30 @@ def _worst_pitot(case: Path) -> float:
     return worst
 
 
+def _latest_pitot(case: Path) -> float:
+    """Pitot exceedance from the most recent frame only.
+
+    Unlike :func:`_worst_pitot`, this ignores historical frames. A solve
+    starting from freestream on an adapted mesh will have transient pitot
+    violations that clear as the shock forms; killing based on a stale early
+    frame prevents the solve from ever reaching steady state.
+    """
+    import re
+
+    frames = case / "frames"
+    if not frames.is_dir():
+        return 0.0
+    jsons = sorted(frames.glob("*.json"))
+    if not jsons:
+        return 0.0
+    try:
+        note = json.loads(jsons[-1].read_text()).get("note") or ""
+    except (OSError, ValueError):
+        return 0.0
+    found = re.search(r"peak ([\d.]+)x", note)
+    return float(found.group(1)) if found else 0.0
+
+
 def case_markers(spec: RunSpec) -> dict[str, Any]:
     """Boundary markers for a spec, in one place because it was in two.
 
@@ -494,6 +518,9 @@ class Worker:
                 if not record.active:
                     continue
 
+            if record.state == "adapting":
+                self._adapt(record)
+                continue
             if record.state == "solving" and self._supervise(record):
                 solving += 1
 
@@ -600,6 +627,19 @@ class Worker:
                 diverged = self._diverged(record)
                 if diverged is not None:
                     state, message = "failed", diverged
+            if state == "done" and self._needs_adaptation(record):
+                cycle = record.adapt_cycle + 1
+                total = record.spec.adapt_cycles
+                self._say(
+                    f"{record.run_id}: adaptation cycle {cycle}/{total}"
+                )
+                save(replace(
+                    record, state="adapting", returncode=code,
+                    finished_at=time.time(),
+                    adapt_cycle=cycle,
+                    message=f"adapting (cycle {cycle}/{total})",
+                ))
+                return False
             finished = save(
                 replace(
                     record,
@@ -611,6 +651,172 @@ class Worker:
             )
         self._say(f"{finished.run_id}: {finished.state} {finished.message}".rstrip())
         return False
+
+    @staticmethod
+    def _needs_adaptation(record: RunRecord) -> bool:
+        """Does this run have adaptation cycles remaining?"""
+        return (
+            record.spec.adapt_cycles > 0
+            and record.adapt_cycle < record.spec.adapt_cycles
+        )
+
+    def _adapt(self, record: RunRecord) -> None:
+        """Run one adaptation cycle: compute sizes, re-mesh, re-solve."""
+        import numpy as np
+
+        from aether.aerodynamics.cfd.fields import read_su2_mesh, read_volume
+        from aether.cfd.adapt import adaptation_sizes, write_pos
+        from aether.cfd.config import (
+            FlowConditions,
+            Numerics,
+            SU2Case,
+            regime_for,
+            regime_named,
+        )
+        from aether.cfd.geometries import build_domain, reference_frame
+
+        spec = record.spec
+        cycle = record.adapt_cycle
+        directory = Path(record.case_dir)
+
+        try:
+            mesh_file = next(directory.glob("*.su2"))
+            volume_file = directory / "volume_flow.dat"
+            if not volume_file.exists():
+                snapshots = sorted(directory.glob("volume_flow_*.dat"))
+                if snapshots:
+                    volume_file = snapshots[-1]
+
+            if not volume_file.exists():
+                self._say(f"{record.run_id}: no volume file for adaptation")
+                save(replace(record, state="failed",
+                             message="adaptation failed: no volume file"))
+                return
+
+            self._say(
+                f"{record.run_id}: reading solution for adaptation "
+                f"(cycle {cycle})"
+            )
+            mesh = read_su2_mesh(mesh_file)
+            field = read_volume(volume_file)
+
+            if mesh.size != field.size:
+                self._say(f"{record.run_id}: mesh/volume size mismatch")
+                save(replace(record, state="failed",
+                             message="adaptation failed: mesh/volume mismatch"))
+                return
+
+            sizes = adaptation_sizes(mesh, field, sensor=spec.adapt_sensor)
+            pos_path = directory / f"adapt_sizes_cycle{cycle}.pos"
+            write_pos(mesh.points, sizes, pos_path)
+
+            self._say(
+                f"{record.run_id}: re-meshing with solution-adapted sizing"
+            )
+            save(replace(record, message=f"re-meshing (cycle {cycle})"))
+
+            new_mesh_path = directory / f"{spec.body}-adapted-c{cycle}.su2"
+            flow = FlowConditions.at_altitude(
+                mach=spec.mach,
+                altitude=1.0e3 * spec.altitude_km,
+                alpha=float(np.radians(spec.alpha_deg)),
+                beta=float(np.radians(spec.sideslip_deg)),
+            )
+
+            with _heartbeat(record, f"adapting mesh (cycle {cycle})"):
+                result = build_domain(
+                    spec.body,
+                    new_mesh_path,
+                    mach=spec.mach,
+                    wall_refinement=spec.wall_refinement,
+                    optimize=spec.optimize,
+                    quality_threshold=spec.quality_threshold,
+                    alpha=float(np.radians(spec.alpha_deg)),
+                    beta=float(np.radians(spec.sideslip_deg)),
+                    viscous=spec.viscous_mesh,
+                    temperature=flow.temperature,
+                    pressure=flow.pressure,
+                    background_sizes=pos_path,
+                    **spec.geometry,
+                )
+
+            self._say(
+                f"{record.run_id}: adapted mesh {result.n_elements} cells "
+                f"(was {record.elements or '?'})"
+            )
+
+            self._clear_previous_run(directory)
+
+            resolved_regime = None
+            if spec.regime:
+                resolved_regime = regime_named(
+                    spec.regime, spec.inviscid, spec.turbulence,
+                    spec.hybrid_rans_les,
+                )
+
+            case = SU2Case(
+                flow=flow,
+                inviscid=spec.inviscid,
+                turbulence=spec.turbulence,
+                regime=resolved_regime,
+                reference=reference_frame(spec.body, **spec.geometry),
+                mesh_filename=new_mesh_path.name,
+                **case_markers(spec),
+                numerics=Numerics(
+                    iterations=spec.iterations,
+                    first_order_iterations=spec.first_order_iterations,
+                    cfl_bounds=(0.1, spec.cfl_max),
+                    limiter_coefficient=spec.limiter_coefficient,
+                    convective=spec.convective,
+                    limiter=spec.limiter,
+                    entropy_fix=spec.entropy_fix,
+                    extra=_limiter_freeze(spec.limiter_iterations),
+                ),
+                volume_every=spec.volume_every,
+            )
+
+            restart = self._run_prelude(
+                record, spec, directory, result.n_elements
+            )
+            (directory / "case.cfg").write_text(
+                replace(case, restart=restart).render()
+            )
+
+            job = SolveJob(
+                directory=directory,
+                total=spec.iterations,
+                elements=result.n_elements,
+                ranks=spec.ranks,
+            ).start()
+
+            self._jobs[record.run_id] = job
+            save(replace(
+                record,
+                state="solving",
+                pid=job.pid,
+                pid_birth=job.pid_birth,
+                pid_ns=pid_namespace(),
+                started_at=job.started_at,
+                ranks=job.ranks,
+                elements=result.n_elements,
+                total=spec.iterations,
+                message=f"cycle {cycle}/{spec.adapt_cycles}",
+            ))
+            self._say(
+                f"{record.run_id}: solving on adapted mesh, "
+                f"cycle {cycle}/{spec.adapt_cycles}, "
+                f"pid {job.pid} ({result.n_elements} cells)"
+            )
+
+        except Exception as error:
+            save(replace(
+                record, state="failed", finished_at=time.time(),
+                message=f"adaptation failed: {type(error).__name__}: {error}",
+            ))
+            self._say(
+                f"{record.run_id}: adaptation failed -- "
+                f"{type(error).__name__}: {error}"
+            )
 
     @staticmethod
     def _unphysical(record: RunRecord) -> str | None:
@@ -631,7 +837,13 @@ class Worker:
         """
         if not record.case_dir:
             return None
-        peak = _worst_pitot(Path(record.case_dir))
+        if record.adapt_cycle > 0:
+            return None
+        reached = history_rows(record.history)
+        prelude = max(record.spec.first_order_iterations, 500)
+        if reached < prelude:
+            return None
+        peak = _latest_pitot(Path(record.case_dir))
         if peak > PITOT_CEILING_RATIO:
             return f"pitot ceiling exceeded {peak:.1f}x; stopping the solver"
         return None

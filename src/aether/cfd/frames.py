@@ -255,14 +255,20 @@ def _view_box(
         max(wide[2], float(z.min())), min(wide[3], float(z.max())),
     )
     # The shock layer's own scale: how far the domain stands off the wall at
-    # its thinnest, which is the stagnation line.
+    # its thinnest, which is the stagnation line.  On a box domain the cut
+    # spans the far field, so x.min() is tens of metres from the nose and the
+    # raw difference is useless -- clamp to the body length so the padding
+    # stays proportional to the vehicle, not to the far field.
     try:
         wall = np.asarray(body.interpolate(mesh.points))
+        body_length = max(float(wall[:, 0].max() - wall[:, 0].min()), 1e-9)
         thickness = float(wall[:, 0].min() - x.min())
     except Exception:
+        body_length = max(box[1] - box[0], 1e-9)
         thickness = 0.0
     if not np.isfinite(thickness) or thickness <= 0.0:
-        thickness = 0.05 * max(box[1] - box[0], 1e-9)
+        thickness = 0.05 * body_length
+    thickness = min(thickness, body_length)
     pad = STANDOFF_PADDING * thickness
     return (box[0] - pad, box[1] + pad, box[2] - pad, box[3] + pad)
 

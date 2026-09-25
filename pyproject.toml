@@ -92,6 +92,9 @@ cfd = [
     # a finished sweep to a post-processor.
     "h5py>=3.10",
 ]
+dashboard = [
+    "nicegui>=2.0",
+]
 # ERA5 reanalysis: measured wind and temperature profiles.
 reanalysis = [
     "cfgrib>=0.9",

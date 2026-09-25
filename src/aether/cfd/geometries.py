@@ -880,6 +880,7 @@ def build_domain(
     temperature: float = 288.15,
     pressure: float = 101325.0,
     wall_temperature: float | None = None,
+    background_sizes: Path | str | None = None,
     **parameters: float,
 ) -> MeshResult:
     """Mesh the flow domain around a reference body at a given Mach number.
@@ -1033,6 +1034,7 @@ def build_domain(
         wall_refinement=wall_refinement,
         optimize=optimize,
         quality_threshold=quality_threshold,
+        background_sizes=background_sizes,
     )
 
 

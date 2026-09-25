@@ -2085,6 +2085,7 @@ def inviscid_domain(
     progress: MeshProgress | None = None,
     optimize: bool = True,
     quality_threshold: float = 0.1,
+    background_sizes: Path | str | None = None,
 ) -> MeshResult:
     """Isotropic tetrahedral domain around a closed body — no boundary layer.
 
@@ -2261,8 +2262,17 @@ def inviscid_domain(
             )
             balls.append(ball)
 
+        extra: list[int] = []
+        if background_sizes is not None:
+            gmsh.merge(str(background_sizes))
+            bg = gmsh.model.mesh.field.add("PostView")
+            gmsh.model.mesh.field.setNumber(bg, "ViewIndex", 0)
+            extra.append(bg)
+
         smallest = gmsh.model.mesh.field.add("Min")
-        gmsh.model.mesh.field.setNumbers(smallest, "FieldsList", [near, wake, *balls])
+        gmsh.model.mesh.field.setNumbers(
+            smallest, "FieldsList", [near, wake, *balls, *extra]
+        )
         gmsh.model.mesh.field.setAsBackgroundMesh(smallest)
 
         # Cells near the wall inherit the *surface* mesh's own sizes, which are

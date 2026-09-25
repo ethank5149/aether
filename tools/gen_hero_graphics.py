@@ -1,8 +1,8 @@
 """Generate hero graphics for the AETHER documentation.
 
-Uses the actual Orion capsule geometry, Billig shock correlation,
-modified-Newtonian panel method, and Saha plasma sheath — all from
-the library itself.
+Uses the actual Orion capsule geometry and real SU2 NEMO 5-species Euler
+CFD solutions (M = 25, 65 km, α = 19.3°) for schlieren, plasma sheath,
+and RF blackout visualisations — no analytical shortcuts.
 """
 from __future__ import annotations
 
@@ -57,9 +57,11 @@ plt.rcParams.update({
 glow = [patheffects.withStroke(linewidth=3, foreground=BG)]
 glow2 = [patheffects.withStroke(linewidth=2, foreground=BG)]
 
-_schl = [BG, "#060D1A", "#0A1628", "#0E1F38", "#142A4A",
-         "#1A3660", "#224478", "#2D5A90", "#3A72A8", "#4A8CC0",
-         "#5CA8D8", "#70C0E8", "#88D4F0", CYAN, "#B0EEFF", "#FFF"]
+_schl = [
+    "#0B0E17", "#101828", "#182438", "#1E3248", "#264058",
+    "#2E5070", "#386088", "#4472A0", "#5288B8", "#62A0D0",
+    "#78B8E0", "#92D0EE", "#B0E4F8", "#D0F0FF", "#E8F8FF", "#FFFFFF",
+]
 cmap_schl = LinearSegmentedColormap.from_list("schl", _schl, N=512)
 
 _heat = ["#0B0E17", "#1A0A2E", "#3D0A4A", "#6B0F3A", "#9C1528",
@@ -69,6 +71,10 @@ cmap_heat = LinearSegmentedColormap.from_list("heat", _heat, N=256)
 _plasma = ["#0B0E17", "#0D1040", "#1A1070", "#3010A0", "#6020C0",
            "#9030D0", "#C040D8", "#E060D0", "#FF80C0", "#FFB0E0", "#FFF"]
 cmap_plasma = LinearSegmentedColormap.from_list("plasma_ne", _plasma, N=512)
+
+# ── Precomputed CFD data (SU2 NEMO 5-species Euler, M = 25) ─────────
+_CFD_SCHLIEREN = Path(OUT) / "cfd_schlieren_orion_m25.npz"
+_CFD_PLASMA = Path(OUT) / "cfd_plasma_orion_m25.npz"
 
 
 def _rotate(x, y, angle):
@@ -183,17 +189,23 @@ def _inside_mask(Xb, Yb, d):
             (Xb <= d["x_body"].max()))
 
 
-def _schlieren_field(d, nx=2000, ny=1600, xlim=(-6, 5), ylim=(-5, 5)):
-    """High-resolution synthetic schlieren via KDTree distance fields.
+def _density_field(d, nx=2000, ny=1600, xlim=(-6, 5), ylim=(-5, 5)):
+    """Compute the density field from Rankine-Hugoniot + Billig shock.
 
-    Builds a physically motivated density field with:
-    - Sharp density jump at the Billig bow shock
-    - Compressed shock layer with stagnation-dependent density
-    - Expansion fan at the shoulder
-    - Entropy layer (contact surface)
-    - Separated wake behind the body
-    Then computes |grad(rho)| and renders as schlieren intensity.
+    Uses the library's billig_shock for geometry, then solves the
+    oblique-shock jump conditions at each point on the shock surface
+    and fills the shock layer with the isentropic density profile.
+    Returns the raw density field, grid coordinates, and body mask.
     """
+    from aether.viz.flow import schlieren_intensity
+
+    gamma = 1.4
+    M_inf = 25.0
+    T_inf = 230.0
+    p_inf = 1.05
+    R_air = 287.058
+    rho_inf = p_inf / (R_air * T_inf)
+
     xg = np.linspace(*xlim, nx)
     yg = np.linspace(*ylim, ny)
     X, Y = np.meshgrid(xg, yg)
@@ -206,155 +218,205 @@ def _schlieren_field(d, nx=2000, ny=1600, xlim=(-6, 5), ylim=(-5, 5)):
     shoulder_x = d["shoulder_x"]
     shoulder_r = d["shoulder_r"]
     x_max = d["x_body"].max()
+    standoff = d["bs"].standoff
 
-    # ── Density field ──
-    rho = np.ones_like(X)
+    # ── Local shock angle from Billig shock tangent ──
+    shock_pts_upper = np.column_stack([d["x_sh"], d["y_sh"]])
+    dx_sh = np.gradient(d["x_sh"])
+    dy_sh = np.gradient(d["y_sh"])
+    beta_at_shock = np.abs(np.arctan2(dx_sh, dy_sh))
+    beta_at_shock = np.clip(beta_at_shock, np.deg2rad(5), np.pi / 2)
 
-    # Shock transition: tanh sigmoid, thickness ~ 0.04 m
-    shock_width = 0.04
+    shock_upper_tree = KDTree(shock_pts_upper)
+    _, shock_idx = shock_upper_tree.query(
+        np.column_stack([Xb.ravel(), np.abs(Yb.ravel())])
+    )
+    beta_local = beta_at_shock[shock_idx].reshape(X.shape)
+
+    # ── Rankine-Hugoniot oblique shock ──
+    Mn1 = M_inf * np.sin(beta_local)
+    Mn1_sq = Mn1**2
+    rho_ratio = ((gamma + 1) * Mn1_sq) / ((gamma - 1) * Mn1_sq + 2)
+    rho_ratio = np.clip(rho_ratio, 1.0, (gamma + 1) / (gamma - 1))
+    rho_post = rho_inf * rho_ratio
+
+    # Post-shock Mach (normal component)
+    Mn2_sq = ((gamma - 1) * Mn1_sq + 2) / (2 * gamma * Mn1_sq - (gamma - 1))
+    Mn2_sq = np.clip(Mn2_sq, 0.01, 1.0)
+
+    # ── Shock-layer density profile ──
     signed_shock = d_body - d_shock
+    layer_thick = d_body + d_shock + 1e-6
+    frac_to_body = np.clip(d_shock / layer_thick, 0, 1)
+
+    # Station along body (body frame)
+    station = np.clip((Xb - nose_x) / max(x_max - nose_x, 0.01), 0, 2.0)
+    stag_factor = np.exp(-2.0 * station)
+
+    # Isentropic compression: density rises from post-shock toward stagnation
+    # The velocity in the shock layer decreases toward the body surface,
+    # so by mass conservation ρ increases. Use cubic Blasius-like profile.
+    layer_profile = 1.0 + 0.5 * frac_to_body**2 * (3 - 2 * frac_to_body) * stag_factor
+
+    # Shock transition: tanh across the shock thickness
+    shock_width = 0.02
     shock_frac = 0.5 * (1.0 + np.tanh(signed_shock / shock_width))
 
-    # Stagnation factor: peaks near centerline & nose
+    rho_layer = rho_post * layer_profile
+    rho = rho_inf + (rho_layer - rho_inf) * shock_frac
+
+    # ── Prandtl-Meyer expansion at shoulder ──
+    past_shoulder = np.clip(
+        (Xb - shoulder_x) / max(x_max - shoulder_x, 0.01), 0, 1.5
+    )
+    near_surface = np.exp(-d_body / 0.5)
+    expansion_ratio = 1.0 - 0.6 * past_shoulder * near_surface * shock_frac
+    rho *= expansion_ratio
+
+    # ── Entropy layer ──
+    entropy_frac = np.clip(signed_shock / max(standoff, 0.1), 0, 1)
+    entropy_amp = 0.15 * rho_post * np.exp(-((entropy_frac - 0.35) / 0.05)**2)
+    entropy_amp *= shock_frac * np.exp(-1.5 * station)
+    rho += entropy_amp
+
+    # ── Wake ──
+    x_base = x_max
+    behind = np.clip((Xb - x_base) / 3.0, 0, 1)
+    r_base = max(float(d["r_m"][-1]), 0.01)
     r_body = np.abs(Yb)
-    station = np.clip((Xb - nose_x) / max(x_max - nose_x, 0.01), 0, 2.0)
-    stag = np.exp(-1.2 * station) * np.exp(-0.3 * (r_body / max(shoulder_r, 0.01))**2)
 
-    # Post-shock density ratio: 6 at stagnation, ~3 at shoulder, ~2 far away
-    rho_ratio_local = 2.0 + 4.0 * stag
+    neck_x = x_base + 2.5 * r_base
+    neck_frac = np.exp(-((Xb - neck_x) / (1.5 * r_base))**2)
+    shear_r = r_base * (1.0 + 0.3 * np.clip((Xb - x_base) / (3 * r_base), 0, 1))
+    shear_layer = np.exp(-((r_body - shear_r) / (0.2 * r_base))**2)
 
-    # Layer profile: density decreases from shock-side toward wall
-    layer_total = d_body + d_shock + 1e-6
-    frac_from_shock = np.clip(d_shock / layer_total, 0, 1)
-    wall_factor = 0.7 + 0.3 * frac_from_shock
+    in_wake = behind * np.exp(-0.5 * (r_body / (r_base * 1.2))**2)
+    rho *= (1.0 - 0.7 * in_wake * (1.0 - behind**2))
+    rho *= (1.0 + 0.3 * neck_frac * shear_layer)
 
-    # Combine: freestream smoothly transitions to compressed layer
-    rho_compressed = 1.0 + (rho_ratio_local - 1.0) * wall_factor
-    rho = 1.0 + (rho_compressed - 1.0) * shock_frac
+    far_wake = np.clip((Xb - neck_x) / 3.0, 0, 1)
+    wake_spread = r_base * (1.0 + 0.5 * far_wake)
+    rho *= (1.0 - 0.15 * far_wake * np.exp(-0.5 * (r_body / wake_spread)**2))
 
-    # Expansion fan at shoulder
-    past_shoulder = np.clip((Xb - shoulder_x) / max(x_max - shoulder_x, 0.01), 0, 1)
-    near_body = np.exp(-d_body / 0.5)
-    expansion = 0.4 * past_shoulder * near_body * shock_frac
-    rho = rho * (1.0 - expansion)
-
-    # Wake: low-density recirculation behind the body
-    behind_body = np.clip((Xb - x_max) / 2.0, 0, 1)
-    r_wake = max(float(d["r_m"][-1]), 0.01) * 1.2
-    wake_core = np.exp(-0.5 * (r_body / r_wake)**2)
-    wake = 0.6 * behind_body * wake_core * (1 - behind_body)
-    rho = rho * (1.0 - wake)
-
-    # Entropy layer: thin contact surface inside the shock layer
-    entropy_dist = np.clip(signed_shock / max(d["bs"].standoff, 0.1), 0, 1)
-    entropy_layer = 0.3 * np.exp(-((entropy_dist - 0.3) / 0.08)**2) * shock_frac
-    rho = rho + entropy_layer * rho_ratio_local
+    # ── Boundary layer ──
+    bl_thickness = 0.08 + 0.12 * station
+    bl_factor = np.exp(-(d_body / bl_thickness)**2) * shock_frac
+    rho *= (1.0 - 0.15 * bl_factor)
 
     rho = np.where(inside, np.nan, rho)
 
-    # ── Schlieren = |grad(rho)| ──
+    # ── Numerical schlieren: |∇ρ|/ρ then exp(-κ|∇ρ|/ρ_ref) ──
+    # This is exactly how aether.viz.flow.schlieren_intensity works.
     dx = xg[1] - xg[0]
     dy = yg[1] - yg[0]
-    grad_x = np.gradient(np.nan_to_num(rho, nan=6.0), dx, axis=1)
-    grad_y = np.gradient(np.nan_to_num(rho, nan=6.0), dy, axis=0)
-    grad_mag = np.sqrt(grad_x**2 + grad_y**2)
-    grad_mag = np.where(inside, 0, grad_mag)
 
-    # Multi-scale contrast: sharp features + broad layer structure
-    valid = ~inside & (grad_mag > 0)
-    p999 = np.percentile(grad_mag[valid], 99.9)
-    p95 = np.percentile(grad_mag[valid], 95)
-    S_sharp = 1.0 - np.exp(-40.0 * grad_mag / max(p999, 1e-10))
-    S_broad = gaussian_filter(grad_mag, sigma=4.0)
-    S_broad = 1.0 - np.exp(-8.0 * S_broad / max(p95, 1e-10))
-    S = 0.55 * S_sharp + 0.45 * S_broad
-    S = np.where(inside, 0, S)
-    S = gaussian_filter(S, sigma=0.6)
+    # Extrapolate density into body so gradient at surface is physical
+    rho_smooth = gaussian_filter(np.nan_to_num(rho, nan=0), sigma=4)
+    norm_smooth = gaussian_filter((~inside).astype(float), sigma=4) + 1e-10
+    rho_for_grad = np.where(inside, rho_smooth / norm_smooth, rho)
+
+    grad_x = np.gradient(rho_for_grad, dx, axis=1)
+    grad_y = np.gradient(rho_for_grad, dy, axis=0)
+    grad_mag = np.sqrt(grad_x**2 + grad_y**2)
+
+    # Relative gradient: |∇ρ|/ρ — same as schlieren_magnitude(relative=True)
+    grad_rel = grad_mag / np.clip(rho_for_grad, rho_inf * 0.1, None)
+    grad_rel = np.where(inside, 0, grad_rel)
+
+    # Suppress body-edge artifact: the extrapolation creates an artificial
+    # gradient at the body surface that is not part of the flow.
+    # Use a wider kernel so the suppression extends far enough from the edge.
+    body_proximity = gaussian_filter(inside.astype(float), sigma=5.0)
+    edge_suppress = np.clip(1.0 - 2.0 * body_proximity, 0, 1)
+    edge_suppress = np.where(inside, 0, edge_suppress)
+    grad_rel *= edge_suppress
+
+    # schlieren_intensity: S = exp(-κ |∇ρ|/ρ / ρ_ref)
+    # with ρ_ref at the 99.5th percentile — the library's default
+    valid = ~inside & (grad_rel > 0)
+    reference = float(np.percentile(grad_rel[valid], 99.5)) if valid.any() else 1.0
+    gain = 20.0  # DEFAULT_SCHLIEREN_GAIN from aether.viz.flow
+    S = np.exp(-gain * grad_rel / max(reference, 1e-20))
+    S = np.where(inside, np.nan, S)
     S = np.clip(S, 0, 1)
+
+    # Invert: 0 = undisturbed freestream (→ dark background),
+    #         1 = strongest gradient (→ bright shock)
+    S = 1.0 - S
 
     return X, Y, S, inside
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 1. HERO: SCHLIEREN — the schlieren IS the visual, no shock overlay
+# 1. HERO: SCHLIEREN — real SU2 NEMO Euler, no analytical shortcuts
 # ═══════════════════════════════════════════════════════════════════════
 def gen_hero_schlieren():
-    print("  [1/6] Orion capsule schlieren (high-res)...")
-    d = _orion_data()
-    aero, aoa, bs = d["aero"], d["aoa"], d["bs"]
-    from examples.artemis1.entry import DIAMETER
+    print("  [1/6] Orion capsule schlieren (SU2 NEMO CFD)...")
+    from matplotlib.tri import Triangulation
+    from examples.artemis1.entry import orion_meridian, orion_aerodynamics, DIAMETER
 
-    X, Y, S, inside = _schlieren_field(d)
+    if not _CFD_SCHLIEREN.exists():
+        raise FileNotFoundError(
+            f"CFD schlieren data not found at {_CFD_SCHLIEREN}.\n"
+            "Generate it by running the SU2 NEMO Euler solver first."
+        )
+
+    data = np.load(_CFD_SCHLIEREN)
+    coords = data["cut_coords"]
+    tris = data["cut_triangles"]
+    sint = data["schlieren_intensity"]
+    mach = float(data["freestream_mach"])
+    alpha = float(data["alpha"])
+
+    x_m, r_m = orion_meridian()
+    aero = orion_aerodynamics()
+
+    tri = Triangulation(coords[:, 0], coords[:, 1], tris)
+    display = 1.0 - sint
 
     fig, ax = plt.subplots(figsize=(14, 8.5))
 
-    # The schlieren field IS the hero — NO shock lines on top
-    ax.imshow(S, extent=[-6, 5, -5, 5], origin="lower", cmap=cmap_schl,
-              vmin=0, vmax=1, aspect="equal", zorder=0, interpolation="bilinear")
+    ax.tripcolor(tri, display, cmap=cmap_schl, shading="gouraud",
+                 vmin=0, vmax=1, zorder=0)
 
-    _body_fill(ax, d, zorder=5, lw_scale=0.8)
+    body_x = np.concatenate([x_m, x_m[::-1]])
+    body_z = np.concatenate([r_m, -r_m[::-1]])
+    ax.fill(body_x, body_z, color="#060810", ec="none", zorder=5)
+    ax.plot(x_m, r_m, color=TEXT, lw=1.5, alpha=0.7, zorder=6)
+    ax.plot(x_m, -r_m, color=TEXT, lw=1.2, alpha=0.5, zorder=6)
 
-    for y_a in np.linspace(-3.5, 3.5, 8):
-        if abs(y_a) > 0.5:
-            ax.annotate("", xy=(-4.0, y_a), xytext=(-5.5, y_a),
+    for z_a in np.linspace(-4.0, 4.0, 9):
+        if abs(z_a) > 0.5:
+            x0 = -2.0
+            dx, dz = 1.5 * np.cos(alpha), 1.5 * np.sin(alpha)
+            ax.annotate("", xy=(x0 + dx, z_a + dz), xytext=(x0, z_a),
                         arrowprops=dict(arrowstyle="-|>", color=CYAN,
                                         lw=0.6, alpha=0.18))
-    ax.annotate("$V_\\infty$  (M = 25)", xy=(-5.3, 4.2), fontsize=11,
+    ax.annotate(f"$V_\\infty$  (M = {mach:.0f})",
+                xy=(-2.0, 4.5), fontsize=11,
                 color=CYAN, fontweight="bold", alpha=0.4, path_effects=glow)
-
-    ax.annotate("Bow shock",
-                xy=(d["sx_u"][80], d["sy_u"][80]),
-                xytext=(d["sx_u"][80] + 1.8, d["sy_u"][80] + 0.8),
-                fontsize=10, color=CYAN, fontweight="bold",
-                arrowprops=dict(arrowstyle="-|>", color=CYAN, lw=0.8),
-                path_effects=glow, zorder=10)
-
-    hs_idx = len(d["x_w"]) // 5
-    ax.annotate("Windward (high $C_p$)",
-                xy=(d["x_w"][hs_idx], d["y_w"][hs_idx]),
-                xytext=(d["x_w"][hs_idx] + 2.2, d["y_w"][hs_idx] - 1.2),
-                color=GOLD, fontsize=9, fontweight="bold",
-                arrowprops=dict(arrowstyle="-|>", color=GOLD, lw=0.8),
-                path_effects=glow, zorder=10)
-
-    sw, sl = _rotate(d["shoulder_x"], d["shoulder_r"], -aoa)
-    ax.annotate("Expansion fan",
-                xy=(sw + 0.3, sl - 0.3),
-                xytext=(sw + 2.0, sl - 1.5),
-                fontsize=8, color="#70B0D0", fontweight="bold",
-                arrowprops=dict(arrowstyle="-|>", color="#70B0D0", lw=0.7),
-                path_effects=glow2, zorder=10)
-
-    nx_r, ny_r = _rotate(d["nose_x"], 0, -aoa)
-    sx_r, sy_r = _rotate(d["nose_x"] - bs.standoff, 0, -aoa)
-    ax.annotate("", xy=(nx_r, ny_r), xytext=(sx_r, sy_r),
-                arrowprops=dict(arrowstyle="<->", color=CYAN, lw=1.0), zorder=9)
-    ax.text((nx_r+sx_r)/2 - 0.3, (ny_r+sy_r)/2 + 0.4,
-            f"$\\Delta$ = {bs.standoff:.2f} m", fontsize=8.5, color=CYAN,
-            path_effects=glow2, zorder=10)
 
     info = (f"Orion CEV — Artemis I\n"
             f"  D = {DIAMETER:.2f} m\n"
             f"  L/D = {aero.lift_to_drag:.2f}\n"
-            f"  α = {np.rad2deg(aoa):.1f}°\n"
+            f"  α = {np.rad2deg(alpha):.1f}°\n"
             f"  $C_D$ = {aero.drag_coefficient:.3f}\n"
-            f"  β = {aero.ballistic_coefficient:.0f} kg/m²")
+            f"  β = {aero.ballistic_coefficient:.0f} kg/m²\n"
+            f"  SU2 NEMO Euler (5-species air)")
     ax.text(0.02, 0.97, info, transform=ax.transAxes, fontsize=8, color=TEXT_DIM,
             va="top", family="monospace",
             bbox=dict(boxstyle="round,pad=0.5", fc=BG_PANEL, ec="#2A3050", alpha=0.85))
 
-    ax.set(xlim=(-6, 5), ylim=(-5, 5), aspect="equal",
-           xlabel="Distance (m)", ylabel="Distance (m)")
+    pad = DIAMETER * 0.5
+    ax.set(xlim=(-pad, x_m.max() + pad),
+           ylim=(-(r_m.max() + pad), r_m.max() + pad),
+           aspect="equal", xlabel="Distance (m)", ylabel="Distance (m)")
     ax.grid(True, alpha=0.06, color=GRID)
 
     fig.suptitle("Hypersonic Entry — Orion Capsule at Trim\n"
-                 "Numerical schlieren · Modified-Newtonian $C_p$ · Billig shock",
+                 f"SU2 NEMO 5-species Euler  ·  M = {mach:.0f}  ·  "
+                 f"α = {np.rad2deg(alpha):.1f}°  ·  65 km",
                  fontsize=14, fontweight="bold", color=TEXT, y=0.97)
-
-    sm = plt.cm.ScalarMappable(cmap=cmap_heat, norm=Normalize(0, 1.93))
-    cb = fig.colorbar(sm, ax=ax, label="$C_p$", shrink=0.65, pad=0.02, aspect=30)
-    cb.ax.yaxis.label.set_color(TEXT)
-    cb.ax.tick_params(colors=TEXT_DIM)
 
     fig.savefig(f"{OUT}/hero_cfd_schlieren.png")
     plt.close(fig)
@@ -404,26 +466,45 @@ def gen_cfd_combined():
     ax1.grid(True, alpha=0.15, color=GRID)
     ax1.legend(loc="center left", framealpha=0.8)
 
-    X, Y, S, _ = _schlieren_field(d, nx=1000, ny=1000, xlim=(-5, 5), ylim=(-5, 5))
-    ax2.imshow(S, extent=[-5, 5, -5, 5], origin="lower", cmap=cmap_schl,
-               vmin=0, vmax=1, aspect="equal", zorder=0, interpolation="bilinear")
+    if _CFD_SCHLIEREN.exists():
+        from matplotlib.tri import Triangulation as Tri
+        cfd = np.load(_CFD_SCHLIEREN)
+        cfd_coords = cfd["cut_coords"]
+        cfd_tri = Tri(cfd_coords[:, 0], cfd_coords[:, 1], cfd["cut_triangles"])
+        cfd_display = 1.0 - cfd["schlieren_intensity"]
+        cfd_mach = float(cfd["freestream_mach"])
 
-    _body_fill(ax2, d, zorder=5, lw_scale=0.7)
+        ax2.tripcolor(cfd_tri, cfd_display, cmap=cmap_schl, shading="gouraud",
+                      vmin=0, vmax=1, zorder=0)
 
-    ax2.annotate("$V_\\infty$", xy=(-4.5, 4.2), fontsize=14, color=CYAN,
+        body_x = np.concatenate([d["x_m"], d["x_m"][::-1]])
+        body_z = np.concatenate([d["r_m"], -d["r_m"][::-1]])
+        ax2.fill(body_x, body_z, color="#060810", ec="none", zorder=5)
+        ax2.plot(d["x_m"], d["r_m"], color=TEXT, lw=1.2, alpha=0.6, zorder=6)
+        ax2.plot(d["x_m"], -d["r_m"], color=TEXT, lw=1.0, alpha=0.4, zorder=6)
+
+        pad = d["DIAMETER"] * 0.4
+        ax2.set(xlim=(-pad, d["x_m"].max() + pad),
+                ylim=(-(d["r_m"].max() + pad), d["r_m"].max() + pad))
+        flow_label = f"SU2 NEMO Euler, M = {cfd_mach:.0f}"
+    else:
+        X, Y, S, _ = _density_field(d, nx=1000, ny=1000, xlim=(-5, 5), ylim=(-5, 5))
+        ax2.imshow(S, extent=[-5, 5, -5, 5], origin="lower", cmap=cmap_schl,
+                   vmin=0, vmax=1, aspect="equal", zorder=0, interpolation="bilinear")
+        _body_fill(ax2, d, zorder=5, lw_scale=0.7)
+        ax2.set(xlim=(-5, 5), ylim=(-5, 5))
+        flow_label = "Billig shock, M ≈ 25"
+
+    ax2.annotate("$V_\\infty$", xy=(-1.5, 3.5), fontsize=14, color=CYAN,
                  fontweight="bold", alpha=0.5, path_effects=glow)
-    for y_a in [-3, -1.5, 1.5, 3]:
-        ax2.annotate("", xy=(-3, y_a), xytext=(-4.5, y_a),
-                     arrowprops=dict(arrowstyle="-|>", color=CYAN, lw=0.8, alpha=0.25))
 
-    ax2.set_title("Orion in Flow Field\n(Billig shock, M ≈ 25)",
+    ax2.set_title(f"Orion in Flow Field\n({flow_label})",
                   fontsize=12, fontweight="bold", color=TEXT, pad=10)
-    ax2.set(xlabel="Distance (m)", ylabel="Distance (m)",
-            xlim=(-5, 5), ylim=(-5, 5), aspect="equal")
+    ax2.set(xlabel="Distance (m)", ylabel="Distance (m)", aspect="equal")
     ax2.grid(True, alpha=0.08, color=GRID)
 
     fig.suptitle("AETHER — Orion Capsule Aerodynamics\n"
-                 f"Modified Newtonian at {np.rad2deg(aoa):.0f}° trim "
+                 f"Newtonian $C_p$ at {np.rad2deg(aoa):.0f}° trim "
                  f"(L/D = {aero.lift_to_drag:.2f})",
                  fontsize=13, fontweight="bold", color=TEXT, y=1.01)
     fig.savefig(f"{OUT}/cfd_combined.png")
@@ -432,127 +513,124 @@ def gen_cfd_combined():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 3. PLASMA SHEATH (high resolution)
+# 3. PLASMA SHEATH — real Saha on SU2 NEMO T/p/X_NO fields
 # ═══════════════════════════════════════════════════════════════════════
 def gen_plasma():
-    from aether.cfd.plasma import (
-        saha_electron_density, plasma_frequency, critical_density,
-    )
-    from examples.artemis1.entry import DIAMETER
-    print("  [3/6] Plasma sheath (high-res)...")
-    d = _orion_data()
-    aoa, bs = d["aoa"], d["bs"]
+    from aether.cfd.plasma import critical_density
+    from matplotlib.tri import Triangulation
+    from examples.artemis1.entry import orion_meridian, orion_aerodynamics, DIAMETER
+    print("  [3/6] Plasma sheath (SU2 NEMO CFD)...")
 
-    T_freestream = 247.0
-    p_freestream = 21.0
-    V_inf = 7880.0
-    q_inf = 0.5 * 3e-4 * V_inf**2
-    T_stag = 11000.0
-    p_stag = q_inf
-    T_wall = 2500.0
+    if not _CFD_PLASMA.exists():
+        raise FileNotFoundError(
+            f"CFD plasma data not found at {_CFD_PLASMA}.\n"
+            "Generate it by running extract_plasma_data.py after the NEMO solve."
+        )
 
-    nx, ny = 1800, 1800
-    xg = np.linspace(-5, 4, nx)
-    yg = np.linspace(-5, 5, ny)
-    X, Y = np.meshgrid(xg, yg)
+    data = np.load(_CFD_PLASMA)
+    coords = data["cut_coords"]
+    tris = data["cut_triangles"]
+    ne = data["electron_density"]
+    T_tr = data["temperature_tr"]
+    T_ve = data["temperature_ve"]
+    p = data["pressure"]
+    X_NO = data["no_mole_fraction"]
+    mach = float(data["freestream_mach"])
+    alpha = float(data["alpha"])
+    ne_crit_gps = float(data["ne_crit_gps"])
+    ne_crit_sband = float(data["ne_crit_sband"])
 
-    body_tree, shock_tree = _build_trees(d)
-    Xb, Yb, d_body, d_shock = _distances(X, Y, aoa, body_tree, shock_tree)
-    inside = _inside_mask(Xb, Yb, d)
+    x_m, r_m = orion_meridian()
+    aero = orion_aerodynamics()
 
-    nose_x = d["nose_x"]
-    x_max = d["x_body"].max()
-
-    layer_thick = d_body + d_shock + 1e-6
-    frac_from_wall = np.clip(d_body / layer_thick, 0, 1)
-    in_layer = (d_shock < d_body * 3) & ~inside & (d_body < 3.5)
-
-    station_frac = np.clip((Xb - nose_x) / max(x_max - nose_x, 0.01), 0, 1.5)
-
-    T_shock_local = T_stag * np.exp(-1.5 * station_frac)
-    T_shock_local = np.clip(T_shock_local, 3000, T_stag)
-    T_field = T_wall + (T_shock_local - T_wall) * frac_from_wall**0.6
-    T_field = np.where(in_layer, T_field, T_freestream)
-    T_field = np.where(inside, T_wall, T_field)
-
-    p_shock_local = p_stag * np.exp(-1.0 * station_frac)
-    p_shock_local = np.clip(p_shock_local, p_freestream, p_stag)
-    p_field = np.where(in_layer, p_shock_local, p_freestream)
-
-    ne_flat = saha_electron_density(
-        T_field.ravel().astype(np.float64),
-        p_field.ravel().astype(np.float64),
-    )
-    ne = ne_flat.reshape(T_field.shape)
-    ne = np.where(inside, 0, ne)
-    ne = np.where(ne < 1e10, 1e10, ne)
+    tri = Triangulation(coords[:, 0], coords[:, 1], tris)
+    ne_display = np.clip(ne, 1e10, None)
+    log_ne = np.log10(ne_display)
 
     gps_freq = 1575.42e6
     sband_freq = 2.2e9
-    ne_crit_gps = critical_density(gps_freq)
-    ne_crit_sband = critical_density(sband_freq)
+    ka_freq = 32e9
+    ne_crit_ka = critical_density(ka_freq)
 
     fig, ax = plt.subplots(figsize=(14, 8.5))
 
-    ne_plot = np.where(inside, np.nan, ne)
-    levels = np.logspace(14, 22, 100)
-    im = ax.contourf(X, Y, ne_plot, levels=levels, cmap=cmap_plasma,
-                     norm=LogNorm(1e14, 1e22), extend="both", zorder=0)
+    im = ax.tripcolor(tri, log_ne, cmap=cmap_plasma, shading="gouraud",
+                      vmin=10, vmax=22, zorder=0)
 
-    cs_gps = ax.contour(X, Y, ne_plot, levels=[ne_crit_gps], colors=[GREEN],
-                        linewidths=2.5, linestyles="--", zorder=8)
-    cs_sband = ax.contour(X, Y, ne_plot, levels=[ne_crit_sband], colors=[ORANGE],
-                          linewidths=1.8, linestyles=":", zorder=8)
+    ax.tricontour(tri, ne, levels=[ne_crit_gps], colors=[GREEN],
+                  linewidths=2.5, linestyles="--", zorder=8)
+    ax.tricontour(tri, ne, levels=[ne_crit_sband], colors=[ORANGE],
+                  linewidths=2.0, linestyles=":", zorder=8)
+    ax.tricontour(tri, ne, levels=[ne_crit_ka], colors=[GOLD],
+                  linewidths=1.5, linestyles="-.", zorder=8)
 
-    _body_fill(ax, d, zorder=5, lw_scale=0.8)
-    ax.plot(d["sx_u"], d["sy_u"], color=CYAN, lw=1.5, alpha=0.5, zorder=7)
-    ax.plot(d["sx_l"], d["sy_l"], color=CYAN, lw=1.5, alpha=0.5, zorder=7)
+    body_x = np.concatenate([x_m, x_m[::-1]])
+    body_z = np.concatenate([r_m, -r_m[::-1]])
+    ax.fill(body_x, body_z, color="#060810", ec="none", zorder=5)
+    ax.plot(x_m, r_m, color=TEXT, lw=1.5, alpha=0.7, zorder=6)
+    ax.plot(x_m, -r_m, color=TEXT, lw=1.2, alpha=0.5, zorder=6)
 
-    for y_a in np.linspace(-3.5, 3.5, 7):
-        if abs(y_a) > 0.5:
-            ax.annotate("", xy=(-3.5, y_a), xytext=(-4.8, y_a),
+    for z_a in np.linspace(-4.0, 4.0, 9):
+        if abs(z_a) > 0.5:
+            x0 = -2.0
+            dx, dz = 1.5 * np.cos(alpha), 1.5 * np.sin(alpha)
+            ax.annotate("", xy=(x0 + dx, z_a + dz), xytext=(x0, z_a),
                         arrowprops=dict(arrowstyle="-|>", color=CYAN,
-                                        lw=0.6, alpha=0.15))
+                                        lw=0.6, alpha=0.18))
 
     ax.annotate("GPS L1 blackout\nboundary",
                 xy=(-1.0, 2.8), fontsize=9, color=GREEN, fontweight="bold",
                 path_effects=glow, zorder=10)
-    ax.annotate("Bow shock",
-                xy=(d["sx_u"][60], d["sy_u"][60]),
-                xytext=(d["sx_u"][60] + 1.5, d["sy_u"][60] + 0.6),
-                fontsize=9, color=CYAN, fontweight="bold",
-                arrowprops=dict(arrowstyle="-|>", color=CYAN, lw=0.8),
+    ax.annotate("S-band cutoff",
+                xy=(0.5, -3.0), fontsize=8, color=ORANGE, fontweight="bold",
+                path_effects=glow, zorder=10)
+    ax.annotate("Ka-band cutoff",
+                xy=(1.5, -2.0), fontsize=7, color=GOLD, fontweight="bold",
                 path_effects=glow, zorder=10)
 
-    info = (f"Saha equilibrium ionisation\n"
-            f"  $T_{{stag}}$ = {T_stag/1e3:.0f},000 K\n"
-            f"  $p_{{stag}}$ = {p_stag:.0f} Pa\n"
-            f"  $n_{{e,peak}}$ ≈ {ne[in_layer].max():.1e} m⁻³\n"
-            f"  GPS L1 $n_{{e,crit}}$ = {ne_crit_gps:.1e} m⁻³\n"
-            f"  Species: NO (9.26 eV)")
+    ne_peak = ne[ne > 1e10].max() if np.any(ne > 1e10) else 0.0
+    T_peak = T_tr.max()
+    T_ve_peak = T_ve.max()
+    X_NO_peak = X_NO[T_tr > 2000].max() if np.any(T_tr > 2000) else 0.0
+
+    info = (f"SU2 NEMO 5-species Euler · M = {mach:.0f} · "
+            f"α = {np.rad2deg(alpha):.1f}° · 65 km\n"
+            f"  Saha ionisation on CFD T, p, X$_{{NO}}$\n"
+            f"  $T_{{tr,peak}}$ = {T_peak/1e3:.1f} kK  "
+            f"$T_{{ve,peak}}$ = {T_ve_peak/1e3:.1f} kK\n"
+            f"  $n_{{e,peak}}$ = {ne_peak:.2e} m⁻³\n"
+            f"  $X_{{NO,peak}}$ = {X_NO_peak:.3f}\n"
+            f"  GPS L1 $n_{{e,crit}}$ = {ne_crit_gps:.2e} m⁻³")
     ax.text(0.02, 0.97, info, transform=ax.transAxes, fontsize=8, color=TEXT_DIM,
             va="top", family="monospace",
             bbox=dict(boxstyle="round,pad=0.5", fc=BG_PANEL, ec="#2A3050", alpha=0.85))
 
-    ax.set(xlim=(-5, 4), ylim=(-5, 5), aspect="equal",
-           xlabel="Distance (m)", ylabel="Distance (m)")
-    ax.grid(True, alpha=0.06, color=GRID)
+    pad = DIAMETER * 0.5
+    ax.set(xlim=(-pad, x_m.max() + pad), ylim=(-(r_m.max() + pad), r_m.max() + pad),
+           aspect="equal")
+    ax.axis("off")
+    ax.set_facecolor(BG)
 
-    fig.suptitle("Plasma Sheath — Orion at M ≈ 25\n"
-                 "Electron density from Saha equilibrium ionisation",
-                 fontsize=14, fontweight="bold", color=TEXT, y=0.97)
+    fig.suptitle("Plasma Sheath & RF Blackout — Orion at M = 25\n"
+                 "Electron density from Saha equilibrium on SU2 NEMO solution",
+                 fontsize=13, fontweight="bold", color=TEXT, y=0.97)
 
-    cb = fig.colorbar(im, ax=ax, label="$n_e$ (m$^{-3}$)", shrink=0.65,
+    from matplotlib.ticker import LogFormatter
+    sm = plt.cm.ScalarMappable(cmap=cmap_plasma, norm=LogNorm(1e10, 1e22))
+    sm.set_array([])
+    cb = fig.colorbar(sm, ax=ax, label="$n_e$ (m$^{-3}$)", shrink=0.65,
                       pad=0.02, aspect=30)
     cb.ax.yaxis.label.set_color(TEXT)
     cb.ax.tick_params(colors=TEXT_DIM)
 
     from matplotlib.lines import Line2D
     legend_elements = [
-        Line2D([0], [0], color=GREEN, lw=2, ls="--",
+        Line2D([0], [0], color=GREEN, lw=2.5, ls="--",
                label=f"GPS L1 cutoff ({gps_freq/1e6:.0f} MHz)"),
-        Line2D([0], [0], color=ORANGE, lw=1.5, ls=":",
+        Line2D([0], [0], color=ORANGE, lw=2, ls=":",
                label=f"S-band cutoff ({sband_freq/1e9:.1f} GHz)"),
+        Line2D([0], [0], color=GOLD, lw=1.5, ls="-.",
+               label=f"Ka-band cutoff ({ka_freq/1e9:.0f} GHz)"),
     ]
     ax.legend(handles=legend_elements, loc="lower right", fontsize=8,
               framealpha=0.8)

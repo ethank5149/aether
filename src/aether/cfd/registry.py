@@ -80,7 +80,7 @@ __all__ = [
     "save",
 ]
 
-RunState = Literal["queued", "meshing", "solving", "done", "failed", "stopped"]
+RunState = Literal["queued", "meshing", "adapting", "solving", "done", "failed", "stopped"]
 
 #: States from which a run does not move again. A reader that finds one of
 #: these needs no liveness check and no reconciliation.
@@ -465,6 +465,31 @@ class RunSpec:
     passed"*. It was then left disabled for every run the queue ever made.
     """
 
+    adapt_cycles: int = 3
+    """Solution-adaptive mesh refinement cycles.
+
+    After the solver converges (or reaches its iteration budget), the volume
+    solution drives a new mesh: cell sizes are set inversely proportional to
+    the density-gradient magnitude, so the shock, shear layers, and expansion
+    fans get the resolution the physics demands rather than whatever the
+    a-priori estimate guessed.  The solver then restarts on the adapted mesh
+    from freestream — standard practice; adapted meshes converge fast because
+    the cells are where they need to be.
+
+    ``3`` by default, because this is research, not a toy.  ``0`` disables
+    adaptation and recovers the old single-mesh behaviour.
+    """
+
+    adapt_sensor: str = "auto"
+    """Sensor mode for adaptation sizing.
+
+    ``"auto"`` (default) uses every available solution field — density,
+    pressure, temperature, T_ve, Mach, and species mass fractions — and
+    takes the element-wise minimum, so every resolved feature drives
+    refinement independently.  ``"density"`` uses log-density gradient
+    only.  ``"mach"`` uses the Mach gradient.
+    """
+
     def label(self) -> str:
         """A short human name, the one the case directory is built from."""
         return f"{self.body} M{self.mach:g} a{self.alpha_deg:+g} h{self.altitude_km:g}"
@@ -502,7 +527,8 @@ class RunSpec:
     #: rather than by forking a second directory. Use :attr:`variant` to fork on
     #: purpose.
     RUNTIME_ONLY: ClassVar[frozenset[str]] = frozenset(
-        {"ranks", "volume_every", "iterations", "first_order_iterations", "variant"}
+        {"ranks", "volume_every", "iterations", "first_order_iterations", "variant",
+         "adapt_cycles", "adapt_sensor"}
     )
 
     #: Fields already carried by the stem or the geometry tag.
@@ -645,6 +671,9 @@ class RunRecord:
     returncode: int | None = None
     message: str = ""
     """Why it ended, when that is not obvious from the state alone."""
+
+    adapt_cycle: int = 0
+    """Which adaptation cycle this solve is on.  ``0`` is the initial mesh."""
 
     @property
     def path(self) -> Path:
