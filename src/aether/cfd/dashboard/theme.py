@@ -103,6 +103,7 @@ def side_style(side: str, *, edge: bool = True) -> str:
 #: Registered as custom colours below so the palette lives in one place.
 STATE_COLOUR = {
     "queued": "aether-muted",
+    "requeued": "aether-warn",
     "meshing": "aether-warn",
     "adapting": "aether-warn",
     "solving": "aether-accent",

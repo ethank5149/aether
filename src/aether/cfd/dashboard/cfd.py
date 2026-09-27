@@ -35,6 +35,7 @@ from aether.cfd.registry import (
     forget,
     load,
     load_all,
+    requeue,
     request_cancel,
     restore,
 )
@@ -152,7 +153,7 @@ def _progress_line(record: RunRecord) -> tuple[str, float | None]:
     division the whole design rests on: the record carries *identity* -- which
     process, started when -- and the history carries *progress*.
     """
-    if record.state == "queued":
+    if record.state in ("queued", "requeued"):
         return "waiting for a slot", None
     if record.state == "meshing":
         # The worker's own note when it has one. The clock here counts from
@@ -442,6 +443,9 @@ class _RunCard:
                 ui.space()
                 self.stop = ui.button(icon="stop", color="red-8", on_click=self._cancel)
                 self.stop.props("flat dense round")
+                self.retry = ui.button(icon="replay", color="primary", on_click=self._requeue)
+                self.retry.props("flat dense round")
+                self.retry.tooltip("Re-queue this run")
                 self.drop = ui.button(icon="delete_outline", color="grey", on_click=self._forget)
                 self.drop.props("flat dense round")
                 # Finished runs start collapsed. A queue that has been going all
@@ -507,6 +511,9 @@ class _RunCard:
                     "convergence", icon="show_chart", on_value_change=self._toggled
                 ).classes("w-full").props("dense")
                 with self.convergence:
+                    self.forces = ui.echart(_force_options({})).classes("w-full").style(
+                        "height: 220px"
+                    )
                     self.residuals = ui.echart(_residual_options({})).classes("w-full").style(
                         "height: 320px"
                     )
@@ -522,10 +529,6 @@ class _RunCard:
                         rows=[],
                         row_key="eq",
                     ).classes("w-full").props("dense flat")
-                    ui.label("forces").classes("text-caption q-mt-sm").style(f"color: {MUTED}")
-                    self.forces = ui.echart(_force_options({})).classes("w-full").style(
-                        "height: 190px"
-                    )
 
                 self.log_panel = ui.expansion("solver log", icon="terminal").classes(
                     "w-full"
@@ -573,6 +576,15 @@ class _RunCard:
         ui.notify(f"stop requested for {self.record.spec.label()}", type="warning")
         self.stop.disable()
 
+    def _requeue(self) -> None:
+        try:
+            requeue(self.record.run_id)
+        except (KeyError, ValueError) as error:
+            ui.notify(str(error), type="negative")
+            return
+        ui.notify(f"re-queued {self.record.spec.label()}", type="positive")
+        self._on_change()
+
     def _forget(self) -> None:
         try:
             forget(self.record.run_id)
@@ -609,6 +621,7 @@ class _RunCard:
         self.stop.set_visibility(record.active)
         if record.active and cancel_requested(record.run_id):
             self.stop.disable()
+        self.retry.set_visibility(not record.active)
         self.drop.set_visibility(not record.active)
 
         self._sync_frames()
@@ -639,7 +652,7 @@ class _RunCard:
         self.tab_shade.set_visibility(bool(self._frames))
         if not self._frames:
             self.field.set_visibility(False)
-            self.waiting.set_visibility(self.record.state in {"solving", "meshing"})
+            self.waiting.set_visibility(self.record.state in {"solving", "meshing", "requeued"})
             self.waiting.text = _no_frames_because(self.record)
             return
 
@@ -739,6 +752,8 @@ def _no_frames_because(record: RunRecord) -> str:
         return "no field snapshots: this run was queued with 'volume snapshot every' set to 0"
     if record.state == "meshing":
         return "meshing; the first snapshot comes after the first iterations"
+    if record.state == "requeued":
+        return "re-queued; waiting for the worker to pick it up"
     return f"first snapshot due at iteration {record.spec.volume_every}"
 
 
@@ -1044,7 +1059,7 @@ def cfd_panel(open_runs: set[str]) -> Callable[[], None]:
             expand.props("flat dense round").tooltip("expand every card")
             with ui.button(icon="filter_list").props("flat dense round"):
                 with ui.menu(), ui.column().classes("q-pa-sm"):
-                    for state in ("queued", "meshing", "solving", "done", "failed", "stopped"):
+                    for state in ("queued", "requeued", "meshing", "solving", "done", "failed", "stopped"):
                         ui.checkbox(
                             state,
                             value=True,

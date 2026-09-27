@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import fcntl
 import os
 import subprocess
 import time
@@ -231,10 +232,26 @@ def read_progress(
     path = Path(history)
     if not path.exists():
         return None
-    with path.open() as handle:
-        rows = list(csv.reader(handle))
-    if len(rows) < 2:
+
+    # Include prelude history when it exists — the first-order warmup
+    # iterations count toward convergence and rate calculations.
+    all_rows: list[list[str]] = []
+    prelude = path.with_name("history-prelude.csv")
+    for source in (prelude, path):
+        if not source.exists():
+            continue
+        with source.open() as handle:
+            rows = list(csv.reader(handle))
+        if len(rows) < 2:
+            continue
+        if not all_rows:
+            all_rows = rows
+        else:
+            all_rows.extend(rows[1:])
+
+    if len(all_rows) < 2:
         return None
+    rows = all_rows
 
     header, last = rows[0], rows[-1]
     residual_columns = _residual_columns(header)
@@ -406,12 +423,24 @@ class SolveJob:
     def log(self) -> Path:
         return self.directory / "su2.log"
 
-    def start(self) -> SolveJob:
+    def start(self, *, continuation: bool = False) -> SolveJob:
         """Launch the solver and return immediately.
 
         The previous run's history is removed first. Leaving it means the next
         poll reads the *old* run's final iteration and reports a job that has
         barely started as complete.
+
+        When ``continuation`` is True, the history and restart file are
+        preserved so the solver picks up from its checkpoint.  This is the
+        correct path after a config-only change (CFL, output format) where
+        the solution state is still valid.
+
+        An advisory ``flock`` on ``.solver.lock`` is acquired here and passed
+        to the child process.  The OS releases the lock when every descriptor
+        for that open file description is closed — which happens exactly when
+        the solver exits, for any reason.  ``reconcile`` checks this lock
+        instead of the PID, eliminating the PID-namespace and startup-race
+        problems that the old liveness check was subject to.
         """
         if self._process is not None or self._pid is not None:
             raise RuntimeError("this job has already been started")
@@ -425,27 +454,47 @@ class SolveJob:
                 # a slower machine, not a broken one.
                 ranks = 1
             else:
-                command = [launcher, "-n", str(ranks), *command]
+                root_flags = ["--allow-run-as-root"] if os.getuid() == 0 else []
+                command = [launcher, "-n", str(ranks), *root_flags, *command]
         self.ranks = ranks
 
-        self.history.unlink(missing_ok=True)
+        # SU2 overwrites history.csv on every launch, even a restart.
+        # Back up whatever is there BEFORE the solver touches it so no
+        # code path — prelude, continuation, adaptation, fresh start —
+        # can ever silently destroy convergence history.
+        import shutil
+        if self.history.exists() and self.history.stat().st_size > 0:
+            shutil.copy2(str(self.history), str(self.history.with_suffix(".csv.bak")))
+
+        if not continuation:
+            self.history.unlink(missing_ok=True)
+
+        from aether.cfd.registry import SOLVER_LOCK
+
+        lock_path = self.directory / SOLVER_LOCK
+        lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (IOError, OSError):
+            os.close(lock_fd)
+            raise RuntimeError(
+                f"solver lock is held — is SU2 already running in {self.directory}?"
+            )
+
         self._started = time.monotonic()
         self._started_wall = time.time()
-        # Closed as soon as the child has it. ``Popen`` dups the descriptor
-        # into the child, so the copy kept here does nothing but hold the file
-        # open -- for the whole run, and past it. A supervisor that starts a
-        # hundred cases would leak a hundred descriptors and eventually fail to
-        # launch the hundred-and-first for want of one.
         with self.log.open("wb") as handle:
             self._process = subprocess.Popen(
                 command,
                 cwd=self.directory,
                 stdout=handle,
                 stderr=subprocess.STDOUT,
+                pass_fds=(lock_fd,),
             )
-        # Recorded so a later process can tell this solver from whatever
-        # happens to hold the same pid days from now. See
-        # :func:`~aether.cfd.registry.pid_birth`.
+        # The child now holds the lock via its inherited fd.  Close ours so
+        # the lock lifetime is tied to the solver, not this process.
+        os.close(lock_fd)
+
         from aether.cfd.registry import pid_birth
 
         self._pid_birth = pid_birth(self._process.pid)
@@ -456,9 +505,13 @@ class SolveJob:
         if self._process is not None:
             return self._process.poll() is None
         # An attached job has no wait status to read -- the solver is not this
-        # process's child -- so liveness is asked of the operating system.
-        from aether.cfd.registry import process_alive
+        # process's child.  Prefer the lock file (definitive, namespace-safe),
+        # then fall back to PID.
+        from aether.cfd.registry import process_alive, solver_lock_held
 
+        lock = solver_lock_held(self.directory)
+        if lock is not None:
+            return lock
         return process_alive(self._pid, self._pid_birth)
 
     @property
@@ -564,16 +617,37 @@ def read_history(
     ``columns`` selects by name, case-insensitively, matching on a prefix so
     ``rms`` picks up every residual a run happens to write: one for a
     perfect-gas case and five for five-species air.
+
+    If a ``history-prelude.csv`` exists alongside the history file, its
+    data is prepended — the first-order warmup is part of the run's
+    convergence story and must be visible on every chart that reads this.
     """
     path = Path(history)
-    if not path.exists():
-        return {}
-    with path.open() as handle:
-        rows = list(csv.reader(handle))
-    if len(rows) < 2:
+
+    # Collect CSV rows, prepending the prelude history when it exists.
+    all_rows: list[list[str]] = []
+    prelude = path.with_name("history-prelude.csv")
+    for source in (prelude, path):
+        if not source.exists():
+            continue
+        with source.open() as handle:
+            rows = list(csv.reader(handle))
+        if len(rows) < 2:
+            continue
+        if not all_rows:
+            all_rows = rows
+        else:
+            # Skip the header row of the second file; append data only
+            # when the column layout matches.
+            if rows[0] == all_rows[0]:
+                all_rows.extend(rows[1:])
+            else:
+                all_rows.extend(rows[1:])
+
+    if len(all_rows) < 2:
         return {}
 
-    names = [cell.strip().strip('"') for cell in rows[0]]
+    names = [cell.strip().strip('"') for cell in all_rows[0]]
     wanted: list[int] = list(range(len(names)))
     if columns is not None:
         lowered = [name.lower() for name in columns]
@@ -586,7 +660,7 @@ def read_history(
     traces: dict[str, list[float]] = {}
     for index in wanted:
         values: list[float] = []
-        for row in rows[1:]:
+        for row in all_rows[1:]:
             if index >= len(row):
                 break
             try:

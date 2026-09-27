@@ -78,7 +78,10 @@ _FloatArray = NDArray[np.float64]
 #: solver is meant to be found -- ``SU2_RUN`` is SU2's own convention and is
 #: what the container sets. What remains here is a courtesy for an interactive
 #: checkout on the machine this project grew up on, where neither is set.
-_DEFAULT_SU2_PREFIXES = ("/config/miniconda3/envs/su2/bin",)
+_DEFAULT_SU2_PREFIXES = (
+    "/config/miniconda3/envs/su2/bin",
+    "/root/miniconda3/envs/su2/bin",
+)
 
 
 def find_su2(executable: str = "SU2_CFD") -> Path:

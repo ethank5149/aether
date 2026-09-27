@@ -88,6 +88,14 @@ def _lock_path() -> Path:
 _STALE_MULTIPLE = 5.0
 _STALE_FLOOR = 30.0
 
+#: Files that must never be deleted by cleanup routines.  A solver
+#: checkpoint is the only proof of converged iterations — destroying
+#: one throws away hours or days of compute with no recovery path.
+_CHECKPOINT_FILES = frozenset({
+    "restart_flow.dat",
+    "restart_flow.csv",
+})
+
 #: Rise in the log RMS residual, decades per thousand iterations, above which a
 #: run is called diverged outright.
 #:
@@ -494,7 +502,7 @@ class Worker:
         self.beat()
         solving = 0
         for record in load_all(active_only=True):
-            if record.state == "queued":
+            if record.state in ("queued", "requeued"):
                 if cancel_requested(record.run_id):
                     clear_cancel(record.run_id)
                     save(
@@ -527,13 +535,30 @@ class Worker:
         if self._stopping or solving >= self.slots:
             return
 
-        queued = [
+        # Requeued runs take priority — they already have a mesh and
+        # possibly a checkpoint, so they start faster and represent work
+        # the user explicitly asked to continue.
+        pending = [
             r
             for r in load_all(active_only=True)
-            if r.state == "queued" and not cancel_requested(r.run_id)
+            if r.state in ("requeued", "queued") and not cancel_requested(r.run_id)
         ]
-        if queued:
-            self._begin(queued[0])
+        if not pending:
+            return
+        record = pending[0]
+        if record.state == "requeued":
+            directory = Path(record.case_dir)
+            meshes = list(directory.glob("*.su2")) if directory.is_dir() else []
+            if meshes:
+                self._resolv(record, directory, meshes[0])
+            else:
+                self._say(
+                    f"{record.run_id}: requeued but no mesh found in "
+                    f"{record.case_dir} — falling back to fresh build"
+                )
+                self._begin(save(replace(record, state="queued", case_dir=None)))
+        else:
+            self._begin(record)
 
     def _supervise(self, record: RunRecord) -> bool:
         """Watch one running solve. Returns whether it is still going."""
@@ -627,6 +652,9 @@ class Worker:
                 diverged = self._diverged(record)
                 if diverged is not None:
                     state, message = "failed", diverged
+            if state == "done" and record.message == "first-order prelude":
+                if self._promote_prelude(record):
+                    return False
             if state == "done" and self._needs_adaptation(record):
                 cycle = record.adapt_cycle + 1
                 total = record.spec.adapt_cycles
@@ -651,6 +679,102 @@ class Worker:
             )
         self._say(f"{finished.run_id}: {finished.state} {finished.message}".rstrip())
         return False
+
+    def _promote_prelude(self, record: RunRecord) -> bool:
+        """Transition a completed first-order prelude into the second-order solve.
+
+        Returns True if the second-order solve was launched, False if the
+        prelude result was unusable (caller should mark the run failed).
+        """
+        import shutil
+
+        from aether.cfd.forces import (
+            diverged_outright,
+            residual_excursion,
+            screen_residual,
+        )
+
+        directory = Path(record.case_dir)
+        spec = record.spec
+
+        # SolveJob writes to su2.log; archive it as su2-prelude.log
+        # before the second-order solve overwrites it.
+        su2_log = directory / "su2.log"
+        prelude_log = directory / "su2-prelude.log"
+        if su2_log.exists():
+            shutil.copy2(str(su2_log), str(prelude_log))
+
+        trace = screen_residual(prelude_log)
+        if trace is not None and (
+            residual_excursion(trace) > 5.0 or diverged_outright(trace)
+        ):
+            self._say(
+                f"{record.run_id}: prelude diverged "
+                f"({residual_excursion(trace):.1f} decades) "
+                "— not restarting from it"
+            )
+            save(replace(record, state="failed", finished_at=time.time(),
+                         message="prelude diverged"))
+            return True
+
+        launched = record.started_at or 0.0
+        produced = next(
+            (p for p in (directory / "restart_flow.dat",
+                         directory / "restart_flow.csv")
+             if p.exists() and p.stat().st_mtime >= launched),
+            None,
+        )
+        if produced is None:
+            self._say(f"{record.run_id}: prelude wrote no restart")
+            save(replace(record, state="failed", finished_at=time.time(),
+                         message="prelude produced no restart"))
+            return True
+
+        # Save the prelude convergence history and promote the restart.
+        prelude_history = directory / "history.csv"
+        if prelude_history.exists():
+            shutil.copy2(str(prelude_history), str(directory / "history-prelude.csv"))
+
+        shutil.move(str(produced), str(directory / f"solution_flow{produced.suffix}"))
+        self._say(f"{record.run_id}: prelude done, starting second-order solve")
+
+        # Write the second-order config with RESTART_SOL=YES and ensure
+        # ASCII Tecplot output so the frame renderer can read it.
+        cfg = directory / "case.cfg"
+        try:
+            import re as _re
+            text = cfg.read_text()
+            text = text.replace("RESTART_SOL= NO", "RESTART_SOL= YES")
+            text = _re.sub(r"\bTECPLOT\b(?!_)", "TECPLOT_ASCII", text)
+            cfg.write_text(text)
+        except OSError:
+            pass
+
+        n_elements = record.elements or 0
+        try:
+            job = SolveJob(
+                directory=directory,
+                total=spec.iterations,
+                elements=n_elements,
+                ranks=spec.ranks,
+            ).start(continuation=True)
+        except Exception as error:
+            save(replace(record, state="failed", finished_at=time.time(),
+                         message=f"{type(error).__name__}: {error}"))
+            self._say(f"{record.run_id}: second-order launch failed — {error}")
+            return True
+
+        self._jobs[record.run_id] = job
+        save(replace(record, state="solving", pid=job.pid,
+                     pid_birth=job.pid_birth, pid_ns=pid_namespace(),
+                     started_at=job.started_at, ranks=job.ranks,
+                     elements=n_elements, total=spec.iterations,
+                     message=""))
+        self._say(
+            f"{record.run_id}: second-order solving on {job.ranks} ranks, "
+            f"pid {job.pid}"
+        )
+        return True
 
     @staticmethod
     def _needs_adaptation(record: RunRecord) -> bool:
@@ -1095,7 +1219,7 @@ class Worker:
         if record.case_dir is None:
             return
         try:
-            frame = self._frames.poll(record.case_dir, history_rows(record.history))
+            frame = self._frames.poll(record.case_dir, history_rows(record.history), run_epoch=record.started_at)
         except Exception as error:  # the solve must not care
             self._say(f"{record.run_id}: frame failed -- {type(error).__name__}: {error}")
             return
@@ -1110,6 +1234,12 @@ class Worker:
         The mesh is built here, in the worker, which is the point: it is the
         one expensive step that has no detached process of its own, so it has
         to happen somewhere that is not a UI.
+
+        A requeued record already has ``case_dir`` and a mesh on disk. When
+        that mesh is found, meshing is skipped and the solver is launched on it
+        directly — a re-solve, not a rebuild. This is the normal path after a
+        config change (CFL, output format, iteration budget) or a restart on
+        an adapted mesh.
         """
         import numpy as np
 
@@ -1323,21 +1453,229 @@ class Worker:
             f"({result.n_elements} cells)"
         )
 
+    def _resolv(self, record: RunRecord, directory: Path, mesh_path: Path) -> None:
+        """Continue a solve on an existing mesh and checkpoint.
+
+        Called by ``_begin`` when a requeued record already has a case
+        directory with a mesh on disk.  Unlike ``_clear_previous_run``,
+        this preserves everything the solver needs to continue:
+
+        * ``case.cfg`` — may contain manual edits the spec does not carry.
+        * ``restart_flow.dat`` — the checkpoint the solver restarts from.
+        * ``history.csv`` — convergence history carries forward.
+
+        Only stale preview frames are cleared so the dashboard shows the
+        current epoch's frames once the worker starts rendering new ones.
+        """
+        import shutil
+
+        spec = record.spec
+
+        n_elements = record.elements or 0
+        if n_elements == 0:
+            try:
+                with mesh_path.open() as fh:
+                    for line in fh:
+                        if line.startswith("NELEM="):
+                            n_elements = int(line.split("=")[1])
+                            break
+            except (OSError, ValueError):
+                pass
+
+        cfg = directory / "case.cfg"
+        if not cfg.exists():
+            save(
+                replace(
+                    record, state="failed", finished_at=time.time(),
+                    message="re-solve failed: no case.cfg in the case directory",
+                )
+            )
+            self._say(f"{record.run_id}: re-solve failed — no case.cfg")
+            return
+
+        # Clear only stale preview frames — the epoch tag on new frames
+        # keeps them separate from old ones, but removing the directory
+        # avoids visual confusion during the transition.
+        frames = directory / "frames"
+        if frames.is_dir():
+            shutil.rmtree(frames, ignore_errors=True)
+
+        has_restart = (directory / "restart_flow.dat").exists()
+
+        if not has_restart:
+            # No checkpoint — launch a first-order prelude as an async
+            # SolveJob so the worker can render frames and report progress
+            # while it runs.  When it finishes, _supervise detects the
+            # "first-order prelude" message and _promote_prelude transitions
+            # to the second-order solve.
+            self._resolv_prelude_async(record, directory, n_elements, spec)
+            return
+
+        # Synchronise RESTART_SOL with what is actually on disk.
+        try:
+            text = cfg.read_text()
+            if has_restart and "RESTART_SOL= NO" in text:
+                cfg.write_text(text.replace("RESTART_SOL= NO", "RESTART_SOL= YES"))
+        except OSError:
+            pass
+
+        record = save(
+            replace(record, state="solving", case_dir=str(directory),
+                    message="continuing")
+        )
+        self._say(f"{record.run_id}: continuing on {mesh_path.name}")
+
+        try:
+            job = SolveJob(
+                directory=directory,
+                total=spec.iterations,
+                elements=n_elements,
+                ranks=spec.ranks,
+            ).start(continuation=True)
+        except Exception as error:
+            save(
+                replace(
+                    record,
+                    state="failed",
+                    finished_at=time.time(),
+                    message=f"{type(error).__name__}: {error}",
+                )
+            )
+            self._say(f"{record.run_id}: failed -- {type(error).__name__}: {error}")
+            return
+
+        self._jobs[record.run_id] = job
+        save(
+            replace(
+                record,
+                state="solving",
+                pid=job.pid,
+                pid_birth=job.pid_birth,
+                pid_ns=pid_namespace(),
+                started_at=job.started_at,
+                ranks=job.ranks,
+                elements=n_elements,
+                total=spec.iterations,
+                message="",
+            )
+        )
+        self._say(
+            f"{record.run_id}: solving on {job.ranks} ranks, pid {job.pid} "
+            f"({n_elements} cells)"
+        )
+
+    def _resolv_prelude_async(
+        self,
+        record: RunRecord,
+        directory: Path,
+        n_elements: int,
+        spec: RunSpec,
+    ) -> None:
+        """Launch the first-order prelude as an async SolveJob.
+
+        Derives the prelude config from the existing ``case.cfg`` on disk
+        (not the spec) so custom geometries like Orion work.  The worker's
+        normal step()→_supervise()→_draw() loop monitors progress, and when
+        the prelude finishes, ``_promote_prelude`` transitions to the
+        second-order solve.
+        """
+        import re
+
+        prelude_iters = max(int(spec.first_order_iterations), 500)
+        cfg = directory / "case.cfg"
+        try:
+            text = cfg.read_text()
+        except OSError:
+            save(replace(record, state="failed", finished_at=time.time(),
+                         message="re-solve failed: cannot read case.cfg"))
+            return
+
+        prelude_text = text
+        prelude_text = re.sub(
+            r"^MUSCL_FLOW=\s*\w+", "MUSCL_FLOW= NO",
+            prelude_text, flags=re.MULTILINE,
+        )
+        prelude_text = re.sub(
+            r"^CFL_NUMBER=\s*[\d.]+", "CFL_NUMBER= 1.0",
+            prelude_text, flags=re.MULTILINE,
+        )
+        prelude_text = re.sub(
+            r"^CFL_ADAPT_PARAM=\s*\([^)]+\)",
+            "CFL_ADAPT_PARAM= ( 0.7, 1.1, 0.5, 10.0 )",
+            prelude_text, flags=re.MULTILINE,
+        )
+        prelude_text = re.sub(
+            r"^ITER=\s*\d+", f"ITER= {prelude_iters}",
+            prelude_text, flags=re.MULTILINE,
+        )
+        has_solution = (directory / "solution_flow.dat").exists()
+        restart_val = "YES" if has_solution else "NO"
+        prelude_text = re.sub(
+            r"^RESTART_SOL=\s*\w+", f"RESTART_SOL= {restart_val}",
+            prelude_text, flags=re.MULTILINE,
+        )
+        if has_solution:
+            prelude_text = re.sub(
+                r"^SOLUTION_FILENAME=\s*\S+",
+                "SOLUTION_FILENAME= solution_flow.dat",
+                prelude_text, flags=re.MULTILINE,
+            )
+        prelude_text = re.sub(
+            r"^OUTPUT_WRT_FREQ=\s*\d+", "OUTPUT_WRT_FREQ= 100",
+            prelude_text, flags=re.MULTILINE,
+        )
+        # Parallel SU2 writes binary .szplt for TECPLOT; the frame
+        # renderer reads ASCII .dat, so force TECPLOT_ASCII.
+        prelude_text = re.sub(
+            r"\bTECPLOT\b(?!_)", "TECPLOT_ASCII",
+            prelude_text,
+        )
+
+        prelude_cfg = directory / "prelude.cfg"
+        prelude_cfg.write_text(prelude_text)
+
+        record = save(
+            replace(record, state="solving", case_dir=str(directory),
+                    started_at=time.time(), total=prelude_iters,
+                    elements=n_elements,
+                    message="first-order prelude")
+        )
+        self._say(
+            f"{record.run_id}: prelude, {prelude_iters} iters first order"
+            f"{' (continuing)' if has_solution else ''}"
+        )
+
+        try:
+            job = SolveJob(
+                directory=directory,
+                config="prelude.cfg",
+                total=prelude_iters,
+                elements=n_elements,
+                ranks=spec.ranks,
+            ).start(continuation=has_solution)
+        except Exception as error:
+            save(replace(record, state="failed", finished_at=time.time(),
+                         message=f"prelude launch failed: {error}"))
+            self._say(f"{record.run_id}: prelude launch failed — {error}")
+            return
+
+        self._jobs[record.run_id] = job
+        save(replace(record, pid=job.pid, pid_birth=job.pid_birth,
+                     pid_ns=pid_namespace(), started_at=job.started_at,
+                     ranks=job.ranks))
+
     @staticmethod
     def _clear_previous_run(directory: Path) -> None:
         """Remove artefacts of whatever ran here last.
 
         Case directories are keyed by geometry and flight condition, so a
-        re-run lands in a populated directory. Three things go wrong if it is
-        not cleared:
+        re-run lands in a populated directory.  Stale frames and history are
+        cleared so the dashboard and convergence plots track the new run.
 
-        * ``frames/`` accumulates across runs, and the preview shows whichever
-          frame has the highest iteration number -- which after a shortened
-          re-run is an image from the *previous, longer* run. The dashboard
-          then looks frozen while the solver is running normally.
-        * a stale ``restart_flow`` can be picked up as an initial condition.
-        * ``history.csv`` from a longer run outlives the shorter one that
-          replaced it, and anything reading it measures the wrong case.
+        **Checkpoint files are never deleted.**  The solver overwrites them
+        itself on a fresh run; destroying one before that risks losing the
+        only record of days of converged iterations with no recovery path.
+        ``_CHECKPOINT_FILES`` is the authoritative set.
 
         The mesh is deliberately left alone: it is rewritten by the mesher and
         keeping it costs nothing if the run is cancelled before that.
@@ -1347,17 +1685,10 @@ class Worker:
         frames = directory / "frames"
         if frames.is_dir():
             shutil.rmtree(frames, ignore_errors=True)
-        # Numbered snapshots, which is the same hazard as the frames above and
-        # was missed because this function predates them: a re-run that has
-        # reached iteration 376 would find volume_flow_000750.dat from the run
-        # before it, read that as the newest finished snapshot, and draw the
-        # previous run's flow field onto the current run's card.
         for stale in directory.glob("volume_flow_*.dat"):
             stale.unlink(missing_ok=True)
         for name in (
             "history.csv",
-            "restart_flow.dat",
-            "restart_flow.csv",
             "solution_flow.dat",
             "solution_flow.csv",
             "surface_flow.csv",
@@ -1367,6 +1698,10 @@ class Worker:
             "prelude.cfg",
             "case.cfg",
         ):
+            if name in _CHECKPOINT_FILES:
+                raise AssertionError(
+                    f"BUG: attempted to delete checkpoint file {name!r}"
+                )
             (directory / name).unlink(missing_ok=True)
 
     def _mesh_shock_fitted(
@@ -1538,6 +1873,9 @@ class Worker:
         # in place needs the first moved onto the second, or the run silently
         # starts from freestream again and dies exactly as it would have.
         shutil.move(str(produced), str(directory / f"solution_flow{produced.suffix}"))
+        prelude_history = directory / "history.csv"
+        if prelude_history.exists():
+            shutil.copy2(str(prelude_history), str(directory / "history-prelude.csv"))
         self._say(
             f"{record.run_id}: prelude done in {time.monotonic() - started:.0f}s, "
             "second order restarting from it"

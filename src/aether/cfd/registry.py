@@ -43,6 +43,7 @@ in between for two writers to interleave.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import sys
@@ -55,7 +56,10 @@ from typing import Any, ClassVar, Literal
 
 from aether.paths import cfd_results
 
+SOLVER_LOCK = ".solver.lock"
+
 __all__ = [
+    "SOLVER_LOCK",
     "TERMINAL",
     "NewerSchema",
     "RunRecord",
@@ -78,9 +82,11 @@ __all__ = [
     "request_cancel",
     "restore",
     "save",
+    "requeue",
+    "solver_lock_held",
 ]
 
-RunState = Literal["queued", "meshing", "adapting", "solving", "done", "failed", "stopped"]
+RunState = Literal["queued", "requeued", "meshing", "adapting", "solving", "done", "failed", "stopped"]
 
 #: States from which a run does not move again. A reader that finds one of
 #: these needs no liveness check and no reconciliation.
@@ -884,6 +890,39 @@ def process_alive(pid: int | None, birth: int | None = None) -> bool:
     return current is None or current == birth
 
 
+def solver_lock_held(case_dir: str | Path | None) -> bool | None:
+    """Whether a solver process holds the advisory lock in ``case_dir``.
+
+    Returns ``True`` (lock held, solver alive), ``False`` (lock free, solver
+    dead), or ``None`` (no lock file — cannot determine, caller falls back to
+    PID).
+
+    The lock is acquired by :meth:`~aether.cfd.run.SolveJob.start`, which
+    passes the locked file descriptor to the child process via ``pass_fds``.
+    The OS releases it when every descriptor referencing that open file
+    description is closed — which happens exactly when the solver process
+    exits, for any reason.  No PID, no namespace, no grace period, no race
+    condition.
+    """
+    if case_dir is None:
+        return None
+    lock = Path(case_dir) / SOLVER_LOCK
+    if not lock.exists():
+        return None
+    try:
+        fd = os.open(str(lock), os.O_RDONLY)
+    except OSError:
+        return None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    except (IOError, OSError):
+        return True
+    finally:
+        os.close(fd)
+
+
 def _write_atomic(path: Path, payload: dict[str, Any]) -> None:
     """Replace ``path`` in one step, so no reader ever sees half a record.
 
@@ -1057,6 +1096,43 @@ def restore(run_id: str) -> bool:
     return True
 
 
+def requeue(run_id: str) -> RunRecord:
+    """Transition a terminal run back to ``queued`` so the worker retries it.
+
+    Only terminal states (``done``, ``failed``, ``stopped``) are accepted.
+    The run keeps its ``spec``, ``case_dir``, and ``adapt_cycle`` so the
+    worker knows where and what to build, but every field that belongs to the
+    *execution* that just ended is reset: PID, timestamps, exit status,
+    message.  The worker's ``_begin`` will clear the case directory, re-mesh
+    if needed, launch the solver with a proper lock and PID, and manage the
+    full lifecycle — so this is the only call a dashboard or script needs.
+
+    Raises ``ValueError`` for a non-terminal run (stop it first) and
+    ``KeyError`` if the run does not exist.
+    """
+    record = load(run_id)
+    if record is None:
+        raise KeyError(f"no run record with id {run_id!r}")
+    if record.state not in TERMINAL:
+        raise ValueError(
+            f"{run_id} is in state {record.state!r}, not a terminal state — "
+            "cancel it first"
+        )
+    return save(
+        replace(
+            record,
+            state="requeued",
+            started_at=None,
+            finished_at=None,
+            pid=None,
+            pid_birth=None,
+            pid_ns=None,
+            returncode=None,
+            message="",
+        )
+    )
+
+
 def reconcile(record: RunRecord) -> RunRecord:
     """Settle a record whose owner died without finishing it.
 
@@ -1085,8 +1161,23 @@ def reconcile(record: RunRecord) -> RunRecord:
     every process in it too. Call this only from the worker; a panel that
     reconciled would be settling runs it is not entitled to judge.
     """
-    if record.state == "queued" or not record.active or record.alive():
+    if record.state in ("queued", "requeued") or not record.active:
         return record
+
+    # Lock-based liveness: the solver holds an advisory flock on
+    # .solver.lock for its entire lifetime.  The OS releases it on process
+    # death, so this is a definitive answer — no PID namespace issues, no
+    # race window, no grace period.
+    lock = solver_lock_held(record.case_dir)
+    if lock is True:
+        return record  # solver is running
+
+    if lock is None and record.alive():
+        # No lock file (legacy launch or manual run).  Fall back to PID.
+        return record
+
+    # lock is False (lock released → solver is dead), or lock is None and
+    # PID check also failed.
 
     if record.state == "meshing":
         return save(

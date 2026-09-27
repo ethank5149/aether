@@ -187,21 +187,46 @@ _STEM = re.compile(r"^iter_(\d+)\.png$")
 
 
 def frames(case_dir: Path | str) -> list[Frame]:
-    """Every frame rendered for a case, in iteration order."""
-    found: list[Frame] = []
-    for image in sorted(frame_dir(case_dir).glob("iter_*.png")):
+    """Frames from the current run, in iteration order.
+
+    Each frame's JSON sidecar carries a ``run_epoch`` — the wall-clock
+    instant the solve that produced it was started — written by
+    :func:`render_frame` from the run record's ``started_at``.  Only
+    frames whose epoch matches the most recent one are returned, so stale
+    frames from previous solve attempts are excluded regardless of their
+    iteration numbers.
+
+    Frames without a ``run_epoch`` (rendered before the field existed) are
+    included only when no tagged frames exist, preserving old cases.
+    """
+    tagged: dict[float, list[Frame]] = {}
+    untagged: list[Frame] = []
+
+    for image in frame_dir(case_dir).glob("iter_*.png"):
         match = _STEM.match(image.name)
         if match is None:
             continue
-        note, diverged = "", False
+        note, diverged, epoch = "", False, None
         try:
             payload = json.loads(image.with_suffix(".json").read_text())
             note = str(payload.get("note", ""))
             diverged = bool(payload.get("diverged", False))
+            epoch = payload.get("run_epoch")
         except (OSError, ValueError):
             pass
-        found.append(Frame(int(match.group(1)), image, note, diverged))
-    return found
+        frame = Frame(int(match.group(1)), image, note, diverged)
+        if epoch is not None:
+            tagged.setdefault(float(epoch), []).append(frame)
+        else:
+            untagged.append(frame)
+
+    if tagged:
+        result = tagged[max(tagged)]
+    else:
+        result = untagged
+
+    result.sort(key=lambda f: f.iteration)
+    return result
 
 
 def latest_frame(case_dir: Path | str) -> Frame | None:
@@ -451,6 +476,7 @@ def render_frame(
     mesh: Any = None,
     snapshot: Path | None = None,
     detail: bool = DETAIL_INSET,
+    run_epoch: float | None = None,
 ) -> Frame | None:
     """Render the case's current volume snapshot. ``None`` if there isn't one.
 
@@ -866,6 +892,8 @@ def render_frame(
         "diverged": bool(spot.count),
         "mach": conditions.mach,
     }
+    if run_epoch is not None:
+        payload["run_epoch"] = run_epoch
     image.with_suffix(".json").write_text(json.dumps(payload, indent=2))
     return Frame(iteration, image, payload["note"], payload["diverged"])
 
@@ -890,7 +918,7 @@ class FrameWriter:
         self._sizes: dict[str, int] = {}
         self._unreadable: dict[str, str] = {}
 
-    def poll(self, case_dir: Path | str, iteration: int) -> Frame | None:
+    def poll(self, case_dir: Path | str, iteration: int, run_epoch: float | None = None) -> Frame | None:
         """Render the newest snapshot SU2 has finished writing, if it is new.
 
         A numbered snapshot with a higher-numbered sibling is closed --
@@ -972,7 +1000,7 @@ class FrameWriter:
                     raise
 
         try:
-            frame = render_frame(case, iteration, mesh=mesh, snapshot=volume)
+            frame = render_frame(case, iteration, mesh=mesh, snapshot=volume, run_epoch=run_epoch)
         except (ValueError, OSError):
             # Losing the race is expected, not exceptional: the parser fails
             # with something like "node 31065 has 0 values for 24 variables"
