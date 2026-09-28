@@ -1,20 +1,3 @@
-%% =====================================================================
-%%  Shared preamble for the three-paper series.
-%%
-%%    Paper 1  Certified Analytical Bounds for Multi-Phase Hypersonic
-%%             Reachability                        (paper1/)
-%%    Paper 2  Certified contraction under sequential telemetry
-%%                                                 (paper2/)
-%%    Paper 3  Probabilistic bounds under process and measurement noise
-%%                                                 (paper3/)
-%%
-%%  Usage, from a paper directory:
-%%      \documentclass[english,11pt]{extarticle}
-%%      \input{../preamble}
-%%      \runninghead{Short Title}
-%%      ... \bibliography{../shared}
-%% =====================================================================
-
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{geometry}
@@ -36,6 +19,7 @@
 \tcbuselibrary{skins,breakable}
 \usepackage{fancyhdr}           % running header with the short title
 \usepackage[textsize=footnotesize]{todonotes}   % margin \todo{} notes; width follows \marginparwidth
+\usepackage{authblk}
 
 \makeatletter
 
