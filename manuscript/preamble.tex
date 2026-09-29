@@ -21,6 +21,49 @@
 \usepackage[textsize=footnotesize]{todonotes}   % margin \todo{} notes; width follows \marginparwidth
 \usepackage{authblk}
 
+% ---- Todo notes with a short list entry ----
+%  A bare \todo[inline]{text} writes its ENTIRE body into the .tdo that
+%  \listoftodos reads, so the opening list repeats every note word for word
+%  (todonotes.sty:342 and :374). The package's `caption' key breaks the tie:
+%  the caption is what lands in the list, the body is what the note box
+%  shows. \toDo takes the title once and hands it to both, so it is written
+%  once in the source and cannot drift between the two views.
+%
+%  `nocaption' is listed first and is not decoration. \@todo never clears
+%  \@todonotes@captiongiven between calls -- `nocaption' appears once, in
+%  the load-time \presetkeys at todonotes.sty:306 -- so after the first
+%  \todo[caption=...], any later bare \todo silently reuses the PREVIOUS
+%  note's caption in the list. Clearing the flag on every call makes \toDo
+%  immune to that leak, using only the package's two public keys.
+\newcommand{\toDo}[2]{%
+  \todo[inline,nocaption,caption={\textbf{#1}}]{\textbf{#1}\ #2}%
+}
+
+% ---- Rows of \listoftodos ----
+%  The package defines \l@todo as \@dottedtocline{1}{0em}{2.3em}, whose first
+%  argument is the LITERAL digit to typeset, so every row is prefixed with "1".
+%  The todo counter is incremented (todonotes.sty:369) but never read, so it
+%  never reaches the .tdo. Number the rows here instead, from the list's own
+%  order, which matches document order because \listoftodos precedes the notes.
+%  The dot leader goes too: with one, a title longer than the measure runs into
+%  the page number, whereas the hanging indent wraps it. The 2.2em indent is
+%  the 1.6em number box plus 0.6em of space, so continuation lines align under
+%  the title rather than under the digit. \@pnumwidth is the page-number column
+%  the class actually uses; the package's 2.3em was sized for a leader.
+\makeatletter
+\newcounter{todolistentry}
+\renewcommand\l@todo[2]{%
+  \par\addvspace{0.25em}%
+  \stepcounter{todolistentry}%
+  \begingroup
+    \parindent=0pt
+    \hangindent=2.2em\hangafter=1
+    \noindent\makebox[1.6em][r]{\arabic{todolistentry}}\hspace{0.6em}%
+    #1\nobreak\hfill\makebox[\@pnumwidth][r]{#2}\par
+  \endgroup
+}
+\makeatother
+
 \makeatletter
 
 \numberwithin{equation}{section}
