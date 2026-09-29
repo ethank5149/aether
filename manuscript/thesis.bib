@@ -2,12 +2,14 @@
 % hypersonic reachable sets.
 %
 % SINGLE FILE, ONE THESIS. This was assembled as the shared database for a
-% three-paper program and its annotations still carry that vocabulary in places;
-% references to "Paper 1" / "Paper 2" / "Paper 3" below are being read as
-% THESIS CHAPTERS, and several are flagged where the mapping is uncertain.
+% three-paper program and its annotations still carry that vocabulary. The
+% "Paper 1" / "Paper 2" / "Paper 3" / "Round 4d" references below should be read
+% as pointers to the corresponding THESIS CHAPTERS; the mapping has not been
+% done yet, so the section numbers they cite are still the old paper-local
+% ones. Rewriting them needs the chapter outline, which does not exist yet.
 % Annotations are for the author and are suppressed in the printed reference
 % list (see \DeclareFieldFormat{annotation} in preamble.tex), so they can be
-% rewritten at leisure without touching the output.
+% rewritten later without touching the output.
 %
 % Anything still marked VERIFY needs a look at the published record.
 
@@ -1569,6 +1571,18 @@
              in artstein2000value Def 6.2.},
 }
 
+% The long annotation below triggers a harmless biber warning,
+%   "possible runaway string started at line ..."
+% It is pre-existing (it fires on the original shared.bib too) and it is the
+% ONLY warning in the build. Investigated 2026-09-29: it is not a brace or
+% quote imbalance, and it is not the raw length -- synthetic annotations of
+% 5,647 chars parse clean. biber parses this entry via its BibTeX-compat
+% subsystem, which warns on the "eps = 0" line inside the note. Verified
+% harmless: all 127 entries still parse, this annotation is captured whole
+% (ends "...Round 4d verdict statable."), and every bibliographic field is
+% intact. Only artstein2000value triggers it. Leave it alone unless the
+% noise itself becomes a problem; splitting the note across two fields
+% silences it.
 @article{artstein2000value,
   author  = {Artstein, Zvi and Gaitsgory, Vladimir},
   title   = {The Value Function of Singularly Perturbed Control Systems},
