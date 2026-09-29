@@ -43,3 +43,7 @@ manuscript/**/*.toc
 # The editor passes -synctex=1, and the .synctex.gz has to sit beside the
 # PDF for the viewer's inverse search to resolve.
 manuscript/**/*.synctex.gz
+
+manuscript/**/*.bcf
+manuscript/**/*.run.xml
+manuscript/**/*.bbl-SAVE-ERROR

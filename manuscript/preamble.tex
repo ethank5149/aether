@@ -136,6 +136,52 @@
 % ---- Cross-references and links (load late: hyperref then cleveref) ----
 \usepackage[hidelinks,colorlinks=true,
   linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
+
+% ---- Bibliography ----
+%  biblatex, not the plain BibTeX \bibliography. Loaded after hyperref and
+%  before cleveref, which is the order the biblatex manual asks for.
+%
+%  style=numeric keeps the bare-number in-text appearance the papers have
+%  always used. sorting=none orders the reference list by first citation,
+%  which reads better than alphabetical in a proposal.
+%
+%  sortcites is the one non-obvious option. It sorts the keys WITHIN each
+%  citation so the numeric style can collapse consecutive labels into a
+%  range -- without it a five-key \parencite renders as five separate
+%  brackets. Note this is NOT natbib's sort&compress, which biblatex does
+%  not provide: the biblatex natbib compatibility layer (blx-natbib.def)
+%  defines \citep and \citet but nothing for compression, and an unknown
+%  package key only warns, so a wrong setting here fails silently.
+%
+%  maxcitenames=2 keeps a multi-key citation from printing every author;
+%  maxbibnames=99 with giveninits stops the reference list collapsing long
+%  author lists to "et al." in a way that would not match the full lists
+%  written out in shared.bib (see emmert2021nrlmsis, hersbach2020era5).
+%
+%  The per-entry reading notes in the bibliography live in the biblatex
+%  `annotation' field. They are the most valuable content in that file and are
+%  deliberately NOT printed. Note that `annotation' is a DATA field, not an
+%  option of \printbibliography -- passing annotation=false to \printbibliography
+%  is an xkeyval error, not a way of suppressing it. Blanking the field's format
+%  is the mechanism, and it is the right one: the notes survive in the .bib and
+%  in the .bbl for the author's use, and never reach the page. This must come
+%  AFTER the \usepackage line below, since \DeclareFieldFormat is defined there.
+\usepackage[backend=biber,style=numeric,sorting=none,sortcites,
+  maxbibnames=99,giveninits=true,maxcitenames=2]{biblatex}
+
+% biblatex requires csquotes whenever babel is loaded, and warns without it
+% ("'babel/polyglossia' detected but 'csquotes' missing"). It supplies the
+% quote punctuation the bibliography macros expect. Not currently used by any
+% entry, but the dependency is unconditional.
+\usepackage{csquotes}
+
+\DeclareFieldFormat{annotation}{}
+
+% The thesis bibliography. \addbibresource must be issued in the preamble, and
+% this preamble is \input from a directory one level below manuscript/, so the
+% path is written relative to that directory, not to this file.
+\addbibresource{../thesis.bib}
+
 \usepackage[nameinlink,capitalise]{cleveref}
 
 % ---- Running header: each paper calls \runninghead{Short Title} ----

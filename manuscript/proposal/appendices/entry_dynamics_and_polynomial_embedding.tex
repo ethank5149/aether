@@ -122,15 +122,26 @@ preserved.
 % note: "sqaure-root" in the note, spelling corrected here
 With the density-square-root embedding $y = \sqrt{\rho/\rho_0}$ and
 $V = \sqrt{u^2+v^2+w^2}$, the modulus lift $\dot\chi = c\,\chi\,\dot T_w$
-replaces $T_w$ with a polynomial via Varma--Savageau--Voit recasting.
-Stagnation-point heating (Sutton--Graves, with nose radius $R_n$, sea-level
-density $\rho_0$) equations are then given by:
+replaces $T_w$ with a polynomial via Varma--Savageau--Voit recasting
+\parencite{savageau1987recasting}.
+Stagnation-point heating (Sutton--Graves~\parencite{sutton1971general},
+with nose radius $R_n$, sea-level density $\rho_0$) equations are then given by:
 \begin{equation}
 \label{eq:thermal}
 \dot Q_{\mathrm{tot}} = \dot Q = k_Q\sqrt{\rho_0/R_n}\,y\,V^3,
 \qquad
 \dot T_w = \frac{\dot Q - (T_w - T_\infty)/\tau_\text{cond}}{C_w}.
 \end{equation}
+The correlation is used inside its stated validity range and not extrapolated
+past it: axisymmetric blunt bodies, gases in chemical equilibrium, enthalpy
+$2.3$ to $116.2$ MJ/kg, pressure $0.001$ to $100$ atm, and wall temperature at
+one of two tabulated values rather than a range\parencite{sutton1971general,fay1958theory}.
+The chemical-equilibrium clause is the one most likely to fail, at the
+high-altitude end, which is where the nonequilibrium and rarefied treatments
+take over\parencite{gnoffo1999planetary}.
+The density profile itself should come from a whole-atmosphere model rather than
+a spliced pair, since a splice would put a discontinuity in the vector field and
+defeat the polynomial recast\parencite{emmert2021nrlmsis}.
 
 \paragraph{Ablation.}
 With recession rate coupled to heat flux and mass loss from char-layer
@@ -139,6 +150,16 @@ blow-off, the ablative equations are given by:
 \label{eq:ablation}
 \dot s = \alpha_s \,\dot Q, \qquad \dot m = -\dot m_\text{abl}.
 \end{equation}
+Recession is a \emph{state} with its own differential equation rather than a
+post-processed output because the interface condition requires the heat input to
+equal the heat conducted into the solid plus the heat absorbed in melting; the
+transformation that maps a receding boundary onto a fixed one is the classical
+one, and it costs only extra convective terms in products of states already
+carried\parencite{landau1950heat}.
+A decoupled correlation for the recession rate is not obviously conservative: the
+surface energy balance couples to a multicomponent boundary layer with unequal
+diffusion coefficients, and the adequacy of a decoupled treatment depends on the
+material--environment pair\parencite{kendall1967multicomponent}.
 
 \paragraph{Modal/Structural Elasticity.}
 With piston-theory forcing and temperature-dependent natural frequency, per
@@ -148,6 +169,19 @@ mode $i$ our modal equations are:
 \ddot\eta_i + 2\zeta_i\,\omega_i(T)\,\dot\eta_i + \omega_i(T)^2\,\eta_i
 = Q_i(x, \eta, \dot\eta).
 \end{equation}
+Piston theory is a double expansion in thickness ratio and inverse Mach number
+valid when the contributions of order $\delta/M^3$ and $\delta^2/M^2$ are
+negligible, which is where its applicability conditions are stated and where
+they must be checked rather than assumed\parencite{ashley1956piston}.
+That choice is load-bearing for the cost in SOS degree: the first-order
+point-function relation is affine in the normal component of fluid velocity, hence
+affine in the modal rates and free in the Gram table, whereas each further order
+costs one degree in the downwash and multiplies the modal block through.
+Carrying first order exactly and enveloping the higher-order residuals against the
+paper's own smallness criterion is therefore the trade to state explicitly.
+The pressure band over which the aerodynamic law is the one being certified is
+likewise a checkable, state-dependent condition, and belongs in the constraint
+set rather than in an assumption\parencite{lighthill1953oscillating}.
 
 \subsection{Polynomial Embedding via Adjunction}
 \label{sub:apx_dyn_embedding}
