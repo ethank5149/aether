@@ -19,11 +19,17 @@
 \maketitle
 
 \begin{abstract}
-A method for computing \emph{certified} reachable sets of a full 
-six-degree-of-freedom hypersonic entry vehicle, reaching state dimensions where
-grid-based dynamic programming cannot, with a guarantee that is derived
-analytically and verified in exact arithmetic rather than produced by a 
-numerical solver.
+Computing exact reachable sets for six-degree-of-freedom hypersonic entry 
+vehicles is intractable for grid-based dynamic programming and compromised by 
+the floating-point approximations of numerical solvers. This research 
+introduces a purely analytical framework to compute mathematically certified 
+bounds using exact interval arithmetic and occupation measures. By modeling 
+transcendental aerodynamics natively as interval differential inclusions, the 
+method circumvents artificial state augmentation and numerical optimization 
+entirely. Utilizing a thin-atmosphere limit profile decomposition to separate 
+the equilibrium-glide skeleton from compact skip events, the framework yields 
+explicit, closed-form algebraic bounds that provide a strict mathematical 
+certificate in the minimal physical state space.
 \end{abstract}
 
 \pagebreak
