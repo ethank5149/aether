@@ -1,55 +1,34 @@
-\usepackage[T1]{fontenc}
+% \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage{geometry}
-\geometry{verbose,tmargin=1in,bmargin=1in,lmargin=1in,rmargin=1in}
+\usepackage[margin=1in]{geometry}
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{tabularx}
-\usepackage{amsmath}
-\usepackage{amsthm}
-\usepackage{amssymb}
+\usepackage{amsmath,amssymb,amsthm}
 \usepackage{bm}
 \usepackage{graphicx}
 \usepackage{units}
 \usepackage{enumitem}
 \usepackage{microtype}          % typographic polish: char protrusion, expansion
-\usepackage{xcolor}
+\usepackage[dvipsnames]{xcolor}
 \usepackage{comment}
 \usepackage{tcolorbox}          % highlighted result boxes
 \tcbuselibrary{skins,breakable}
 \usepackage{fancyhdr}           % running header with the short title
 \usepackage[textsize=footnotesize]{todonotes}   % margin \todo{} notes; width follows \marginparwidth
 \usepackage{authblk}
+\usepackage{mathtools}
+% hyperref and cleveref are loaded late (after babel), see below:
+% "load late: hyperref then cleveref". Do not load them here as well --
+% a second bare \usepackage{hyperref} clashes with the optioned load and
+% aborts the build ("Option clash for package hyperref").
 
 % ---- Todo notes with a short list entry ----
-%  A bare \todo[inline]{text} writes its ENTIRE body into the .tdo that
-%  \listoftodos reads, so the opening list repeats every note word for word
-%  (todonotes.sty:342 and :374). The package's `caption' key breaks the tie:
-%  the caption is what lands in the list, the body is what the note box
-%  shows. \toDo takes the title once and hands it to both, so it is written
-%  once in the source and cannot drift between the two views.
-%
-%  `nocaption' is listed first and is not decoration. \@todo never clears
-%  \@todonotes@captiongiven between calls -- `nocaption' appears once, in
-%  the load-time \presetkeys at todonotes.sty:306 -- so after the first
-%  \todo[caption=...], any later bare \todo silently reuses the PREVIOUS
-%  note's caption in the list. Clearing the flag on every call makes \toDo
-%  immune to that leak, using only the package's two public keys.
 \newcommand{\toDo}[2]{%
   \todo[inline,nocaption,caption={\textbf{#1}}]{\textbf{#1}\ #2}%
 }
 
 % ---- Rows of \listoftodos ----
-%  The package defines \l@todo as \@dottedtocline{1}{0em}{2.3em}, whose first
-%  argument is the LITERAL digit to typeset, so every row is prefixed with "1".
-%  The todo counter is incremented (todonotes.sty:369) but never read, so it
-%  never reaches the .tdo. Number the rows here instead, from the list's own
-%  order, which matches document order because \listoftodos precedes the notes.
-%  The dot leader goes too: with one, a title longer than the measure runs into
-%  the page number, whereas the hanging indent wraps it. The 2.2em indent is
-%  the 1.6em number box plus 0.6em of space, so continuation lines align under
-%  the title rather than under the digit. \@pnumwidth is the page-number column
-%  the class actually uses; the package's 2.3em was sized for a leader.
 \makeatletter
 \newcounter{todolistentry}
 \renewcommand\l@todo[2]{%
@@ -94,18 +73,30 @@
 }{}
 
 % ---- Convenient macros ----
+\newcommand{\B}{\mathbb{B}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
 \newcommand{\N}{\mathbb{N}}
 \newcommand{\E}{\mathbb{E}}
+\newcommand{\calX}{\mathcal{X}}
+\newcommand{\calU}{\mathcal{U}}
+\newcommand{\calF}{\mathcal{F}}
+\newcommand{\calI}{\mathcal{I}}
+\newcommand{\calR}{\mathcal{R}}
 \newcommand{\Prob}{\mathbb{P}}
 \newcommand{\ip}[2]{\langle #1, #2 \rangle}
-\newcommand{\norm}[1]{\left\| #1 \right\|}
-\newcommand{\abs}[1]{\left| #1 \right|}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\half}{\tfrac{1}{2}}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
 \newcommand{\T}{^{\mathsf{T}}}          % transpose
 \newcommand{\dd}{\,\mathrm{d}}          % upright differential
 \newcommand{\D}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}     % total derivative
 \newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}      % partial derivative
+\newcommand{\dotvec}[1]{\dot{\vec{#1}}}
+\newcommand{\vvec}[1]{\vec{#1}}
+\newcommand{\mat}[1]{\mathbf{#1}}
+\newcommand{\tr}{\mathsf{T}}
 
 % ---- Program-wide notation ----
 \newcommand{\Rset}{\mathcal{R}}          % reachable set
@@ -179,46 +170,17 @@
 % ---- Cross-references and links (load late: hyperref then cleveref) ----
 \usepackage[hidelinks,colorlinks=true,
   linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
-
-% ---- Bibliography ----
-%  biblatex, not the plain BibTeX \bibliography. Loaded after hyperref and
-%  before cleveref, which is the order the biblatex manual asks for.
-%
-%  style=numeric keeps the bare-number in-text appearance the papers have
-%  always used. sorting=none orders the reference list by first citation,
-%  which reads better than alphabetical in a proposal.
-%
-%  sortcites is the one non-obvious option. It sorts the keys WITHIN each
-%  citation so the numeric style can collapse consecutive labels into a
-%  range -- without it a five-key \parencite renders as five separate
-%  brackets. Note this is NOT natbib's sort&compress, which biblatex does
-%  not provide: the biblatex natbib compatibility layer (blx-natbib.def)
-%  defines \citep and \citet but nothing for compression, and an unknown
-%  package key only warns, so a wrong setting here fails silently.
-%
-%  maxcitenames=2 keeps a multi-key citation from printing every author;
-%  maxbibnames=99 with giveninits stops the reference list collapsing long
-%  author lists to "et al." in a way that would not match the full lists
-%  written out in shared.bib (see emmert2021nrlmsis, hersbach2020era5).
-%
-%  The per-entry reading notes in the bibliography live in the biblatex
-%  `annotation' field. They are the most valuable content in that file and are
-%  deliberately NOT printed. Note that `annotation' is a DATA field, not an
-%  option of \printbibliography -- passing annotation=false to \printbibliography
-%  is an xkeyval error, not a way of suppressing it. Blanking the field's format
-%  is the mechanism, and it is the right one: the notes survive in the .bib and
-%  in the .bbl for the author's use, and never reach the page. This must come
-%  AFTER the \usepackage line below, since \DeclareFieldFormat is defined there.
 \usepackage[backend=biber,style=numeric,sorting=none,sortcites,
   maxbibnames=99,giveninits=true,maxcitenames=2]{biblatex}
-
-% biblatex requires csquotes whenever babel is loaded, and warns without it
-% ("'babel/polyglossia' detected but 'csquotes' missing"). It supplies the
-% quote punctuation the bibliography macros expect. Not currently used by any
-% entry, but the dependency is unconditional.
 \usepackage{csquotes}
 
 \DeclareFieldFormat{annotation}{}
+
+% The note field is used in thesis.bib as an author scratchpad (provenance,
+% VERIFY reminders, which scan is held, supersession history). Keep it in the
+% source but suppress it from the printed reference list, exactly as with
+% annotation above.
+\AtEveryBibitem{\clearfield{note}}
 
 % The thesis bibliography. \addbibresource must be issued in the preamble, and
 % this preamble is \input from a directory one level below manuscript/, so the
@@ -226,6 +188,8 @@
 \addbibresource{../thesis.bib}
 
 \usepackage[nameinlink,capitalise]{cleveref}
+\crefname{remark}{Remark}{Remarks}
+\Crefname{remark}{Remark}{Remarks}
 
 % ---- Running header: each paper calls \runninghead{Short Title} ----
 \newcommand{\runninghead}[1]{%
@@ -234,4 +198,13 @@
   \lhead{\small #1}%
   \rhead{\small\thepage}%
   \renewcommand{\headrulewidth}{0.3pt}%
+}
+
+
+\tcbset{
+  openitem/.style={
+    colback=orange!8, colframe=orange!60!black,
+    fonttitle=\bfseries, boxrule=0.5pt,
+    left=4pt, right=4pt, top=2pt, bottom=2pt
+  }
 }

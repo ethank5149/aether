@@ -1,174 +1,561 @@
 % =====================================================================
 %  Thesis proposal, Appendix: Coupled Entry Dynamics and Embedding
 %  Owns: apx:dyn
-%
-%  Transcription of notes/embedding.md at commit 18cc0a2 (the author's own
-%  text) into LaTeX. Wording follows the note; nothing is added, removed, or
-%  strengthened. Two spelling fixes are marked in comments below.
 % =====================================================================
 
 \section{Coupled Entry Dynamics and Embedding}
 \label{apx:dyn}
 
-\subsection{Coupled 6-DOF Entry Dynamics}
-\label{sub:apx_dyn_6dof}
+%--------------------------------------------------------------------------
+\subsection{Coordinate Rationale}\label{sec:coord-rationale}
+%--------------------------------------------------------------------------
 
-The entry vehicle state comprises the coupled translational, rotational,
-thermal, ablative, and modal subsystems. Position is carried in Cartesian
-Earth-centred Earth-fixed (ECEF) components and attitude as a quaternion from
-the ECEF frame to the body frame. No angle is a state, so the dynamics have no
-coordinate singularities anywhere on the globe; geocentric latitude and
-longitude are read out from the position after integration.
+The coordinate choice is dictated by two competing requirements of the
+interval-arithmetic pipeline:
+\begin{enumerate}
+  \item \textbf{Corridor constraints must be box constraints.} The entry
+    corridor---bounded altitude, bounded speed, heating and load-factor
+    limits---defines the region whose reachable subset we certify. In
+    coordinates where these constraints are box faces, the interval hull is
+    the natural bounding object and no wrapping is introduced by
+    intersecting with the corridor. Spherical position~$(r)$ and
+    wind-frame speed~$(V)$ make the primary corridor constraints
+    $h_{\min}\le r - R_e \le h_{\max}$ and $V_{\min}\le V\le V_{\max}$
+    into box constraints on states.
 
-\paragraph{Frames.}
+  \item \textbf{The slow manifold must be native.} The equilibrium-glide
+    condition $\Lambda = 1$ is a codimension-1 surface in the
+    $(r,V,\gamma)$ subspace. The profile decomposition---skeleton, bubbles,
+    residual---is organized around this surface. If the slow manifold is a
+    derived nonlinear function of the states (as it would be in Cartesian
+    position/velocity), the separation into skeleton and bubbles inherits
+    unnecessary wrapping at every step.
+\end{enumerate}
+
+The translational state is therefore carried in spherical-LVLH coordinates
+$(r,\lambda,\phi,V,\gamma,\psi)$. Attitude is carried as a unit quaternion
+$\vvec{q} = (q_0,q_1,q_2,q_3)^\tr$ from the ECEF frame~$\mathcal{E}$ to
+the body frame~$\mathcal{B}$---this avoids all Euler-angle singularities
+and keeps the quaternion kinematics in their simplest form.
+
+The longitude equation
+$\dot\lambda = V\cos\gamma\sin\psi/(r\cos\phi)$ is singular at the
+geographic poles $\phi = \pm\pi/2$. This is a coordinate singularity, not a
+physical one: $\lambda$ is cyclic, does not enter the corridor constraints
+or the glide condition, and can be integrated separately. For any entry
+scenario the ground-track extent is bounded by the energy budget, and the
+coordinate system can be oriented so the trajectory stays away from the
+poles.
+
+The Savageau--Voit polynomial recasting of the thermal subsystem is dropped
+entirely. Because the interval pipeline evaluates transcendentals natively,
+the density-square-root embedding $y = \sqrt{\rho/\rho_0}$ and the
+polynomial surrogate for wall temperature are unnecessary---the raw
+physical variables are retained.
+
+
+%--------------------------------------------------------------------------
+\subsection{Frames}\label{sec:frames}
+%--------------------------------------------------------------------------
+
 \begin{itemize}
-  \item $\mathcal E$: Earth-centred Earth-fixed (ECEF), rotating with the
-        constant planetary rate $\vec\omega_E = \omega_E\,\hat z_{\mathcal E}$.
-  \item $\mathcal B$: body frame, fixed at the instantaneous center of mass.
+  \item $\mathcal{E}$ (\textbf{ECEF}): rotating with the constant
+    planetary rate $\vvec{\omega}_E = \omega_E\,\hat{z}_{\mathcal{E}}$.
+
+  \item $\mathcal{L}$ (\textbf{LVLH / NED}): at geocentric position
+    $(r,\lambda,\phi)$, with basis vectors
+    \begin{align*}
+      \hat{e}_N &= -\sin\phi\cos\lambda\,\hat{x}_{\mathcal{E}}
+                    -\sin\phi\sin\lambda\,\hat{y}_{\mathcal{E}}
+                    +\cos\phi\,\hat{z}_{\mathcal{E}},\\
+      \hat{e}_E &= -\sin\lambda\,\hat{x}_{\mathcal{E}}
+                    +\cos\lambda\,\hat{y}_{\mathcal{E}},\\
+      \hat{e}_D &= -\cos\phi\cos\lambda\,\hat{x}_{\mathcal{E}}
+                    -\cos\phi\sin\lambda\,\hat{y}_{\mathcal{E}}
+                    -\sin\phi\,\hat{z}_{\mathcal{E}}.
+    \end{align*}
+    The rotation $\mat{R}_{\mathcal{E}\mathcal{L}}$ from $\mathcal{L}$ to
+    $\mathcal{E}$ (columns are the above vectors in~$\mathcal{E}$) is a
+    function of $(\lambda,\phi)$ alone.
+
+  \item $\mathcal{W}$ (\textbf{Wind frame}): $x$-axis along the
+    planet-relative velocity, $z$-axis in the
+    $\vvec{V}$--$\hat{e}_D$ plane pointing ``downward'' from the velocity,
+    $y$-axis completing the right-handed system. Parameterized by
+    flight-path angle~$\gamma$ (positive climbing) and
+    heading~$\psi$ (clockwise from North):
+    \[
+      \hat{V} = \cos\gamma\cos\psi\,\hat{e}_N
+              + \cos\gamma\sin\psi\,\hat{e}_E
+              - \sin\gamma\,\hat{e}_D.
+    \]
+
+  \item $\mathcal{B}$ (\textbf{Body frame}): fixed at the instantaneous
+    centre of mass. Related to~$\mathcal{E}$ by the attitude quaternion
+    $\vvec{q}$ with direction-cosine matrix
+    $\mat{R}_{\mathcal{E}\mathcal{B}} = \mat{R}(\vvec{q})$:
 \end{itemize}
-
-The attitude quaternion $\vec q = (q_0, q_1, q_2, q_3)^\top$ carries
-$\mathcal E \to \mathcal B$, with direction-cosine matrix
-\begin{equation}
-\label{eq:dcm}
-\mathbf R \equiv \mathbf R_{B/E}(\vec q)=
-\begin{pmatrix}
-q_0^2+q_1^2-q_2^2-q_3^2 & 2(q_1q_2+q_0q_3) & 2(q_1q_3-q_0q_2)\\
-2(q_1q_2-q_0q_3) & q_0^2-q_1^2+q_2^2-q_3^2 & 2(q_2q_3+q_0q_1)\\
-2(q_1q_3+q_0q_2) & 2(q_2q_3-q_0q_1) & q_0^2-q_1^2-q_2^2+q_3^2
-\end{pmatrix},
+\begin{equation}\label{eq:DCM}
+  \mat{R}(\vvec{q})
+  = \begin{pmatrix}
+      q_0^2+q_1^2-q_2^2-q_3^2 & 2(q_1q_2+q_0q_3) & 2(q_1q_3-q_0q_2)\\
+      2(q_1q_2-q_0q_3) & q_0^2-q_1^2+q_2^2-q_3^2 & 2(q_2q_3+q_0q_1)\\
+      2(q_1q_3+q_0q_2) & 2(q_2q_3-q_0q_1) & q_0^2-q_1^2-q_2^2+q_3^2
+    \end{pmatrix},
 \end{equation}
-quadratic in $\vec q$.
+quadratic in~$\vvec{q}$.
 
-\paragraph{Position Kinematics.}
-With $\vec r = (r_1, r_2, r_3)^\top$ the ECEF position and
-$\vec V = (u, v, w)^\top$ the planet-relative velocity resolved in
-$\mathcal B$, the kinematic equation is:
-\begin{equation}
-\label{eq:poskin}
-\dot{\vec r} = \mathbf R^\top \vec V.
+
+%--------------------------------------------------------------------------
+\subsection{State Vector}\label{sec:state-vector}
+%--------------------------------------------------------------------------
+
+The full coupled state is
+\begin{equation}\label{eq:state-full}
+  x = \bigl(\underbrace{r,\lambda,\phi,V,\gamma,\psi}_{6},\;
+       \underbrace{q_0,q_1,q_2,q_3,p,q_b,r_b}_{7},\;
+       \underbrace{Q_{\mathrm{tot}},T_w,s,m}_{4},\;
+       \underbrace{\eta_1,\dots,\eta_{N_m},
+                   \dot\eta_1,\dots,\dot\eta_{N_m}}_{2N_m}\bigr),
 \end{equation}
+with the unit-quaternion constraint $\norm{\vvec{q}}=1$ making the
+translational-rotational block effectively 12-dimensional. Total dimension:
+$17 + 2N_m$.
 
-\paragraph{Translational Dynamics.}
-Newton's law holds in the inertial frame; transporting the planet-relative
-velocity through $\mathcal E$ into $\mathcal B$, with inertial body rates
-$\vec\omega = (p, q, r_b)^\top$, mass $m$, aerodynamic force $\vec F_a$, thrust
-$\vec F_t$, and the planetary rate resolved in the body frame
-$\vec\omega_E^{\mathcal B} = \mathbf R\,\omega_E\hat z_{\mathcal E}$, the
-translational dynamical equations are:
-\begin{equation}
-\label{eq:transdyn}
-\dot{\vec{V}}\big|_{\mathcal{B}} = \frac{1}{m}(\vec{F}_a + \vec{F}_t)
-+ \mathbf R\,\vec{g}(\vec r)
-- (\vec\omega + \vec\omega_E^{\mathcal B})\times\vec{V}
-- \vec\omega_E^{\mathcal B}\times(\vec\omega_E^{\mathcal B}\times\mathbf R\,\vec{r}).
-\end{equation}
 
-Gravity, including the $J_2$ oblateness term, in ECEF components:
-\begin{equation}
-\label{eq:gravity}
-\vec g(\vec r) = -\frac{\mu}{\|\vec r\|^3}\left[\left(1
-+ \frac{3}{2}J_2\frac{R_e^2}{\|\vec r\|^2}\left(1
-- 5\frac{r_3^2}{\|\vec r\|^2}\right)\right)\vec r
-+ 3J_2\frac{R_e^2}{\|\vec r\|^2}\,r_3\,\hat z_{\mathcal E}\right].
-\end{equation}
+%--------------------------------------------------------------------------
+\subsection{Translational Kinematics}\label{sec:trans-kin}
+%--------------------------------------------------------------------------
 
-\begin{remark}
-This is the gradient of the $J_2$ potential
-$\frac{\mu}{\|\vec r\|}\bigl[1 - \tfrac12 J_2 (R_e/\|\vec r\|)^2(3 r_3^2/\|\vec r\|^2 - 1)\bigr]$;
-its radial and northward components reproduce the spherical form, with
-$r_3/\|\vec r\| = \sin\phi$.
+The planet-relative velocity in the $\mathcal{L}$ (NED) frame is
+$\vvec{V}_{\mathcal{L}} =
+(V\cos\gamma\cos\psi,\;V\cos\gamma\sin\psi,\;-V\sin\gamma)^\tr$. The
+kinematic equations are:
+\begin{align}
+  \dot r      &= V\sin\gamma, \label{eq:rdot}\\
+  \dot\lambda &= \frac{V\cos\gamma\sin\psi}{r\cos\phi},
+                                                         \label{eq:lamdot}\\
+  \dot\phi    &= \frac{V\cos\gamma\cos\psi}{r}.         \label{eq:phidot}
+\end{align}
+
+
+%--------------------------------------------------------------------------
+\subsection{Gravitational Acceleration}\label{sec:gravity}
+%--------------------------------------------------------------------------
+
+The $J_2$ gravitational potential in geocentric spherical coordinates is
+\[
+  \Phi_g(r,\phi)
+  = -\frac{\mu}{r}\biggl[
+      1 - \half J_2\Bigl(\frac{R_e}{r}\Bigr)^{\!2}
+          \bigl(3\sin^2\!\phi - 1\bigr)
+    \biggr].
+\]
+Its gradient, resolved in $\mathcal{L}$ (NED), has only radial and
+northward components:
+\begin{align}
+  g_D(r,\phi) &= \frac{\mu}{r^2}\biggl[
+    1 + \tfrac{3}{2}\,J_2\Bigl(\frac{R_e}{r}\Bigr)^{\!2}
+        \bigl(1-5\sin^2\!\phi\bigr)
+  \biggr], \label{eq:gD}\\[4pt]
+  g_N(r,\phi) &= -\frac{3\mu}{r^2}\,J_2
+    \Bigl(\frac{R_e}{r}\Bigr)^{\!2}
+    \sin\phi\cos\phi, \label{eq:gN}\\
+  g_E &= 0\quad\text{(by axial symmetry)}.\nonumber
+\end{align}
+
+\begin{remark}\label{rem:gravity-spherical}
+This reproduces the Cartesian form under the
+identifications $r_3/\norm{\vvec{r}} = \sin\phi$ and
+$\norm{\vvec{r}} = r$. The spherical form makes the interval evaluation
+tighter: $g_D$ and~$g_N$ are explicit functions of $(r,\phi)$, with no
+square root of a sum of squares.
 \end{remark}
 
-\paragraph{Rotational Dynamics / Euler's Equations.}
-With angular momentum $\vec h = \mathbf I\vec\omega$, combined aerodynamic /
-reaction control system (RCS) moments
-$\vec M = \vec M_a + \vec M_{\mathrm{rcs}}$, and the inertia tensor
-$\mathbf I = \mathbf I(s, \eta)$ depending on recession depth $s$ and modal
-amplitudes $\eta$ (so that $\dot{\mathbf I}\,\vec\omega$ is the variable-inertia
-term), the rotational dynamical equations are:
-\begin{equation}
-\label{eq:rotdyn}
-\mathbf{I}\,\dot{\vec\omega} = \vec{M} - \vec\omega\times(\mathbf{I}\vec\omega)
-- \dot{\mathbf{I}}\,\vec\omega.
-\end{equation}
 
-\paragraph{Quaternion Kinematics.}
-The quaternion is driven by the body rate \emph{relative to} $\mathcal E$,
-$\vec\omega_{B/E} = \vec\omega - \vec\omega_E^{\mathcal B}$. For
-$\vec a = (a_1, a_2, a_3)^\top$,
-\begin{equation}
-\label{eq:qkin}
-\dot{\vec{q}} = \tfrac{1}{2}\,\Omega(\vec\omega
-- \mathbf R\,\omega_E\hat z_{\mathcal E})\,\vec{q},
-\qquad
-\Omega(\vec a) = \begin{pmatrix}
-0 & -a_1 & -a_2 & -a_3\\
-a_1 & 0 & a_3 & -a_2 \\
-a_2 & -a_3 & 0 & a_1 \\
-a_3 & a_2 & -a_1 & 0
-\end{pmatrix}.
-\end{equation}
+%--------------------------------------------------------------------------
+\subsection{Translational Dynamics}\label{sec:trans-dyn}
+%--------------------------------------------------------------------------
 
-\begin{remark}
-The rate is \textbf{polynomial} --- bilinear in $(\vec\omega, \vec q)$ and cubic
-in $\vec q$ through the Earth-rate term. With this $\Omega$ and $\mathbf R$ of
-\cref{eq:dcm}, $\dot{\mathbf R} = -[\vec\omega_{B/E}\times]\,\mathbf R$ holds
-identically, and $\Omega(\vec a)$ is skew for every $\vec a$, so $|\vec q|$ is
-preserved.
+Newton's law in the rotating ECEF frame, resolved along the wind-frame
+axes (tangential~$\hat{V}$, normal-in-vertical-plane, lateral), gives
+the force equations. Define the aerodynamic force components:
+\begin{align*}
+  F_V     &= \text{force along } \hat{V},\\
+  F_\gamma &= \text{force $\perp\hat{V}$, in the vertical plane},\\
+  F_\psi  &= \text{force $\perp$ the vertical plane (lateral)}.
+\end{align*}
+In the 3-DOF model $F_V=-D$, $F_\gamma=L\cos\sigma$,
+$F_\psi=L\sin\sigma$. In the full 6-DOF formulation these are
+\emph{derived from the attitude quaternion}---see
+\cref{sec:aero-force}.
+
+The translational dynamical equations are:
+\begin{align}
+  \dot V &= \frac{F_V}{m}
+    - g_D\sin\gamma + g_N\cos\gamma\cos\psi
+    + \omega_E^2 r\cos\phi
+      \bigl[\sin\gamma\cos\phi - \cos\gamma\cos\psi\sin\phi\bigr],
+    \label{eq:Vdot}
+  \\[6pt]
+  \dot\gamma &= \frac{1}{V}\biggl\{
+    \frac{F_\gamma}{m}
+    - \Bigl(g_D - \frac{V^2}{r}\Bigr)\cos\gamma
+    - g_N\sin\gamma\cos\psi
+    + 2\omega_E V\cos\phi\sin\psi \nonumber\\
+    &\qquad{}+ \omega_E^2 r\cos\phi
+      \bigl[\cos\gamma\cos\phi + \sin\gamma\cos\psi\sin\phi\bigr]
+    \biggr\}, \label{eq:gamdot}
+  \\[6pt]
+  \dot\psi &= \frac{1}{V\cos\gamma}\biggl\{
+    \frac{F_\psi}{m}
+    - \frac{V^2}{r}\cos\gamma\sin\psi\tan\phi
+    + g_N\sin\psi \nonumber\\
+    &\qquad{}+ 2\omega_E V
+      \bigl[\tan\gamma\cos\phi\cos\psi - \sin\phi\bigr]
+    + \omega_E^2 r\cos\phi\sin\phi
+      \frac{\sin\psi}{\cos\gamma}
+    \biggr\}. \label{eq:psidot}
+\end{align}
+
+\begin{remark}\label{rem:vinh-reduction}
+With $g_N = 0$ (spherical gravity) and
+$\omega_E = 0$ (non-rotating planet), these reduce to the classical Vinh
+equations for unpowered entry~\cite{vinh1980hypersonic}.
 \end{remark}
 
-\paragraph{Thermal.}
-% note: "sqaure-root" in the note, spelling corrected here
-With the density-square-root embedding $y = \sqrt{\rho/\rho_0}$ and
-$V = \sqrt{u^2+v^2+w^2}$, the modulus lift $\dot\chi = c\,\chi\,\dot T_w$
-replaces $T_w$ with a polynomial via Varma--Savageau--Voit recasting
-\parencite{savageau1987recasting}.
-Stagnation-point heating (Sutton--Graves~\parencite{sutton1971general},
-with nose radius $R_n$, sea-level density $\rho_0$) equations are then given by:
-\begin{equation}
-\label{eq:thermal}
-\dot Q_{\mathrm{tot}} = \dot Q = k_Q\sqrt{\rho_0/R_n}\,y\,V^3,
-\qquad
-\dot T_w = \frac{\dot Q - (T_w - T_\infty)/\tau_\text{cond}}{C_w}.
-\end{equation}
-The correlation is used inside its stated validity range and not extrapolated
-past it: axisymmetric blunt bodies, gases in chemical equilibrium, enthalpy
-$2.3$ to $116.2$ MJ/kg, pressure $0.001$ to $100$ atm, and wall temperature at
-one of two tabulated values rather than a range\parencite{sutton1971general,fay1958theory}.
-The chemical-equilibrium clause is the one most likely to fail, at the
-high-altitude end, which is where the nonequilibrium and rarefied treatments
-take over\parencite{gnoffo1999planetary}.
-The density profile itself should come from a whole-atmosphere model rather than
-a spliced pair\parencite{emmert2021nrlmsis}.
+\begin{remark}\label{rem:psi-singularity}
+The singularity $1/\cos\gamma$ in~$\dot\psi$ occurs
+at vertical flight ($\gamma = \pm\pi/2$). This is not encountered during
+the equilibrium-glide phase and occurs at most instantaneously during a
+skip peak. For the interval pipeline, the singular factor is enclosed by
+standard interval evaluation of $1/\cos[\gamma]$ provided the interval
+$[\gamma]$ does not contain $\pm\pi/2$.
+\end{remark}
 
-\paragraph{Ablation.}
-With recession rate coupled to heat flux and mass loss from char-layer
-blow-off, the ablative equations are given by:
-\begin{equation}
-\label{eq:ablation}
-\dot s = \alpha_s \,\dot Q, \qquad \dot m = -\dot m_\text{abl}.
-\end{equation}
-Recession is a \emph{state} with its own differential equation rather than a
-post-processed output because the interface condition requires the heat input to
-equal the heat conducted into the solid plus the heat absorbed in melting; the
-transformation that maps a receding boundary onto a fixed one is the classical
-one, and it costs only extra convective terms in products of states already
-carried\parencite{landau1950heat}.
-A decoupled correlation for the recession rate is not obviously conservative: the
-surface energy balance couples to a multicomponent boundary layer with unequal
-diffusion coefficients, and the adequacy of a decoupled treatment depends on the
-material--environment pair\parencite{kendall1967multicomponent}.
 
-\paragraph{Modal/Structural Elasticity.}
-With piston-theory forcing and temperature-dependent natural frequency, per
-mode $i$ our modal equations are:
-\begin{equation}
-\label{eq:modal}
-\ddot\eta_i + 2\zeta_i\,\omega_i(T)\,\dot\eta_i + \omega_i(T)^2\,\eta_i
-= Q_i(x, \eta, \dot\eta).
+%--------------------------------------------------------------------------
+\subsection{Rotational Dynamics}\label{sec:rot-dyn}
+%--------------------------------------------------------------------------
+
+The quaternion kinematics, driven by the body rate relative
+to~$\mathcal{E}$:
+\begin{equation}\label{eq:qdot}
+  \dot{\vvec{q}} = \half\,\mat{\Omega}(\vvec{\omega})\,\vvec{q},
 \end{equation}
-Piston theory is a double expansion in thickness ratio and inverse Mach number
-valid when the contributions of order $\delta/M^3$ and $\delta^2/M^2$ are
-negligible, which is where its applicability conditions are stated and where
-they must be checked rather than assumed\parencite{ashley1956piston}.
+with $\vvec{\omega} = (p,q_b,r_b)^\tr$ the inertial angular velocity in
+body-frame components and
+\begin{equation}\label{eq:Omega}
+  \mat{\Omega}(\vvec{a})
+  = \begin{pmatrix}
+      0    & -a_1 & -a_2 & -a_3\\
+      a_1  &  0   &  a_3 & -a_2\\
+      a_2  & -a_3 &  0   &  a_1\\
+      a_3  &  a_2 & -a_1 &  0
+    \end{pmatrix}.
+\end{equation}
+
+Euler's equations, with inertia tensor
+$\mat{I} = \mat{I}(s,\eta)$ depending on recession depth and modal
+amplitudes:
+\begin{equation}\label{eq:euler}
+  \mat{I}\,\dot{\vvec{\omega}}
+  = \vvec{M} - \vvec{\omega}\times(\mat{I}\,\vvec{\omega})
+    - \dot{\mat{I}}\,\vvec{\omega},
+\end{equation}
+where $\vvec{M} = \vvec{M}_a + \vvec{M}_{\mathrm{rcs}}$ is the total
+external moment in~$\mathcal{B}$.
+
+
+%--------------------------------------------------------------------------
+\subsection{Aerodynamic Force: From Quaternion to
+  \texorpdfstring{$(F_V,F_\gamma,F_\psi)$}
+  {(FV, Fgamma, Fpsi)}}\label{sec:aero-force}
+%--------------------------------------------------------------------------
+
+This section is the bridge between the rotational and translational
+dynamics.
+
+\paragraph{Step 1: Body-frame aerodynamic force.}
+Given angle of attack~$\alpha$, sideslip~$\beta$, dynamic pressure
+$q_{\mathrm{dyn}} = \half\rho V^2$, and reference area~$S$:
+\begin{equation}\label{eq:Fa-body}
+  \vvec{F}_a^{\mathcal{B}}
+  = q_{\mathrm{dyn}}\,S\,
+    \bigl(-C_A(\alpha,\beta,M),\;
+           C_Y(\alpha,\beta,M),\;
+          -C_N(\alpha,\beta,M)\bigr)^\tr.
+\end{equation}
+
+\paragraph{Step 2: Transform to LVLH.}
+Define the body-to-LVLH rotation
+\begin{equation}\label{eq:RLB}
+  \mat{R}_{\mathcal{L}\mathcal{B}}({\vvec{q}},\lambda,\phi)
+  \;:=\;
+  \mat{R}_{\mathcal{E}\mathcal{L}}^\tr(\lambda,\phi)\;
+  \mat{R}(\vvec{q}).
+\end{equation}
+Then the aerodynamic force in~$\mathcal{L}$ is
+\begin{equation}\label{eq:Fa-LVLH}
+  \vvec{F}_a^{\mathcal{L}}
+  = \mat{R}_{\mathcal{L}\mathcal{B}}^\tr\,
+    \vvec{F}_a^{\mathcal{B}}.
+\end{equation}
+
+\paragraph{Step 3: Project onto wind axes.}
+The unit velocity in~$\mathcal{L}$ is
+$\hat{V}_{\mathcal{L}} = (\cos\gamma\cos\psi,\;
+\cos\gamma\sin\psi,\;-\sin\gamma)^\tr$. Define
+\begin{align}
+  \hat{n}_\gamma &= (-\sin\gamma\cos\psi,\;
+                      -\sin\gamma\sin\psi,\;
+                      -\cos\gamma)^\tr, \label{eq:ngam}\\
+  \hat{n}_\psi   &= \hat{V}_{\mathcal{L}} \times \hat{n}_\gamma.
+                                                    \label{eq:npsi}
+\end{align}
+Then:
+\begin{equation}\label{eq:F-projections}
+  F_V = \vvec{F}_a^{\mathcal{L}}\cdot\hat{V}_{\mathcal{L}},\qquad
+  F_\gamma = \vvec{F}_a^{\mathcal{L}}\cdot\hat{n}_\gamma,\qquad
+  F_\psi = \vvec{F}_a^{\mathcal{L}}\cdot\hat{n}_\psi.
+\end{equation}
+
+\paragraph{Step 4: Identification with lift, drag, bank angle.}
+In the point-mass limit where the attitude is in trim,
+$F_V = -D$, $F_\gamma = L\cos\sigma$, $F_\psi = L\sin\sigma$.
+In the full 6-DOF formulation $D$, $L$, $\sigma$ are \emph{not independent
+inputs}: they are determined by the attitude quaternion~$\vvec{q}$, the
+aerodynamic coefficients, and the velocity direction $(\gamma,\psi)$
+through Eqs.~(\ref{eq:Fa-body})--(\ref{eq:F-projections}).
+
+\begin{remark}\label{rem:bank-angle}
+The effective bank angle can be extracted as
+$\sigma = \operatorname{atan2}(F_\psi, F_\gamma)$,
+an algebraic function of
+$({\vvec{q}},\lambda,\phi,\gamma,\psi,\alpha,\beta)$. Under interval
+arithmetic, $\sigma$ is evaluated as an interval $\operatorname{atan2}$, a
+standard operation in validated numerics~\cite{moore2009introduction}.
+\end{remark}
+
+\begin{remark}\label{rem:aoa-sideslip}
+The angle of attack~$\alpha$ and sideslip~$\beta$ are
+determined by the quaternion and velocity direction. Let
+$\vvec{V}^{\mathcal{B}} = \mat{R}_{\mathcal{L}\mathcal{B}}\,
+\vvec{V}_{\mathcal{L}}$ be the velocity in body-frame components. Then
+$\alpha = \operatorname{atan2}(-V_z^{\mathcal{B}}, -V_x^{\mathcal{B}})$
+and $\beta = \arcsin(V_y^{\mathcal{B}}/V)$.
+\end{remark}
+
+
+%--------------------------------------------------------------------------
+\subsection{Equilibrium-Glide Slow Manifold}\label{sec:glide-manifold}
+%--------------------------------------------------------------------------
+
+The equilibrium-glide condition is the slow manifold of the translational
+dynamics under the thin-atmosphere singular perturbation
+$\eps_{\mathrm{atm}} = H_s/R_e \to 0$.
+
+Setting $\dot\gamma = 0$ and neglecting Earth rotation ($\omega_E = 0$) in
+Eq.~(\ref{eq:gamdot}):
+\[
+  \frac{F_\gamma}{m}
+  = \Bigl(g_D - \frac{V^2}{r}\Bigr)\cos\gamma
+    + g_N\sin\gamma\cos\psi.
+\]
+For small flight-path angle ($\gamma\ll 1$) and spherical gravity
+($g_N = 0$, $g_D = \mu/r^2$):
+\begin{equation}\label{eq:glide-3dof}
+  \frac{F_\gamma}{m} = g - \frac{V^2}{r},
+  \qquad\text{i.e.}\quad
+  \frac{L\cos\sigma}{m(g - V^2/r)} = 1
+  \quad(\Lambda = 1).
+\end{equation}
+
+In the full 6-DOF formulation, $F_\gamma$ is determined by the quaternion
+via Eqs.~(\ref{eq:Fa-body})--(\ref{eq:F-projections}). The slow-manifold
+condition therefore constrains the quaternion directly:
+\begin{equation}\label{eq:glide-full}
+  \bigl[\mat{R}_{\mathcal{L}\mathcal{B}}^\tr\,
+         \vvec{F}_a^{\mathcal{B}}\bigr]
+  \cdot\hat{n}_\gamma
+  = m\Bigl(g_D(r,\phi) - \frac{V^2}{r}\Bigr)\cos\gamma
+    + m\,g_N(r,\phi)\sin\gamma\cos\psi,
+\end{equation}
+a single scalar constraint on the 13-dimensional
+translational-rotational state, defining the codimension-1 slow
+manifold~$\Lambda$.
+
+\begin{remark}\label{rem:manifold-attitude}
+The slow manifold is \emph{not} a constraint on
+$\sigma$ alone---it constrains a specific component of
+$\mat{R}_{\mathcal{L}\mathcal{B}}^\tr \vvec{F}_a^{\mathcal{B}}$, which
+depends on the full quaternion and on the aerodynamic angles
+$(\alpha,\beta)$ implicitly. The ``bank angle'' that appears in the
+point-mass glide condition is a derived quantity, and the slow manifold
+constrains the attitude directly.
+\end{remark}
+
+\begin{remark}\label{rem:j2-glide}
+Equation~(\ref{eq:glide-full}) retains the $J_2$
+contributions through $g_D(r,\phi)$ and $g_N(r,\phi)$. The simplified
+form $\Lambda = L\cos\sigma/[m(g-V^2/r)] = 1$ is the leading-order
+reduction under spherical gravity ($J_2 = 0$) and small flight-path angle.
+The $J_2$ correction to the glide balance is $O(J_2)$, ranging from
+${\approx}\,0.16\%$ of the leading gravitational term near the equator to
+${\approx}\,0.65\%$ near the poles (through the $(1-5\sin^2\!\phi)$ factor);
+for the interval pipeline it is enclosed exactly.
+\end{remark}
+
+\begin{remark}\label{rem:j2-skip}
+The $J_2$ contribution is especially significant
+during skip maneuvers. When the vehicle leaves the slow manifold (the
+defining condition of a boundary-layer bubble), three $J_2$ effects
+compound:
+\begin{enumerate}
+  \item The northward gravitational component $g_N(r,\phi)$ enters the
+    heading rate $\dot\psi$ (Eq.~\ref{eq:psidot}), producing a
+    latitude-dependent heading drift during each skip that is absent under
+    spherical gravity. Northward and southward skips are not symmetric.
+  \item The radial component $g_D(r,\phi)$ varies with latitude by up to
+    $\approx 0.65\%$ of the leading term through the $(1-5\sin^2\!\phi)$
+    factor, modifying the
+    effective centrifugal balance $g_D - V^2/r$ that governs the
+    re-entry angle after each skip peak.
+  \item Over $K$ skips the ground track may span a significant latitude
+    range, so the $J_2$ corrections at successive re-entries are evaluated
+    at different~$\phi$, and the effects are cumulative.
+\end{enumerate}
+For the interval pipeline, these effects are enclosed automatically: the
+interval evaluations of $g_D([r],[\phi])$ and $g_N([r],[\phi])$ widen with
+the latitude interval, which is itself widest during a skip (where the
+ground track sweeps the most latitude). Retaining $J_2$ in the dynamics
+is therefore not a refinement but a necessity for tight certified bounds on
+skip trajectories.
+\end{remark}
+
+
+%--------------------------------------------------------------------------
+\subsection{Thermal Subsystem (Native Form)}\label{sec:thermal}
+%--------------------------------------------------------------------------
+
+The atmosphere density profile is $\rho(h)$ from the NRLMSIS~2.0
+model~\cite{emmert2021nrlmsis}, with $h = r - R_e$. Under interval arithmetic,
+$\rho(h)$ is enclosed by evaluating the model's analytic approximation (or
+a validated piecewise-exponential envelope) with interval
+argument~$[h]$.
+
+Stagnation-point heating (Sutton--Graves~\cite{sutton1971general}, within its
+stated validity envelope: axisymmetric blunt bodies, chemical equilibrium,
+enthalpy 2.3--116.2\,MJ/kg, pressure 0.001--100\,atm):
+\begin{equation}\label{eq:Qdot}
+  \dot Q_{\mathrm{tot}} = k_Q\sqrt{\rho/R_n}\,V^3.
+\end{equation}
+Wall temperature:
+\begin{equation}\label{eq:Twdot}
+  \dot T_w
+  = \frac{\dot Q_{\mathrm{tot}} - (T_w - T_\infty)/\tau_{\mathrm{cond}}}
+         {C_w}.
+\end{equation}
+No embedding, no recasting. The transcendentals $\sqrt{\rho}$ and $V^3$
+are evaluated directly as interval operations.
+
+\begin{remark}\label{rem:thermal-embedding}
+The density-square-root embedding
+$y = \sqrt{\rho/\rho_0}$ of the original formulation was introduced to
+render the heating correlation polynomial in the states (the
+Savageau--Voit recasting strategy~\cite{savageau1987recasting}). Since the interval
+pipeline evaluates $\sqrt{\cdot}$ natively, this auxiliary state is
+eliminated, and with it the associated wrapping from carrying an extra
+dimension.
+\end{remark}
+
+
+%--------------------------------------------------------------------------
+\subsection{Ablation}\label{sec:ablation}
+%--------------------------------------------------------------------------
+
+Recession rate coupled to heat flux; mass loss from char-layer blowoff:
+\begin{equation}\label{eq:ablation}
+  \dot s = \alpha_s\,\dot Q_{\mathrm{tot}},\qquad
+  \dot m = -\dot m_{\mathrm{abl}}.
+\end{equation}
+
+
+%--------------------------------------------------------------------------
+\subsection{Modal / Structural Elasticity}\label{sec:modal}
+%--------------------------------------------------------------------------
+
+Per mode~$i$, with piston-theory forcing and temperature-dependent natural
+frequency:
+\begin{equation}\label{eq:modal}
+  \ddot\eta_i + 2\zeta_i\,\omega_i(T_w)\,\dot\eta_i
+  + \omega_i(T_w)^2\,\eta_i
+  = Q_i(x,\eta,\dot\eta).
+\end{equation}
+Piston theory is a double expansion in thickness ratio and inverse Mach
+number valid when the contributions of order $\delta/M^3$ and
+$\delta^2/M^2$ are negligible~\cite{ashley1956piston,lighthill1953oscillating}; its
+applicability conditions must be checked at each atmospheric pass. At
+skip peaks with high angle of attack and strong shock interaction, piston
+theory may fail, and the modal forcing should be flagged as uncertain
+(widened interval) in those regimes.
+
+
+%--------------------------------------------------------------------------
+\subsection{Density Model and Interval Envelope}\label{sec:density}
+%--------------------------------------------------------------------------
+
+\emph{To be completed:} functional form of the atmospheric density profile
+suitable for interval evaluation. The NRLMSIS~2.0 model provides the
+reference; the interval pipeline requires either a closed-form analytic
+approximation with certified error bounds, or a piecewise-exponential
+envelope
+\[
+  \rho_{\mathrm{lower}}(h) \le \rho(h) \le \rho_{\mathrm{upper}}(h)
+\]
+valid across the altitude range of the corridor. The width
+$\rho_{\mathrm{upper}} - \rho_{\mathrm{lower}}$ at each altitude is the
+primary driver of the aerodynamic interval widths.
+
+
+%--------------------------------------------------------------------------
+\subsection{Summary of Coordinate Choices}\label{sec:summary-table}
+%--------------------------------------------------------------------------
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Feature} &
+\textbf{Spherical-LVLH + Quat.} &
+\textbf{Cartesian ECEF + Quat.} \\
+\midrule
+Corridor constraints &
+  Box in $(r,V)$ &
+  Nonlinear: $h = \norm{\vvec{r}} - R_e$ \\
+Glide condition &
+  Native: Eq.~(\ref{eq:glide-3dof})/(\ref{eq:glide-full}) &
+  Derived from $(u,v,w)$, $\norm{\vvec{r}}$ \\
+Position singularity &
+  Pole in $\dot\lambda$ &
+  None \\
+Dynamics &
+  Transcendental ($\sin$, $\cos$) &
+  Polynomial (quadratic in $\vvec{q}$) \\
+Wrapping source &
+  Trig dependency &
+  Corridor intersection \\
+Density evaluation &
+  $\rho(r-R_e)$: direct &
+  $\rho(\norm{\vvec{r}}-R_e)$: extra $\sqrt{\cdot}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\smallskip\noindent
+The spherical-LVLH choice concentrates wrapping in the dynamics
+(trigonometric evaluations), where it is distributed across every time step
+and can be controlled by step-size refinement. The Cartesian choice
+concentrates wrapping in the corridor intersection, where it is applied
+once per intersection and inflates the entire reachable-set bound. For the
+profile decomposition---which is organized around the corridor and the
+glide manifold---the spherical choice produces tighter certified bounds.
