@@ -1,5 +1,8 @@
 % \usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
+% inputenc is unnecessary here: this project builds with a utf8-native engine
+% (lualatex), which ignores it. Left commented so a pdflatex fallback is a
+% one-line change rather than a debugging session.
+% \usepackage[utf8]{inputenc}
 \usepackage[margin=1in]{geometry}
 \usepackage{float}
 \usepackage{booktabs}
@@ -201,10 +204,27 @@
 }
 
 
-\tcbset{
-  openitem/.style={
-    colback=orange!8, colframe=orange!60!black,
-    fonttitle=\bfseries, boxrule=0.5pt,
-    left=4pt, right=4pt, top=2pt, bottom=2pt
-  }
-}
+% ---- Research-objective boxes (the proposal's open problems) --------------
+%  These carry the load-bearing theorems the program still has to prove. They
+%  are content, not scaffolding, so they read as numbered "Objective N" boxes
+%  in a calm academic blue rather than an alarm colour. Like the \todo list
+%  and the decide/gap/idea ledger, they are gated by \ifdraftnotes: a formal
+%  copy compiled with \draftnotesfalse drops every draft annotation at once,
+%  so a single switch produces a clean submission document. Each box also
+%  registers a line in \listoftodos (see the "\listoftodos[Open items]" call
+%  in the body), tying the open problems into the existing todo machinery.
+\newtcolorbox{objective@box}[1][]{colback=blue!3,colframe=blue!45!black,
+  fonttitle=\bfseries,coltitle=blue!55!black,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=3pt,bottom=3pt,#1}
+
+\newcounter{objective}
+\ifdraftnotes
+  \newenvironment{openitem}[1]{%
+    \stepcounter{objective}%
+    \phantomsection
+    \addcontentsline{tdo}{todo}{Objective~\theobjective: #1}%
+    \begin{objective@box}[title={Objective~\theobjective.\ #1}]%
+  }{\end{objective@box}}
+\else
+  \excludecomment{openitem}
+\fi

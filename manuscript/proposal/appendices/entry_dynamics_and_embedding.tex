@@ -25,7 +25,8 @@ interval-arithmetic pipeline:
 
   \item \textbf{The slow manifold must be native.} The equilibrium-glide
     condition $\Lambda = 1$ is a codimension-1 surface in the
-    $(r,V,\gamma)$ subspace. The profile decomposition---skeleton, bubbles,
+    $(r,V,\gamma)$ subspace---equivalently, once solved for the flight-path
+    angle, a graph over~$(r,V)$. The profile decomposition---skeleton, bubbles,
     residual---is organized around this surface. If the slow manifold is a
     derived nonlinear function of the states (as it would be in Cartesian
     position/velocity), the separation into skeleton and bubbles inherits
@@ -34,9 +35,11 @@ interval-arithmetic pipeline:
 
 The translational state is therefore carried in spherical-LVLH coordinates
 $(r,\lambda,\phi,V,\gamma,\psi)$. Attitude is carried as a unit quaternion
-$\vvec{q} = (q_0,q_1,q_2,q_3)^\tr$ from the ECEF frame~$\mathcal{E}$ to
-the body frame~$\mathcal{B}$---this avoids all Euler-angle singularities
-and keeps the quaternion kinematics in their simplest form.
+$\vvec{q} = (q_0,q_1,q_2,q_3)^\tr$ relating the body frame~$\mathcal{B}$ and
+the ECEF frame~$\mathcal{E}$ (its direction-cosine matrix
+$\mat{R}_{\mathcal{E}\mathcal{B}} = \mat{R}(\vvec{q})$ is given in
+\cref{eq:DCM})---this avoids all Euler-angle singularities and keeps the
+quaternion kinematics in their simplest form.
 
 The longitude equation
 $\dot\lambda = V\cos\gamma\sin\psi/(r\cos\phi)$ is singular at the
@@ -57,6 +60,18 @@ physical variables are retained.
 %--------------------------------------------------------------------------
 \subsection{Frames}\label{sec:frames}
 %--------------------------------------------------------------------------
+
+\paragraph{Rotation convention.}
+Throughout, $\mat{R}_{\mathcal{A}\mathcal{B}}$ denotes the rotation that
+carries coordinates \emph{from} frame~$\mathcal{B}$ \emph{to}
+frame~$\mathcal{A}$, i.e.\ $\vvec{v}^{\mathcal{A}} =
+\mat{R}_{\mathcal{A}\mathcal{B}}\,\vvec{v}^{\mathcal{B}}$; its columns are the
+axes of~$\mathcal{B}$ expressed in~$\mathcal{A}$. Each such matrix is
+orthogonal, so $\mat{R}_{\mathcal{A}\mathcal{B}}^{-1} =
+\mat{R}_{\mathcal{A}\mathcal{B}}^{\tr} = \mat{R}_{\mathcal{B}\mathcal{A}}$,
+and subscripts compose in the usual way,
+$\mat{R}_{\mathcal{A}\mathcal{B}}\mat{R}_{\mathcal{B}\mathcal{C}} =
+\mat{R}_{\mathcal{A}\mathcal{C}}$.
 
 \begin{itemize}
   \item $\mathcal{E}$ (\textbf{ECEF}): rotating with the constant
@@ -92,18 +107,21 @@ physical variables are retained.
 
   \item $\mathcal{B}$ (\textbf{Body frame}): fixed at the instantaneous
     centre of mass. Related to~$\mathcal{E}$ by the attitude quaternion
-    $\vvec{q}$ with direction-cosine matrix
-    $\mat{R}_{\mathcal{E}\mathcal{B}} = \mat{R}(\vvec{q})$:
+    $\vvec{q}$ through the direction-cosine matrix
+    $\mat{R}_{\mathcal{E}\mathcal{B}} = \mat{R}(\vvec{q})$, which carries
+    body components to~$\mathcal{E}$
+    ($\vvec{v}^{\mathcal{E}} = \mat{R}(\vvec{q})\,\vvec{v}^{\mathcal{B}}$):
 \end{itemize}
 \begin{equation}\label{eq:DCM}
   \mat{R}(\vvec{q})
   = \begin{pmatrix}
-      q_0^2+q_1^2-q_2^2-q_3^2 & 2(q_1q_2+q_0q_3) & 2(q_1q_3-q_0q_2)\\
-      2(q_1q_2-q_0q_3) & q_0^2-q_1^2+q_2^2-q_3^2 & 2(q_2q_3+q_0q_1)\\
-      2(q_1q_3+q_0q_2) & 2(q_2q_3-q_0q_1) & q_0^2-q_1^2-q_2^2+q_3^2
+      q_0^2+q_1^2-q_2^2-q_3^2 & 2(q_1q_2-q_0q_3) & 2(q_1q_3+q_0q_2)\\
+      2(q_1q_2+q_0q_3) & q_0^2-q_1^2+q_2^2-q_3^2 & 2(q_2q_3-q_0q_1)\\
+      2(q_1q_3-q_0q_2) & 2(q_2q_3+q_0q_1) & q_0^2-q_1^2-q_2^2+q_3^2
     \end{pmatrix},
 \end{equation}
-quadratic in~$\vvec{q}$.
+quadratic in~$\vvec{q}$ (its columns are the body axes expressed
+in~$\mathcal{E}$).
 
 
 %--------------------------------------------------------------------------
@@ -293,20 +311,25 @@ Define the body-to-LVLH rotation
   \mat{R}_{\mathcal{L}\mathcal{B}}({\vvec{q}},\lambda,\phi)
   \;:=\;
   \mat{R}_{\mathcal{E}\mathcal{L}}^\tr(\lambda,\phi)\;
-  \mat{R}(\vvec{q}).
+  \mat{R}(\vvec{q})
+  \;=\;
+  \mat{R}_{\mathcal{L}\mathcal{E}}\,\mat{R}_{\mathcal{E}\mathcal{B}},
 \end{equation}
-Then the aerodynamic force in~$\mathcal{L}$ is
+so that $\vvec{v}^{\mathcal{L}} =
+\mat{R}_{\mathcal{L}\mathcal{B}}\,\vvec{v}^{\mathcal{B}}$. Then the
+aerodynamic force in~$\mathcal{L}$ is
 \begin{equation}\label{eq:Fa-LVLH}
   \vvec{F}_a^{\mathcal{L}}
-  = \mat{R}_{\mathcal{L}\mathcal{B}}^\tr\,
+  = \mat{R}_{\mathcal{L}\mathcal{B}}\,
     \vvec{F}_a^{\mathcal{B}}.
 \end{equation}
 
 \paragraph{Step 3: Project onto wind axes.}
-The unit velocity in~$\mathcal{L}$ is
-$\hat{V}_{\mathcal{L}} = (\cos\gamma\cos\psi,\;
-\cos\gamma\sin\psi,\;-\sin\gamma)^\tr$. Define
+The wind-axis triad, expressed in~$\mathcal{L}$, is
 \begin{align}
+  \hat{V}_{\mathcal{L}} &= (\cos\gamma\cos\psi,\;
+                      \cos\gamma\sin\psi,\;-\sin\gamma)^\tr,
+                                                    \label{eq:Vhat}\\
   \hat{n}_\gamma &= (-\sin\gamma\cos\psi,\;
                       -\sin\gamma\sin\psi,\;
                       -\cos\gamma)^\tr, \label{eq:ngam}\\
@@ -340,7 +363,7 @@ standard operation in validated numerics~\cite{moore2009introduction}.
 \begin{remark}\label{rem:aoa-sideslip}
 The angle of attack~$\alpha$ and sideslip~$\beta$ are
 determined by the quaternion and velocity direction. Let
-$\vvec{V}^{\mathcal{B}} = \mat{R}_{\mathcal{L}\mathcal{B}}\,
+$\vvec{V}^{\mathcal{B}} = \mat{R}_{\mathcal{L}\mathcal{B}}^{\tr}\,
 \vvec{V}_{\mathcal{L}}$ be the velocity in body-frame components. Then
 $\alpha = \operatorname{atan2}(-V_z^{\mathcal{B}}, -V_x^{\mathcal{B}})$
 and $\beta = \arcsin(V_y^{\mathcal{B}}/V)$.
@@ -374,21 +397,20 @@ For small flight-path angle ($\gamma\ll 1$) and spherical gravity
 In the full 6-DOF formulation, $F_\gamma$ is determined by the quaternion
 via Eqs.~(\ref{eq:Fa-body})--(\ref{eq:F-projections}). The slow-manifold
 condition therefore constrains the quaternion directly:
-\begin{equation}\label{eq:glide-full}
-  \bigl[\mat{R}_{\mathcal{L}\mathcal{B}}^\tr\,
+\begin{multline}\label{eq:glide-full}
+  \bigl[\mat{R}_{\mathcal{L}\mathcal{B}}\,
          \vvec{F}_a^{\mathcal{B}}\bigr]
-  \cdot\hat{n}_\gamma
+  \cdot\hat{n}_\gamma \\
   = m\Bigl(g_D(r,\phi) - \frac{V^2}{r}\Bigr)\cos\gamma
     + m\,g_N(r,\phi)\sin\gamma\cos\psi,
-\end{equation}
-a single scalar constraint on the 13-dimensional
-translational-rotational state, defining the codimension-1 slow
-manifold~$\Lambda$.
+\end{multline}
+a single scalar constraint on the coupled translational and rotational state
+(dimension~$13$); it defines the codimension-1 slow manifold~$\Lambda$.
 
 \begin{remark}\label{rem:manifold-attitude}
 The slow manifold is \emph{not} a constraint on
 $\sigma$ alone---it constrains a specific component of
-$\mat{R}_{\mathcal{L}\mathcal{B}}^\tr \vvec{F}_a^{\mathcal{B}}$, which
+$\mat{R}_{\mathcal{L}\mathcal{B}} \vvec{F}_a^{\mathcal{B}}$, which
 depends on the full quaternion and on the aerodynamic angles
 $(\alpha,\beta)$ implicitly. The ``bank angle'' that appears in the
 point-mass glide condition is a derived quantity, and the slow manifold
