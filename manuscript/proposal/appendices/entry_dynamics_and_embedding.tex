@@ -1,5 +1,5 @@
 % =====================================================================
-%  Thesis proposal, Appendix: Coupled Entry Dynamics and Polynomial Embedding
+%  Thesis proposal, Appendix: Coupled Entry Dynamics and Embedding
 %  Owns: apx:dyn
 %
 %  Transcription of notes/embedding.md at commit 18cc0a2 (the author's own
@@ -7,7 +7,7 @@
 %  strengthened. Two spelling fixes are marked in comments below.
 % =====================================================================
 
-\section{Coupled Entry Dynamics and Polynomial Embedding}
+\section{Coupled Entry Dynamics and Embedding}
 \label{apx:dyn}
 
 \subsection{Coupled 6-DOF Entry Dynamics}
@@ -140,8 +140,7 @@ The chemical-equilibrium clause is the one most likely to fail, at the
 high-altitude end, which is where the nonequilibrium and rarefied treatments
 take over\parencite{gnoffo1999planetary}.
 The density profile itself should come from a whole-atmosphere model rather than
-a spliced pair, since a splice would put a discontinuity in the vector field and
-defeat the polynomial recast\parencite{emmert2021nrlmsis}.
+a spliced pair\parencite{emmert2021nrlmsis}.
 
 \paragraph{Ablation.}
 With recession rate coupled to heat flux and mass loss from char-layer
@@ -173,65 +172,3 @@ Piston theory is a double expansion in thickness ratio and inverse Mach number
 valid when the contributions of order $\delta/M^3$ and $\delta^2/M^2$ are
 negligible, which is where its applicability conditions are stated and where
 they must be checked rather than assumed\parencite{ashley1956piston}.
-That choice is load-bearing for the cost in SOS degree: the first-order
-point-function relation is affine in the normal component of fluid velocity, hence
-affine in the modal rates and free in the Gram table, whereas each further order
-costs one degree in the downwash and multiplies the modal block through.
-Carrying first order exactly and enveloping the higher-order residuals against the
-paper's own smallness criterion is therefore the trade to state explicitly.
-The pressure band over which the aerodynamic law is the one being certified is
-likewise a checkable, state-dependent condition, and belongs in the constraint
-set rather than in an assumption\parencite{lighthill1953oscillating}.
-
-\subsection{Polynomial Embedding via Adjunction}
-\label{sub:apx_dyn_embedding}
-
-A priori, the dynamics contain transcendental and rational terms. We repair
-each of these by adjoining one variable and one polynomial defining constraint,
-so the entire augmented system is polynomial in the augmented state:
-
-\begin{enumerate}
-  \item \textbf{Transcendental Incidence:} $\alpha = \operatorname{atan2}(w, u)$,
-        $\beta = \arcsin(v/V)$ are inverse-trigonometric functions of body
-        rates, we replace them with polynomial direction-cosine ratios
-        $(u/V, v/V, w/V)$.
-  \item \textbf{Square-Root Speed:} Since $V = \sqrt{u^2+v^2+w^2}$ carries a
-        square root, we adjoin $V$ with the velocity magnitude constraint
-        $V^2 = u^2+v^2+w^2$.
-  \item \textbf{Exponential Atmosphere:} Since $\rho = \rho_0 e^{-h/H_s}$ with
-        $h = \|\vec r\| - R_e$ appears in $\bar q = \tfrac12\rho V^2$, we adjoin
-        $y = \sqrt{\rho/\rho_0}$ with rate
-        $\dot y = -\frac{y}{2H_s}\,\tfrac{d}{dt}\|\vec r\|$, where the radial
-        rate $\tfrac{d}{dt}\|\vec r\| = \varrho\,(\mathbf R\vec r)\cdot\vec V$ is
-        polynomial once $\varrho$ (item 4) is adjoined.
-  \item \textbf{Reciprocal Radius:} Gravity carries $\|\vec r\|^{-3}$,
-        $\|\vec r\|^{-5}$, $\|\vec r\|^{-7}$, so we adjoin
-        $\varrho = 1/\|\vec r\|$ with $\varrho^2\,\|\vec r\|^2 = 1$,
-        $\varrho > 0$, and rate
-        $\dot\varrho = -\varrho^3\,(\mathbf R\vec r)\cdot\vec V$. Gravity is then
-        polynomial:
-        \begin{equation}
-        \label{eq:gravity_poly}
-        \vec g = -\mu\varrho^3\left[\left(1
-        + \tfrac32 J_2 R_e^2\varrho^2\left(1 - 5 r_3^2\varrho^2\right)\right)\vec r
-        + 3J_2R_e^2\varrho^2\,r_3\,\hat z_{\mathcal E}\right].
-        \end{equation}
-        No trigonometric adjunctions are needed: no angle is a state, and
-        latitude dependence enters only through $r_3\varrho = \sin\phi$.
-  \item \textbf{Quaternion Norm:} $|\vec q|^2 = 1$ is already a polynomial
-        invariant (skew-symmetry of $\Omega$ preserves it), no adjunction
-        necessary.
-  \item \textbf{Heat / Load-Factor Square Roots:} $\dot Q \propto y V^3$ is
-        already polynomial; however, $n = \|\vec F_a\|/(mg_0)$ requires squaring
-        to $(\bar q S)^2(C_X^2+C_Y^2+C_Z^2) \le (n_\text{max} m g_0)^2$.
-\end{enumerate}
-
-\paragraph{The Augmented State.}
-Collecting all coordinates:
-\begin{equation}
-\label{eq:augmented_state}
-\tilde{x} = \bigl(
-\underbrace{r_1,\,r_2,\,r_3,\,u,\,v,\,w,\,q_0,\,q_1,\,q_2,\,q_3,\,p,\,q,\,r_b}_{13,\ \text{core}},\;
-\underbrace{y,\,V,\,\varrho,\,Q_{\mathrm{tot}},\,m,\,s,\,\chi}_{7,\ \text{adjoined}},\,
-\underbrace{\eta,\,\dot\eta}_{2n_\eta,\ \text{modal}}\bigr).
-\end{equation}
