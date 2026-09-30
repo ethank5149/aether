@@ -20,6 +20,8 @@
 \ifsummary
   \newcommand{\apxref}[1]{}%
   \newcommand{\apxeqref}[1]{}%
+  % Compress the reference list for the cold-email copy: 3 authors then "et al."
+  \ExecuteBibliographyOptions{maxbibnames=3}%
 \else
   \newcommand{\apxref}[1]{~(\cref{#1})}%
   \newcommand{\apxeqref}[1]{~(Eq.~\ref{#1})}%
@@ -27,25 +29,29 @@
 
 \begin{document}
 
-\title{\textbf{Certified analytical bounds for hypersonic reachable sets}}
+\title{\textbf{Certified analytical bounds for hypersonic reachable sets}\\[0.4em]
+  {\large\normalfont\textit{A measure-theoretic profile decomposition in exact
+  interval arithmetic}}}
 \author{\textbf{Ethan Knox}}
 \affil{\small\textit{Independent Researcher, Champaign, IL}}
-\date{PhD Research Proposal Draft \\[0.5em] \today}
+\date{Preliminary PhD Research Proposal \\[0.5em] \today}
 
 \maketitle
 
 \begin{abstract}
-Computing exact reachable sets for six-degree-of-freedom hypersonic entry 
+Computing exact reachable sets for six-degree-of-freedom hypersonic entry
 vehicles is intractable for grid-based dynamic programming and compromised
-by the floating-point approximations of numerical solvers. This research 
-introduces a purely analytical framework to compute mathematically 
-certified bounds using exact interval arithmetic and occupation measures. 
-By modeling transcendental aerodynamics natively as interval differential
-inclusions, the method circumvents artificial state augmentation and 
-numerical optimization entirely. Utilizing a thin-atmosphere limit profile 
-decomposition to separate the equilibrium-glide skeleton from compact skip 
-events, the framework yields explicit, closed-form algebraic bounds that 
-provide a strict mathematical certificate in the minimal physical state 
+by the floating-point approximations of numerical solvers. This research
+develops a purely analytical framework that computes mathematically
+certified bounds from exact interval arithmetic and occupation measures.
+Modeling the transcendental aerodynamics natively as interval differential
+inclusions, it dispenses with artificial state augmentation and numerical
+optimization alike. A thin-atmosphere profile decomposition separates the
+equilibrium-glide skeleton from the compact skip events, and the corridor
+constants that size the bound are derived in closed form directly from the
+physical corridor and the aerodynamic interval widths. The result is a
+certificate rather than a computation: explicit algebraic bounds, valid
+uniformly over the entire admissible family, in the minimal physical state
 space.
 \end{abstract}
 \pagebreak
@@ -59,21 +65,25 @@ space.
 \fi
 
 %==========================================================================
-\section{The problem}
+\section{Problem statement}
 %==========================================================================
-The reachable set of an entry vehicle (every state it can be driven to 
-under admissible control) is what safety and threat analyses need bounded.
-Computing it exactly means solving a Hamilton--Jacobi--Isaacs equation on a 
-grid, which is exponential in state dimension and capped in practice near 
-four or five states~\parencite{bansal2017hamilton,mitchell2005time}. 
-A rigid-body entry vehicle carries thirteen states, 
+The reachable set of an entry vehicle---every state it can be driven to
+under admissible control---is what safety and threat analyses need bounded.
+Computing it exactly faces two obstacles, not one: the dimension of the
+state, and the provenance of the guarantee. This section takes them in turn.
+
+\subsection{The curse of dimensionality}
+Exact computation means solving a Hamilton--Jacobi--Isaacs equation on a
+grid, which is exponential in state dimension and capped in practice near
+four or five states~\parencite{bansal2017hamilton,mitchell2005time}.
+A rigid-body entry vehicle carries thirteen states,
 \begin{equation}\label{eq:state-rigid}
   x = (r,\lambda,\phi,\, V,\gamma,\psi,\,
        q_0,q_1,q_2,q_3,\, p,q_b,r_b)
   \;\in\;\R^{13},
 \end{equation}
-and $17+2N_m$ once ablation recession, integrated heat load and 
-aerothermoelastic deformation are coupled~\parencite{mcnamara2011aeroelastic}. 
+and $17+2N_m$ once ablation recession, integrated heat load and
+aerothermoelastic deformation are coupled~\parencite{mcnamara2011aeroelastic}.
 The translational state is carried in geocentric spherical position
 $(r,\lambda,\phi)$ and wind-frame velocity $(V,\gamma,\psi)$ so that the
 entry-corridor constraints (bounded altitude, bounded speed, heating and
@@ -83,14 +93,14 @@ singularities.
 
 So the exact grid-HJI method quits before the real problem starts.
 
+\subsection{The provenance of the guarantee}
 The standard polynomial barrier with coefficients obtained from an
 interior-point solver has analytical \emph{form} but inherits the solver's
 accuracy~\cite{prajna2007framework}, so it is not a certificate; a numerical
 solver's failure modes are documented, and they include the loss of strict
 feasibility on which every rounding-based scheme
-depends~\cite{roux2018validating,peyrl2008computing}. There are then two problems to solve,
-not one: dimension, and the provenance of the guarantee. The second is not
-a matter of care. Interval arithmetic is the setting in which a guarantee
+depends~\cite{roux2018validating,peyrl2008computing}. Provenance is not a
+matter of care. Interval arithmetic is the setting in which a guarantee
 has meant, for forty years, an enclosure rather than an approximation, and
 the property that makes an enclosure valid at all---inclusion
 isotonicity---is exactly what a reimplementation loses first; not every law
@@ -115,9 +125,10 @@ final bounds.
 
 
 %==========================================================================
-\section{The approach}
+\section{Proposed approach}
 %==========================================================================
 
+\subsection{An occupation-measure embedding}
 Embed the hybrid flight dynamics into a Banach space of occupation
 measures. The nonlinear flight mechanics $\dot x = f_q(x,c,t)$ become
 \emph{linear}: the Liouville equation is a linear constraint on a measure
@@ -157,6 +168,7 @@ possible trajectories generated by any vector field selected from the
 interval inclusion.
 \end{openitem}
 
+\subsection{The thin-atmosphere limit and profile decomposition}
 The new content is what happens in the thin-atmosphere limit
 $\eps_{\mathrm{atm}} = H_s/R_e \to 0$. Rescaled by the phugoid-to-secular
 time ratio (which, as in the classical Chapman--Loh variables, enters as
@@ -243,7 +255,10 @@ budget (a trajectory can only afford so many
 skips~\cite{shi1971skip,eggers1958comparative}). The wrapping effect to be suppressed
 here is not new: for linear systems it is already quantified, and the term
 is first order in the time step and exponential in the horizon times the
-matrix norm~\cite{leguernic2010reachability}. The multi-parameter separation of the
+matrix norm~\cite{leguernic2010reachability}.
+
+\subsection{Almost-orthogonality of the scaling groups}
+The multi-parameter separation of the
 three scaling groups (atmospheric, attitude, elastic) is the
 Bahouri--G\'erard almost-orthogonality argument, transported to defect
 measures: two profiles are almost-orthogonal when their scale parameters
@@ -270,6 +285,7 @@ forces those scales to be orthogonal, and iterating extracts a pairwise
 orthogonal family, so orthogonality is produced by the construction rather
 than assumed by it~\cite{bahouri1999high}.
 
+\subsection{The certified bound}
 The target statement is
 \begin{equation}\label{eq:target}
   \calR_{\mathrm{cert}}(w)
@@ -334,6 +350,32 @@ favor of the spherical formulation, where wrapping is distributed across
 time steps and controlled by step-size refinement rather than concentrated
 in corridor intersection\apxref{sec:summary-table}.
 \end{openitem}
+
+%==========================================================================
+\section{Research objectives}
+%==========================================================================
+Six concrete obligations carry the program; they are stated where each
+arises above and gathered here, in order, as the plan of work.
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \emph{Exact-arithmetic computational pipeline}: a deterministic
+    interval integrator that verifies the bounds without floating point.
+  \item \emph{Liouville equation for differential inclusions}: a measure
+    embedding valid for the set-valued (interval) dynamics.
+  \item \emph{Wrapping-effect suppression in boundary-layer bubbles}: tight
+    enclosures carried through skip events without premature blow-up.
+  \item \emph{Bahouri--G\'erard under interval disturbances}:
+    almost-orthogonality of the scaling groups under bounded
+    uncertainty---\textbf{the critical path}, on which the profile
+    decomposition and the closed-form bound rest.
+  \item \emph{Analytical derivation of the corridor constants}: closed-form
+    $C_{\calR}$ and $K_{\max}$ from the physical corridor and interval
+    widths, free of any numerical solver.
+  \item \emph{State-space minimisation}: elimination of the Savageau-style
+    polynomial adjunctions now that transcendentals are evaluated natively.
+\end{enumerate}
+Objectives 1--2 establish the interval occupation-measure embedding, 3--4 the
+profile decomposition, and 5--6 reduce it to closed form; objective 4 gates
+the rest.
 
 \ifsummary\else
 \pagebreak
