@@ -1,10 +1,18 @@
 % =====================================================================
-%  Thesis proposal, Appendix: Coupled Entry Dynamics and Embedding
+%  Thesis proposal, Appendix: Coupled Entry Dynamics
 %  Owns: apx:dyn
 % =====================================================================
 
-\section{Coupled entry dynamics and embedding}
+\section{Coupled entry dynamics}
 \label{apx:dyn}
+
+The identities displayed in this appendix---the gravity components, the
+equations of motion and their classical reductions, the quaternion
+kinematics, the glide balance---are checked by computer algebra. For the
+translational equations the check is made against the same definition of
+the field that the accompanying code evaluates in floating point and in
+interval arithmetic, and it derives them from Newton's law in the rotating
+frame rather than taking them on trust from the literature.
 
 %--------------------------------------------------------------------------
 \subsection{Coordinate rationale}\label{sec:coord-rationale}
@@ -13,24 +21,32 @@
 The coordinate choice is dictated by two competing requirements of the
 interval-arithmetic pipeline:
 \begin{enumerate}
-  \item \textbf{Corridor constraints must be box constraints.} The entry
-    corridor---bounded altitude, bounded speed, heating and load-factor
-    limits---defines the region whose reachable subset we certify. In
-    coordinates where these constraints are box faces, the interval hull is
-    the natural bounding object and no wrapping is introduced by
-    intersecting with the corridor. Spherical position~$(r)$ and
-    wind-frame speed~$(V)$ make the primary corridor constraints
-    $h_{\min}\le r - R_e \le h_{\max}$ and $V_{\min}\le V\le V_{\max}$
-    into box constraints on states.
+  \item \textbf{The corridor must contract tightly.} The entry
+    corridor---bounded altitude, bounded speed, and limits on heating
+    rate, dynamic pressure and load factor---defines the region whose
+    reachable subset we certify. In spherical position and wind-frame
+    speed the first two are box constraints on states,
+    $h_{\min}\le r - R_e \le h_{\max}$ and $V_{\min}\le V\le V_{\max}$, for
+    which the interval hull is exact. The other three are not boxes: each
+    is a curve $h \ge h_{\min}(V)$ in the altitude--speed plane, the load
+    limit depending on attitude as well. But the dynamic pressure
+    $\tfrac12\rho V^2$ and the stagnation heating rate of \cref{eq:Qdot}
+    are each decreasing in altitude and increasing in speed, so the part of
+    a box that satisfies the limit has an interval hull that is computed
+    exactly, by solving the limit along two edges of the box, with no
+    dependency loss. What a box cannot represent is the curved boundary
+    itself, and that is recovered by subdivision.
 
-  \item \textbf{The slow manifold must be native.} The equilibrium-glide
-    condition $\Lambda = 1$ is a codimension-1 surface in the
-    $(r,V,\gamma)$ subspace---equivalently, once solved for the flight-path
-    angle, a graph over~$(r,V)$. The profile decomposition---skeleton, bubbles,
-    residual---is organized around this surface. If the slow manifold is a
-    derived nonlinear function of the states (as it would be in Cartesian
-    position/velocity), the separation into skeleton and bubbles inherits
-    unnecessary wrapping at every step.
+  \item \textbf{The glide balance must be native.} The equilibrium-glide
+    condition $\Lambda = 1$ relates altitude, speed and the vertical
+    component of the lift; to leading order it does not involve the
+    flight-path angle. Solved for the vertical lift fraction---the bank
+    angle, in the point-mass model---it is a graph over~$(r,V)$, on which
+    the flight-path angle is determined by $(r,V)$ at the next order. The
+    profile decomposition---skeleton, bubbles, residual---is organized
+    around this surface. Were it a derived nonlinear function of the states
+    (as it would be in Cartesian position and velocity), every evaluation
+    of the distance to it would pay a dependency loss.
 \end{enumerate}
 
 The translational state is therefore carried in spherical-LVLH coordinates
@@ -41,20 +57,28 @@ $\mat{R}_{\mathcal{E}\mathcal{B}} = \mat{R}(\vvec{q})$ is given in
 \cref{eq:DCM})---this avoids all Euler-angle singularities and keeps the
 quaternion kinematics in their simplest form.
 
-The longitude equation
-$\dot\lambda = V\cos\gamma\sin\psi/(r\cos\phi)$ is singular at the
-geographic poles $\phi = \pm\pi/2$. This is a coordinate singularity, not a
-physical one: $\lambda$ is cyclic, does not enter the corridor constraints
-or the glide condition, and can be integrated separately. For any entry
-scenario the ground-track extent is bounded by the energy budget, and the
-coordinate system can be oriented so the trajectory stays away from the
-poles.
+The chart is singular at the geographic poles $\phi = \pm\pi/2$, and in two
+places: the longitude rate~\cref{eq:lamdot}, through $1/\cos\phi$, and the
+heading rate~\cref{eq:psidot}, through $\tan\phi$. Both are coordinate
+singularities, not physical ones, but only the first is harmless.
+Longitude is cyclic in this model---it enters neither the gravity field,
+the corridor constraints nor the glide condition---whereas heading enters
+the Coriolis and oblateness terms and cannot be integrated separately. The
+corridor is therefore taken with $\abs{\phi}\le\phi_{\max}<\pi/2$. That is
+a restriction on the trajectory class and is stated as one: a ground track
+that overflies a pole needs a second chart, or the Cartesian formulation of
+\cref{sec:summary-table}. Re-orienting the coordinate system to move the
+pole away from the trajectory is not available, because the gravity field
+and the rotation vector are axisymmetric about the geographic axis and no
+other: in a tilted chart the eastward gravity component no longer vanishes
+and $\vvec{\omega}_E$ acquires components along all three axes.
 
-The Savageau--Voit polynomial recasting of the thermal subsystem is dropped
-entirely. Because the interval pipeline evaluates transcendentals natively,
+The Savageau--Voit polynomial recasting of the thermal subsystem is not
+used. Because the interval pipeline evaluates transcendentals natively,
 the density-square-root embedding $y = \sqrt{\rho/\rho_0}$ and the
-polynomial surrogate for wall temperature are unnecessary---the raw
-physical variables are retained.
+polynomial surrogate for wall temperature are unnecessary, and the raw
+physical variables are retained. The recasting survives only inside the
+moment-sum-of-squares cross-check, which needs polynomial data.
 
 
 %--------------------------------------------------------------------------
@@ -290,12 +314,13 @@ propagate into the bubble dynamics rather than cancel.
 \end{remark}
 
 \begin{remark}\label{rem:psi-singularity}
-The singularity $1/\cos\gamma$ in~$\dot\psi$ occurs
-at vertical flight ($\gamma = \pm\pi/2$). This is not encountered during
-the equilibrium-glide phase and occurs at most instantaneously during a
-skip peak. For the interval pipeline, the singular factor is enclosed by
-standard interval evaluation of $1/\cos[\gamma]$ provided the interval
-$[\gamma]$ does not contain $\pm\pi/2$.
+The factor $1/\cos\gamma$ in~$\dot\psi$ is singular in vertical flight
+($\gamma = \pm\pi/2$), which the corridor excludes: flight-path angles in
+lifting entry are a few degrees, and at the apex of a skip $\gamma = 0$.
+For the interval pipeline the factor is enclosed by interval evaluation of
+$1/\cos[\gamma]$ provided the interval $[\gamma]$ does not contain
+$\pm\pi/2$, and the same holds for $1/\cos[\phi]$ and $\tan[\phi]$ under
+the polar restriction of \cref{sec:coord-rationale}.
 \end{remark}
 
 
@@ -352,8 +377,8 @@ $1500\,\mathrm{s}$ multi-skip entry. The bias matters more than its size
 suggests. It is systematic rather than bounded-uncertain, so interval
 arithmetic does not absorb it: it translates the enclosure instead of
 widening it, and an enclosure translated off the true attitude is no longer
-an enclosure. Because the slow-manifold
-condition~\cref{eq:glide-full} constrains a specific component of
+an enclosure. Because the glide
+balance~\cref{eq:glide-full} constrains a specific component of
 $\mat{R}_{\mathcal{L}\mathcal{B}}\vvec{F}_a^{\mathcal{B}}$, the same offset
 enters the glide balance directly, and the skeleton would be extracted
 about the wrong surface.
@@ -466,22 +491,26 @@ visibly broken.
 
 
 %--------------------------------------------------------------------------
-\subsection{Equilibrium-glide slow manifold}\label{sec:glide-manifold}
+\subsection{The equilibrium-glide balance}\label{sec:glide-manifold}
 %--------------------------------------------------------------------------
 
-The equilibrium-glide condition is the slow manifold of the translational
-dynamics under the thin-atmosphere singular perturbation
-$\eps_{\mathrm{atm}} = H_s/R_e \to 0$.
+The equilibrium-glide condition is the balance about which the
+translational dynamics organize under the thin-atmosphere singular
+perturbation $\eps_{\mathrm{atm}} = H_s/R_e \to 0$. It is the set on which
+the flight-path angle holds, and \cref{apx:residual} takes up in what
+sense, and how weakly, trajectories are drawn to it.
 
-Setting $\dot\gamma = 0$ and neglecting Earth rotation ($\omega_E = 0$) in
-Eq.~(\ref{eq:gamdot}):
-\[
+Setting $\dot\gamma = 0$ in \cref{eq:gamdot}, with every term kept:
+\begin{multline}\label{eq:glide-balance}
   \frac{F_\gamma}{m}
   = \Bigl(g_D - \frac{V^2}{r}\Bigr)\cos\gamma
-    + g_N\sin\gamma\cos\psi.
-\]
-For small flight-path angle ($\gamma\ll 1$) and spherical gravity
-($g_N = 0$, $g_D = \mu/r^2$):
+    + g_N\sin\gamma\cos\psi
+    - 2\omega_E V\cos\phi\sin\psi \\
+    - \omega_E^2 r\cos\phi
+      \bigl[\cos\gamma\cos\phi + \sin\gamma\cos\psi\sin\phi\bigr].
+\end{multline}
+For small flight-path angle, spherical gravity ($g_N = 0$,
+$g_D = \mu/r^2$) and no rotation this is the classical condition
 \begin{equation}\label{eq:glide-3dof}
   \frac{F_\gamma}{m} = g - \frac{V^2}{r},
   \qquad\text{i.e.}\quad
@@ -490,51 +519,73 @@ For small flight-path angle ($\gamma\ll 1$) and spherical gravity
 \end{equation}
 
 In the full 6-DOF formulation, $F_\gamma$ is determined by the quaternion
-via Eqs.~(\ref{eq:Fa-body})--(\ref{eq:F-projections}). The slow-manifold
-condition therefore constrains the quaternion directly:
-\begin{multline}\label{eq:glide-full}
-  \bigl[\mat{R}_{\mathcal{L}\mathcal{B}}\,
+via Eqs.~(\ref{eq:Fa-body})--(\ref{eq:F-projections}). The balance
+therefore constrains the quaternion directly:
+\begin{equation}\label{eq:glide-full}
+  \frac{1}{m}\,\bigl[\mat{R}_{\mathcal{L}\mathcal{B}}\,
          \vvec{F}_a^{\mathcal{B}}\bigr]
-  \cdot\hat{n}_\gamma \\
-  = m\Bigl(g_D(r,\phi) - \frac{V^2}{r}\Bigr)\cos\gamma
-    + m\,g_N(r,\phi)\sin\gamma\cos\psi,
-\end{multline}
+  \cdot\hat{n}_\gamma
+  \;=\; \text{right-hand side of \cref{eq:glide-balance}},
+\end{equation}
 a single scalar constraint on the coupled translational and rotational state
-(dimension~$13$); it defines the codimension-1 slow manifold~$\Lambda$.
+(dimension~$13$); it defines a codimension-1 set. The skeleton of
+\cref{sec:profile} is its intersection with the corresponding conditions
+for the two faster groups: aerodynamic trim, on which the moment
+of~\cref{eq:euler} vanishes, and quasi-static deflection, on which each
+modal amplitude of~\cref{eq:modal} follows its forcing.
 
 \begin{remark}\label{rem:manifold-attitude}
-The slow manifold is \emph{not} a constraint on
+The glide balance is \emph{not} a constraint on
 $\sigma$ alone---it constrains a specific component of
 $\mat{R}_{\mathcal{L}\mathcal{B}} \vvec{F}_a^{\mathcal{B}}$, which
 depends on the full quaternion and on the aerodynamic angles
 $(\alpha,\beta)$ implicitly. The ``bank angle'' that appears in the
-point-mass glide condition is a derived quantity, and the slow manifold
+point-mass glide condition is a derived quantity, and the balance
 constrains the attitude directly.
 \end{remark}
 
 \begin{remark}\label{rem:j2-glide}
-Equation~(\ref{eq:glide-full}) retains the $J_2$
-contributions through $g_D(r,\phi)$ and $g_N(r,\phi)$. The simplified
-form $\Lambda = L\cos\sigma/[m(g-V^2/r)] = 1$ is the leading-order
-reduction under spherical gravity ($J_2 = 0$) and small flight-path angle.
-The $J_2$ correction to the glide balance is $O(J_2)$ and, through the
-$(1-3\sin^2\!\phi)$ factor of \cref{eq:gD}, it decreases monotonically with
-latitude but \emph{changes sign} partway: it is ${+}\,0.16\%$ of the leading
-gravitational term at the equator, vanishes at
-$\phi = \arcsin(1/\sqrt{3}) \approx 35.3^\circ$, and reaches ${-}\,0.32\%$
-at the poles. The sign change inside the corridor matters
-more than the magnitude, since a trajectory crossing $35.3^\circ$ has the
+\Cref{eq:glide-balance} retains planetary rotation and oblateness, and the
+two do not enter on equal terms. Level and due east at an altitude of
+$50$\,km, the terms the vertical lift has to balance are, in m/s$^2$:
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & $g - V^2/r$ & Coriolis & centrifugal & $J_2$, radial \\
+ & & (equator) & (equator) & (equator to $80^\circ$) \\
+\midrule
+$V = 7$\,km/s & $2.04$ & $1.02$ & $0.034$ & ${+}0.015$ to ${-}0.029$ \\
+$V = 5$\,km/s & $5.77$ & $0.73$ & $0.034$ & ${+}0.015$ to ${-}0.029$ \\
+$V = 3$\,km/s & $8.26$ & $0.44$ & $0.034$ & ${+}0.015$ to ${-}0.029$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The Coriolis term is half of the balance at $7$\,km/s and an eighth of it
+at $5$\,km/s; the centrifugal and $J_2$ terms are each under two percent of
+it. The Coriolis term also depends on
+heading: it vanishes for flight along a meridian and reverses sign
+westbound, so with rotation retained the glide altitude is a function of
+heading as well as of speed. A glide condition that kept $J_2$ and dropped
+rotation would keep the smaller correction, which is why
+\cref{eq:glide-balance} is written with both.
+
+The classical form $\Lambda = L\cos\sigma/[m(g-V^2/r)] = 1$ is the reduction
+under spherical gravity, no rotation and small flight-path angle. The $J_2$
+correction to it acts through the $(1-3\sin^2\!\phi)$ factor of
+\cref{eq:gD}: it decreases monotonically with latitude and \emph{changes
+sign} partway, being ${+}\,0.16\%$ of the leading gravitational term at the
+equator, zero at $\phi = \arcsin(1/\sqrt{3}) \approx 35.3^\circ$, and
+${-}\,0.32\%$ at the poles. A trajectory crossing $35.3^\circ$ has the
 correction act in both directions on a single pass. For the interval
-pipeline it is enclosed exactly.
+pipeline it is enclosed as it stands.
 \end{remark}
 
 \begin{remark}\label{rem:j2-skip}
-The $J_2$ contribution is especially significant
-during skip maneuvers. When the vehicle leaves the slow manifold (the
-defining condition of a boundary-layer bubble), two $J_2$ effects act on
-the bubble, and they have \emph{different} sign structures---which is the
-substantive point, since it is what forbids treating either as a monotone
-accumulation over a multi-skip ground track.
+What makes the $J_2$ terms worth retaining is not their size but their sign
+structure over a ground track that spans many degrees of latitude. During
+a multi-skip entry two $J_2$ effects act, and they have \emph{different}
+sign structures---which is the substantive point, since it is what forbids
+treating either as a monotone accumulation.
 \begin{enumerate}
   \item The northward gravitational component $g_N(r,\phi)$ enters the
     heading rate $\dot\psi$ (Eq.~\ref{eq:psidot}), producing a
@@ -544,7 +595,11 @@ accumulation over a multi-skip ground track.
     the poles; largest at $\abs{\phi} = 45^\circ$, where it reaches
     $0.16\%$ of the leading gravitational term. Within one hemisphere the
     drift therefore keeps a single sign and \emph{does} accumulate across
-    successive skips. Northward and southward skips are not symmetric.
+    successive skips. Northward and southward skips are not symmetric. The
+    Coriolis term of the same equation, $2\omega_E\sin\phi$ in level
+    flight, has the same hemisphere-fixed sign and is twenty to fifty times
+    larger over the range of entry speeds, so the $J_2$ drift is a
+    correction to a rotation-driven one and not the leading effect.
   \item The radial component $g_D(r,\phi)$ modifies the effective
     centrifugal balance $g_D - V^2/r$ that governs the re-entry angle after
     each skip peak. Its shape is $(1-3\sin^2\!\phi)$: even in~$\phi$, so it
@@ -559,16 +614,17 @@ The consequence for the certificate is a prohibition rather than an
 estimate. Over $K$ skips the ground track may span a wide latitude range,
 and the two effects are evaluated at a different~$\phi$ at every
 re-entry; because their sign structures differ, no single worst-case
-latitude bounds both at once, and the enclosure may neither be tightened by
-assuming the corrections reinforce nor loosened by assuming they cancel.
-Both must be carried term by term. For the interval pipeline this happens
-automatically: the interval evaluations of $g_D([r],[\phi])$ and
+latitude bounds both at once. The enclosure may not be tightened by
+assuming the corrections cancel, and need not be loosened by assuming they
+reinforce: both are carried term by term. For the interval pipeline this
+happens automatically: the interval evaluations of $g_D([r],[\phi])$ and
 $g_N([r],[\phi])$ widen with the latitude interval, which is itself widest
 during a skip, where the ground track sweeps the most latitude---and an
 interval $[\phi]$ straddling $35.3^\circ$ correctly returns a $g_D$
 correction of both signs rather than a spuriously signed one. Retaining
-$J_2$ in the dynamics is therefore not a refinement but a necessity for
-tight certified bounds on skip trajectories.
+$J_2$ costs the interval pipeline nothing and removes a systematic bias of
+a few tenths of a percent. It is the rotation terms, not $J_2$, that the
+leading-order balance cannot do without.
 \end{remark}
 
 
@@ -582,43 +638,46 @@ $\rho(h)$ is enclosed by evaluating the model's analytic approximation (or
 a validated piecewise-exponential envelope) with interval
 argument~$[h]$.
 
-Stagnation-point heating (Sutton--Graves~\cite{sutton1971general}, within its
-stated validity envelope: axisymmetric blunt bodies, chemical equilibrium,
-enthalpy 2.3--116.2\,MJ/kg, pressure 0.001--100\,atm):
+Stagnation-point heat flux (Sutton--Graves~\cite{sutton1971general}, within
+its stated validity envelope: axisymmetric blunt bodies, chemical
+equilibrium, enthalpy 2.3--116.2\,MJ/kg, pressure 0.001--100\,atm), with
+$Q_{\mathrm{tot}}$ the heat load it accumulates per unit area:
 \begin{equation}\label{eq:Qdot}
-  \dot Q_{\mathrm{tot}} = k_Q\sqrt{\rho/R_n}\,V^3.
+  \dot Q_{\mathrm{tot}} = \dot q_s = k_Q\sqrt{\rho/R_n}\,V^3.
 \end{equation}
-Wall temperature:
+Wall temperature, for a lumped surface layer of areal heat capacity~$C_w$
+that re-radiates with emissivity~$\epsilon_w$ and conducts into a structure
+at temperature~$T_b$ on a timescale~$\tau_{\mathrm{cond}}$:
 \begin{equation}\label{eq:Twdot}
   \dot T_w
-  = \frac{\dot Q_{\mathrm{tot}} - (T_w - T_\infty)/\tau_{\mathrm{cond}}}
-         {C_w}.
+  = \frac{\dot q_s - \epsilon_w\,\sigma_{\mathrm{SB}}\,T_w^4}{C_w}
+    - \frac{T_w - T_b}{\tau_{\mathrm{cond}}} ,
 \end{equation}
-No embedding, no recasting. The transcendentals $\sqrt{\rho}$ and $V^3$
-are evaluated directly as interval operations.
+with $\sigma_{\mathrm{SB}}$ the Stefan--Boltzmann constant. No embedding, no
+recasting. The transcendentals $\sqrt{\rho}$, $V^3$ and $T_w^4$ are
+evaluated directly as interval operations, and each is monotone in its
+argument.
 
 \begin{remark}\label{rem:sutton-graves-circularity}
-\Cref{eq:Qdot} carries an obligation that has to be discharged before the
-bubble count can be called \emph{a~priori}. The bound
-$K \le K_{\max}(Q_{\max})$ is derived from the integrated heat-load budget,
-the budget is integrated from~\cref{eq:Qdot}, and Sutton--Graves assumes
-chemical equilibrium---the assumption in its envelope least likely to hold
-at high altitude, which is exactly where a skip peaks. The events being
-counted therefore occur in the regime where the correlation that counts
-them is weakest, and the circularity is not removed by widening the
-interval on $k_Q$: an enclosure of the wrong correlation is still an
-enclosure of the wrong correlation.
+\Cref{eq:Qdot} is used for the corridor constraints and for the thermal
+states, and deliberately not for the bubble count. Bounding the number of
+passes by the integrated heat-load budget, $K \le K_{\max}(Q_{\max})$,
+would make the count depend on a heating correlation, and in the unsafe
+direction: an upper bound on $K$ needs a certified \emph{lower} bound on
+the heat absorbed in each pass, and an equilibrium correlation does not
+supply one, since heat transfer to a non-catalytic wall from a
+non-equilibrium boundary layer falls below the equilibrium
+value~\cite{fay1958theory}. The energy budget of \cref{eq:kmax} removes the
+dependence. The count is bounded by the dissipation, which is a property
+of the dynamics and of the drag enclosure alone.
 
-Two ways out, and the choice is an open one. Either replace~\cref{eq:Qdot}
-above a transition altitude with a correlation valid in
-thermochemical non-equilibrium and enclose the switch as a hybrid guard, or
-weaken the claim: derive $K_{\max}$ from an inequality that only needs a
-certified \emph{lower} bound on the heat load per pass, for which a
-conservative equilibrium estimate is admissible because underestimating the
-heating can only overestimate~$K_{\max}$. The second is cheaper and keeps
-the closed form, at the cost of a looser bubble count; it is the fallback
-if the first proves unavailable. Either way the dependency must be stated,
-because a reviewer reading the $K_{\max}$ derivation will find it.
+What remains is the ordinary obligation to use the correlation inside its
+envelope. The heat load of a pass is accumulated near its lowest point,
+where the density is highest and the equilibrium assumption is at its
+best; the high-altitude part of a pass, where that assumption is weakest,
+contributes little. Where the corridor reaches conditions outside the
+envelope, the coefficient $k_Q$ is widened to an interval or the
+correlation is replaced, and the switch is enclosed as a hybrid guard.
 \end{remark}
 
 \begin{remark}\label{rem:thermal-embedding}
@@ -627,8 +686,8 @@ $y = \sqrt{\rho/\rho_0}$ of the original formulation was introduced to
 render the heating correlation polynomial in the states (the
 Savageau--Voit recasting strategy~\cite{savageau1987recasting}). Since the interval
 pipeline evaluates $\sqrt{\cdot}$ natively, this auxiliary state is
-eliminated, and with it the associated wrapping from carrying an extra
-dimension.
+eliminated, and with it the dependency loss of carrying an extra,
+constrained coordinate.
 \end{remark}
 
 
@@ -657,10 +716,10 @@ frequency:
 Piston theory is a double expansion in thickness ratio and inverse Mach
 number valid when the contributions of order $\delta/M^3$ and
 $\delta^2/M^2$ are negligible~\cite{ashley1956piston,lighthill1953oscillating}; its
-applicability conditions must be checked at each atmospheric pass. At
-skip peaks with high angle of attack and strong shock interaction, piston
-theory may fail, and the modal forcing should be flagged as uncertain
-(widened interval) in those regimes.
+applicability conditions must be checked at each atmospheric pass. At the
+bottom of a pass, at high angle of attack and with strong shock
+interaction, piston theory may fail, and the modal forcing is then carried
+as uncertain (a widened interval).
 
 
 %--------------------------------------------------------------------------
@@ -693,20 +752,20 @@ primary driver of the aerodynamic interval widths.
 \textbf{Cartesian ECEF + Quat.} \\
 \midrule
 Corridor constraints &
-  Box in $(r,V)$ &
+  Box in $(r,V)$; monotone limits &
   Nonlinear: $h = \norm{\vvec{r}} - R_e$ \\
 Glide condition &
-  Native: Eq.~(\ref{eq:glide-3dof})/(\ref{eq:glide-full}) &
+  Native: Eq.~(\ref{eq:glide-3dof})/(\ref{eq:glide-balance}) &
   Derived from $(u,v,w)$, $\norm{\vvec{r}}$ \\
-Position singularity &
-  Pole in $\dot\lambda$ &
+Chart singularity &
+  Poles, in $\dot\lambda$ and $\dot\psi$ &
   None \\
 Dynamics &
   Transcendental ($\sin$, $\cos$) &
   Polynomial (quadratic in $\vvec{q}$) \\
-Wrapping source &
-  Trig dependency &
-  Corridor intersection \\
+Dependency loss &
+  Trigonometric factors &
+  Corridor and glide evaluation \\
 Density evaluation &
   $\rho(r-R_e)$: direct &
   $\rho(\norm{\vvec{r}}-R_e)$: extra $\sqrt{\cdot}$ \\
@@ -715,10 +774,15 @@ Density evaluation &
 \end{center}
 
 \smallskip\noindent
-The spherical-LVLH choice concentrates wrapping in the dynamics
-(trigonometric evaluations), where it is distributed across every time step
-and can be controlled by step-size refinement. The Cartesian choice
-concentrates wrapping in the corridor intersection, where it is applied
-once per intersection and inflates the entire reachable-set bound. For the
-profile decomposition---which is organized around the corridor and the
-glide manifold---the spherical choice produces tighter certified bounds.
+The spherical-LVLH choice places the dependency loss in the trigonometric
+factors of the dynamics, each a function of a single state that encloses
+tightly. The Cartesian choice places it in the corridor and the glide
+balance, which become nonlinear functions of several states and are
+evaluated at every contraction. Neither choice touches the wrapping effect
+proper, which is a property of how the propagated set is represented and is
+not reduced by refining the time step: re-boxed at every step, a rotation
+inflates a box by a factor that tends to $e^{2\pi}$ per revolution as the
+step vanishes, and the phugoid of \cref{apx:residual} is such a rotation.
+For the profile decomposition---which is organized around the corridor and
+the glide---the spherical choice is the better fit, at the price of the
+polar restriction of \cref{sec:coord-rationale}.

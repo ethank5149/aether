@@ -72,6 +72,7 @@ Certification
    :maxdepth: 2
 
    certification
+   symbolic
 
 Visualization and Verification
 ------------------------------

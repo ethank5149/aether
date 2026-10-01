@@ -1,0 +1,339 @@
+% =====================================================================
+%  Thesis proposal, Appendix: Concentration along the time axis
+%  Owns: apx:time
+% =====================================================================
+
+\section{Concentration along the time axis}
+\label{apx:time}
+
+This appendix supports \cref{sec:profile}. It is a sketch, and it says
+where it stops. Two elementary bounds and the compactness they give are
+proved; the application of Lions' lemma is a statement about a sequence of
+densities and is exact; the identification of its alternatives with the
+flight regimes, and the passage from the dissipation back to the state,
+are stated as what remains to be shown, and gathered in
+\cref{sec:time-open}.
+
+%--------------------------------------------------------------------------
+\subsection{Setting, and two elementary bounds}\label{sec:time-setting}
+%--------------------------------------------------------------------------
+
+Throughout, $\eps = \eps_{\mathrm{atm}}$. The corridor $\calX$ is a compact
+set of states on which $V \ge V_{\min} > 0$,
+$\abs{\gamma}\le\gamma_{\max}<\pi/2$ and $\abs{\phi}\le\phi_{\max}<\pi/2$.
+A \emph{trajectory} is an absolutely continuous
+$x_\eps\colon[0,T]\to\calX$ whose translational part
+satisfies~\crefrange{eq:rdot}{eq:phidot} and~\crefrange{eq:Vdot}{eq:psidot}
+for almost every~$t$, with the specific aerodynamic force
+$(F_V,F_\gamma,F_\psi)/m$ selected measurably from the enclosure. Nothing is
+assumed about how the force arises: the bank history, the attitude and the
+selection from the interval field are all free. One assumption is made on
+the enclosure.
+
+\begin{assum}[Dissipative enclosure]\label{asm:dissipative}
+There is a constant $E_{\max}$ such that every selection satisfies
+$F_V \le 0$ and $(F_\gamma^2 + F_\psi^2)^{1/2} \le E_{\max}\abs{F_V}$.
+\end{assum}
+
+The first inequality says that the aerodynamic force never does positive
+work on the vehicle, the second that lift is bounded by a multiple of drag.
+For a lift-and-drag enclosure they read $[C_D]\subset(0,\infty)$ and
+$[C_L]/[C_D]\subset[-E_{\max},E_{\max}]$. A propulsive mode adds a bounded
+source to what follows and is not considered here.
+
+\begin{lem}[Energy balance]\label{lem:energy}
+Let
+\[
+  \mathcal{E} \;=\; \tfrac12 V^2 + \Phi_g(r,\phi)
+                    - \tfrac12\,\omega_E^2 r^2\cos^2\!\phi
+\]
+be the specific mechanical energy in the rotating frame, with $\Phi_g$ the
+potential of \cref{sec:gravity}. Along every trajectory
+\begin{equation}\label{eq:dissipation}
+  \dot{\mathcal{E}} \;=\; \frac{F_V}{m}\,V \;=:\; -P \;\le\; 0 ,
+\end{equation}
+so that $\int_0^T P\dd t = \mathcal{E}(x(0)) - \mathcal{E}(x(T))
+\le \Delta\mathcal{E}$, where
+$\Delta\mathcal{E} = \max_{\calX}\mathcal{E} - \min_{\calX}\mathcal{E}$.
+\end{lem}
+
+\begin{proof}
+Differentiate along \crefrange{eq:rdot}{eq:phidot} and \cref{eq:Vdot}. The
+terms in $g_D$ and $g_N$ cancel against
+$\partial_r\Phi_g\,\dot r + \partial_\phi\Phi_g\,\dot\phi$, by the
+definition of $g_D$ and $g_N$ as the gradient of $\Phi_g$, and the
+centrifugal term of \cref{eq:Vdot} against the derivative of
+$\tfrac12\omega_E^2r^2\cos^2\!\phi$. The Coriolis force and the two normal
+components of the aerodynamic force are perpendicular to the velocity and
+do not appear in \cref{eq:Vdot} at all. The identity is checked by computer
+algebra with oblateness and rotation retained.
+\end{proof}
+
+\begin{lem}[Impulse bound]\label{lem:impulse}
+Under \cref{asm:dissipative} the aerodynamic acceleration
+$\vvec{a} = \vvec{F}_a/m$ satisfies $\abs{\vvec{a}} \le C_a P$ with
+$C_a = \sqrt{1+E_{\max}^2}\,/\,V_{\min}$. Hence for every interval
+$I\subseteq[0,T]$,
+\[
+  \int_I \abs{\vvec{a}}\dd t \;\le\; C_a\int_I P\dd t .
+\]
+\end{lem}
+
+\begin{proof}
+$\abs{\vvec{a}}^2 = (F_V^2 + F_\gamma^2 + F_\psi^2)/m^2
+\le (1+E_{\max}^2)\,F_V^2/m^2$ and $\abs{F_V}/m = P/V \le P/V_{\min}$.
+\end{proof}
+
+The second lemma is what makes the dissipation the right quantity to follow.
+Lift cannot be had without drag, so wherever no energy is lost the
+aerodynamics does nothing, and the motion is that of the gravity field in
+the rotating frame. Whatever a pass does to the state, the dissipation sees
+it.
+
+%--------------------------------------------------------------------------
+\subsection{Compactness in slow time}\label{sec:time-slow}
+%--------------------------------------------------------------------------
+
+Let $\eps_n\to 0$ and let $x_n$ be a trajectory for each~$n$. Write
+$\mathcal{E}_n(t) = \mathcal{E}(x_n(t))$; $\pi_n = P_n\dd t$, a positive
+measure on $[0,T]$ of mass at most $\Delta\mathcal{E}$; and
+$\vvec{y}_n(t)$, $\vvec{v}_n(t)\in\R^3$ for the position and the
+planet-relative velocity in planet-fixed Cartesian components, in which the
+chart singularities play no part.
+
+\begin{prop}[Skeleton and impulses as a limit]\label{prop:slow}
+Under \cref{asm:dissipative} there is a subsequence along which:
+\begin{enumerate}[label=(\roman*),leftmargin=*,itemsep=2pt]
+  \item $\mathcal{E}_n(t)\to\mathcal{E}_0(t)$ for every $t\in[0,T]$, with
+    $\mathcal{E}_0$ non-increasing, and $\pi_n\rightharpoonup\pi_0$
+    weakly-$*$, where $\pi_0$ is the measure with distribution function
+    $\mathcal{E}_0(0)-\mathcal{E}_0$;
+  \item $\pi_0 = p\dd t + \sum_j a_j\,\delta_{t_j} + \pi_c$, with
+    $p\in L^1(0,T)$, at most countably many atoms $a_j>0$, and $\pi_c$
+    singular and without atoms; and for every $\delta>0$
+    \[
+      \#\{\,j : a_j \ge \delta\,\} \;\le\; \Delta\mathcal{E}/\delta ;
+    \]
+  \item on every closed interval on which $\mathcal{E}_0$ is continuous,
+    the convergence $\mathcal{E}_n\to\mathcal{E}_0$ is uniform;
+  \item $\vvec{y}_n\to\vvec{y}_0$ uniformly, $\vvec{v}_n(t)\to\vvec{v}_0(t)$
+    for every~$t$, $\dot{\vvec{y}}_0 = \vvec{v}_0$ almost everywhere, and
+    for $0\le s<t\le T$
+    \begin{equation}\label{eq:bv}
+      \abs{\vvec{v}_0(t) - \vvec{v}_0(s)}
+      \;\le\; C_g\,(t-s) + C_a\,\pi_0([s,t]) ,
+    \end{equation}
+    with $C_g$ a bound on the gravitational, Coriolis and centrifugal
+    accelerations over the corridor.
+\end{enumerate}
+\end{prop}
+
+\begin{proof}
+(i) The functions $\mathcal{E}_n$ are non-increasing by \cref{lem:energy}
+and uniformly bounded on the compact corridor, so Helly's selection theorem
+gives a subsequence converging at every point; the measures $\pi_n$ are
+their Stieltjes measures, and pointwise convergence of the distribution
+functions at the continuity points of the limit, with bounded total mass,
+is weak-$*$ convergence. (ii) is the Lebesgue decomposition of $\pi_0$, and
+the count follows from $\sum_j a_j\le\pi_0([0,T])\le\Delta\mathcal{E}$.
+(iii) is P\'olya's theorem: monotone functions converging pointwise to a
+continuous limit on a compact interval converge uniformly. (iv) In
+planet-fixed components Newton's law reads
+$\dot{\vvec{v}}_n = \vvec{a}_n + \vvec{g}(\vvec{y}_n)
+ - 2\,\vvec{\omega}_E\times\vvec{v}_n
+ - \vvec{\omega}_E\times(\vvec{\omega}_E\times\vvec{y}_n)$,
+so by \cref{lem:impulse}
+\[
+  \abs{\vvec{v}_n(t)-\vvec{v}_n(s)}
+  \;\le\; C_g\,(t-s) + C_a\,\pi_n([s,t]) .
+\]
+The velocities therefore have total variation at most
+$C_g T + C_a\,\Delta\mathcal{E}$, uniformly in~$n$, and Helly's theorem for
+functions of bounded variation gives pointwise convergence along a further
+subsequence. The positions are uniformly Lipschitz and converge uniformly
+by Arzel\`a--Ascoli, and $\dot{\vvec{y}}_0=\vvec{v}_0$ by dominated
+convergence. \Cref{eq:bv} follows on letting $n\to\infty$, since
+$\limsup_n\pi_n(F)\le\pi_0(F)$ for closed~$F$.
+\end{proof}
+
+Three things can be read off \cref{eq:bv}. The limiting velocity has bounded
+variation, and it can jump only at an atom of $\pi_0$, by at most
+$C_a a_j$: an atom is an impulse, and its size bounds the impulse. On an
+interval that $\pi_0$ does not charge, $\int\abs{\vvec{a}_n}\dd t\to 0$ and
+the limit is an arc of the gravity field alone. And where $\pi_0$ has a
+density~$p$ the aerodynamic forcing survives as an acceleration of
+magnitude at most $C_a\,p$, which is the glide. This is the
+skeleton-and-impulses picture as a statement about
+limits, valid for every control and every selection, and it is as far as
+compactness alone goes. It does not exclude the part $\pi_c$, and it says
+nothing yet about what happens \emph{inside} an atom.
+
+%--------------------------------------------------------------------------
+\subsection{The fast-time axis and Lions' lemma}\label{sec:time-fast}
+%--------------------------------------------------------------------------
+
+To see inside an atom the time axis is dilated. Fix a scale $h_n\to 0$---in
+the body, $h_n=\sqrt{\eps_n}$---suppose the total dissipation stays bounded
+below, $\pi_n([0,T])\ge m_0>0$, and set
+\[
+  \nu_n(\tau) \;=\; \frac{h_n\,P_n(h_n\tau)}{\pi_n([0,T])}
+  \qquad(\tau\in\R),
+\]
+extended by zero outside $[0,T/h_n]$. Then $\nu_n\ge 0$ and
+$\int_\R\nu_n\dd\tau = 1$, and the concentration-compactness
+lemma~\cite[Lemma~I.1]{lions1984concentration1} applies with no further
+hypothesis. There is a subsequence along which one of the following holds.
+\begin{description}[leftmargin=1.5em,itemsep=2pt]
+  \item[Compactness.] There are $\tau_n\in\R$ such that for every
+    $\eta>0$ there is $R<\infty$ with
+    $\int_{\tau_n-R}^{\tau_n+R}\nu_n\dd\tau \ge 1-\eta$ for all~$n$.
+  \item[Vanishing.] For every $R<\infty$,
+    $\;\sup_{y\in\R}\int_{y-R}^{y+R}\nu_n\dd\tau \to 0$.
+  \item[Dichotomy.] There is $\alpha\in(0,1)$ such that for every $\eta>0$
+    there are nonnegative $\nu_n^1,\nu_n^2$ with
+    $\norm{\nu_n - \nu_n^1 - \nu_n^2}_{L^1}\le\eta$,
+    $\abs{\int\nu_n^1 - \alpha}\le\eta$,
+    $\abs{\int\nu_n^2 - (1-\alpha)}\le\eta$, and
+    $\operatorname{dist}(\operatorname{supp}\nu_n^1,
+    \operatorname{supp}\nu_n^2)\to\infty$.
+\end{description}
+
+Each has a reading. In the first, all but a fraction $\eta$ of the
+dissipation occurs within a time $R\,h_n$ of $t_n = h_n\tau_n$: a single
+pass, and $\pi_0$ is one atom. In the second no window of width $R\,h_n$
+holds a fixed share. This is the case whenever the drag power is bounded
+uniformly in~$n$, since then a window holds at most $2RC\,h_n/m_0$; the
+limit $\pi_0$ then has a bounded density and no atom. In the third the
+dissipation splits into pieces that separate on the fast scale: two passes
+a positive time apart, or a pass followed by a glide. Applying the lemma
+again to each piece, as in the construction of a profile decomposition,
+extracts the concentrated pieces one at a time; for a threshold~$\delta$
+the process stops after at most $\Delta\mathcal{E}/\delta$ steps, by
+\cref{prop:slow}(ii), and leaves a remainder in which no window holds more
+than about~$\delta$. The remainder is small in the sense of the second
+alternative, in the norm $\sup_y\int_{y-R}^{y+R}\abs{\,\cdot\,}\dd\tau$,
+and not in $L^1$: on a glide it is most of the dissipation.
+
+\begin{remark}[Which alternative occurs is decided by the corridor]
+\label{rem:regimes}
+Whether a family concentrates at all is a statement about how its corridor
+scales with $\eps$, and belongs among the hypotheses. If the dynamic
+pressure and load limits are held fixed as $\eps\to 0$, the drag power is
+bounded, every sequence vanishes, and the limit has no atoms: the
+trajectories are glide and phugoid, and the fast-scale structure is
+\emph{oscillation}, for which the natural tool is averaging over the
+invariant measures of the fast flow~\cite{artstein1999invariant}.
+Concentration requires loads that grow as $\eps\to 0$, as in the classical
+matched-asymptotic analysis of skip entry at a fixed entry
+angle~\cite{shi1971skip}, where the layer has thickness $O(\eps)$ in
+altitude. The physical value $\eps\approx 1.1\times10^{-3}$, with entry
+angles of a few degrees, lies between the two: by \cref{eq:turning} a pass
+that turns the flight path through $8^\circ$ at a vertical lift-to-drag
+ratio of two dissipates about an eighth of the kinetic energy, and a
+computed pass lasts about a fifth of the slow time.
+The threshold in \cref{eq:kmax} is what makes the decomposition well posed
+at fixed $\eps$ without deciding the regime. Passes that dissipate more
+than $\delta$ are bubbles, and there are at most $\Delta\mathcal{E}/\delta$
+of them whatever $\eps$ is; everything else is residual, and has to be
+bounded as oscillation.
+\end{remark}
+
+\begin{remark}[The scale has to be chosen for each piece]
+Compactness at the scale $h_n$ forces a single atom of $\pi_0$, but
+vanishing at that scale does not exclude one: dissipation that concentrates
+at a coarser scale $h_n'\gg h_n$, $h_n'\to 0$, vanishes at the scale $h_n$
+and still produces an atom. Conversely a pass shorter than $h_n$ is compact
+at that scale and its profile is a Dirac mass. The lemma classifies what
+happens at one scale; the width of each piece has to be found from the
+piece. That is the content of the limit-case form of the
+principle~\cite{lions1985limit1}, in which compactness is recovered up to a
+translation \emph{and} a dilation.
+\end{remark}
+
+%--------------------------------------------------------------------------
+\subsection{Profiles and their orthogonality}\label{sec:time-profiles}
+%--------------------------------------------------------------------------
+
+For an atom $(t_j,a_j)$ of $\pi_0$ choose centers $t_n^j\to t_j$ and widths
+$h_n^j\to 0$ such that the windows
+$[t_n^j - R\,h_n^j,\, t_n^j + R\,h_n^j]$ capture $a_j$ as $R\to\infty$,
+uniformly in~$n$, with $h_n^j$ the smallest scale at which this holds. The
+rescaled densities $s\mapsto h_n^j\,P_n(t_n^j + h_n^j s)$ are then tight on
+the line and converge weakly-$*$ along a subsequence to a measure $p^j$ of
+mass $a_j$, the \emph{profile} of the pass. Two profiles $j\ne k$ are
+\emph{orthogonal} in the sense of~\cite[(1.18)]{bahouri1999high} when
+\[
+  \Bigl|\log\frac{h_n^j}{h_n^k}\Bigr| \to \infty
+  \qquad\text{or}\qquad
+  h_n^j = h_n^k \ \text{ and } \
+  \frac{\abs{t_n^j - t_n^k}}{h_n^j}\to\infty .
+\]
+Atoms at distinct times are orthogonal by the second alternative, with
+nothing to prove. For orthogonal profiles the dissipation is additive,
+\begin{equation}\label{eq:additivity}
+  \pi_n([0,T])
+  \;=\; \sum_{j=1}^{J} a_j \;+\; r_n^J([0,T]) \;+\; o(1)
+  \qquad(n\to\infty),
+\end{equation}
+with $r_n^J$ the dissipation outside the $J$ windows. This is the analogue
+of the energy identity~\cite[(1.25)]{bahouri1999high}, and it is immediate,
+because the dissipation is a measure and the windows are eventually
+disjoint. The analogue of the nonlinear
+statement~\cite[(1.26)]{bahouri1999high}---that the solution is, up to a
+small error, the superposition of the profiles' separate evolutions---is
+not immediate, and here it is not a superposition at all. An ordinary
+differential equation composes: the state leaving pass~$j$ is the datum of
+the arc that leads to pass~$j+1$. What replaces (1.26) is a factorization
+of the map from entry data to exit data through the individual pass maps
+and the outer flow, with a remainder that is explicit and uniform over the
+selections. That is objective~4.
+
+%--------------------------------------------------------------------------
+\subsection{Joint profiles where scales meet}\label{sec:time-joint}
+%--------------------------------------------------------------------------
+
+Within a single pass the attitude and elastic motions are excited at their
+own scales, $h^{\mathrm{att}} = \eps_{\mathrm{att}}$ and
+$h^{\mathrm{ela}} = \eps_{\mathrm{ela}}$ in units of the slow time. They
+share the center of the pass, so the second alternative of (1.18) is not
+available and orthogonality has to come from the first: the ratio of the
+scales must diverge along the family. Where it does, the faster motion
+averages out over the slower. Where two periods remain comparable---where
+two bands cross inside the corridor---the corresponding profiles cannot be
+separated, and the decomposition carries one joint profile on the coupled
+subsystem. The check is pairwise and depends on the vehicle. For generic
+parametrizations the first structural period lies between
+$6\,\mathrm{ms}$ and $0.18\,\mathrm{s}$ and a pass lasts about
+$150\,\mathrm{s}$; with the attitude period taken between $0.1$ and
+$10\,\mathrm{s}$, the atmospheric scale is separated from the other two by
+more than a decade, and the attitude and elastic scales meet only for a
+very slender, flexible body with a fast attitude loop. These are orders of
+magnitude, to be redone for any vehicle to which the result is applied.
+
+%--------------------------------------------------------------------------
+\subsection{What is not proved}\label{sec:time-open}
+%--------------------------------------------------------------------------
+
+\begin{enumerate}[leftmargin=*,itemsep=3pt]
+  \item \emph{The singular continuous part.} \Cref{prop:slow} allows
+    $\pi_c\ne 0$: dissipation carried by a set of times of measure zero
+    without atoms. Countably many passes that accumulate at a finite time,
+    with summable dissipation---a sequence of decaying skips that ends in a
+    glide, as the bounces of a ball end in rolling---are atoms and are
+    already covered. A genuinely diffuse singular part would have to be
+    excluded by a lower bound on the separation of passes in terms of the
+    energy each dissipates. This step is open.
+  \item \emph{Vanishing is glide.} That the part of $\pi_0$ with a density
+    corresponds to motion near the glide balance, and how near, is the
+    estimate of \cref{apx:residual}. It is an averaging estimate for a
+    weakly damped oscillator, not a boundary-layer estimate, and it is not
+    yet uniform over the selections.
+  \item \emph{Compactness of the profiles over the family.} The profile
+    $p^j$ and the impulse set it generates depend on the selection.
+    \Cref{lem:impulse} bounds the diameter of the impulse set by $C_a a_j$;
+    a description of the set itself is the inner problem of the classical
+    theory, to be solved over the interval field.
+  \item \emph{Composition.} The factorization that replaces (1.26), with
+    its remainder, at each of the three scales and under interval
+    disturbances.
+\end{enumerate}

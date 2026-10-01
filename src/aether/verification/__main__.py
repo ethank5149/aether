@@ -18,6 +18,7 @@ from aether.verification.r1v2_attitude_gap import run_r1v2
 from aether.verification.r1v3_impulse_rank import run_r1v3
 from aether.verification.r1v4_residual_constant import run_r1v4
 from aether.verification.r1v5_augmented_field import run_r1v5
+from aether.verification.s1_derivations import run_s1
 from aether.verification.v1_structural import run_v1
 from aether.verification.v2_slosh import run_v2
 from aether.verification.v3_integrators import run_v3
@@ -54,6 +55,7 @@ def main() -> int:
         (run_r1v3, "r1v3-impulse-rank"),
         (run_r1v4, "r1v4-residual-constant"),
         (run_r1v5, "r1v5-augmented-field"),
+        (run_s1, "s1-derivations"),
         (run_integration, "int-coupled"),
     ):
         report = runner(args.output)

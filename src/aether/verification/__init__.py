@@ -20,6 +20,9 @@ machine-readable CSV into a results directory:
   ultraspherical formulation versus collocation.
 - :mod:`aether.verification.p2v123_plates` — Mindlin plate and laminate
   benchmarks.
+- :mod:`aether.verification.s1_derivations` — S1: the manuscript's
+  derivations reduced symbolically to zero, and the compiled numerics
+  generated from the same expressions measured against them.
 
 Run them all with ``python -m aether.verification``.
 """

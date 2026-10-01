@@ -39,6 +39,9 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4",
     "mypy>=1.10",
+    # `make verify` reduces the manuscript's derivations symbolically (task S1),
+    # so a development install needs what that needs.
+    "sympy>=1.13",
 ]
 docs = [
     "sphinx>=7.0",
@@ -52,6 +55,20 @@ docs = [
 # undeclared until a clean container environment failed all 21 of them.
 certification = [
     "python-flint>=0.8",
+]
+# The symbolic arithmetic: `aether.symbolic` evaluates the fields on SymPy
+# symbols, reduces the manuscript's derivations to zero, and prints compiled
+# numerics from the same expressions. A C compiler is used when one is found
+# (`$CC`, then PATH, then a conda toolchain beside the interpreter) and is not
+# required: without one the generated code runs through NumPy.
+#
+# SymPy 1.14 calls into mpmath in ways mpmath 1.4 deprecates, and this
+# project's `filterwarnings = ["error"]` turns that into test failures. pip
+# resolves mpmath < 1.4 from SymPy's own metadata; conda-forge does not, so a
+# conda environment needs the pin stated.
+symbolic = [
+    "sympy>=1.13",
+    "mpmath<1.4",
 ]
 # GPU batch backend; pick the wheel matching the local CUDA major version.
 cuda = [
@@ -155,6 +172,13 @@ ignore_missing_imports = true
 module = "cupy.*"
 ignore_missing_imports = true
 follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+# SymPy ships no type information, so its expressions are `Any` throughout
+# `aether.symbolic`. That is accurate: what an expression *is* gets decided
+# by rewriting, not by a type.
+module = ["sympy", "sympy.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # gmsh and cantera arrived with the aerodynamics and aerothermal packages;

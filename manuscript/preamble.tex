@@ -193,6 +193,17 @@
 \usepackage[nameinlink,capitalise]{cleveref}
 \crefname{remark}{Remark}{Remarks}
 \Crefname{remark}{Remark}{Remarks}
+% The remaining theorem-like environments are declared above under their short
+% names, which cleveref does not know. Without these a \cref to one of them
+% prints the bare number.
+\crefname{lem}{Lemma}{Lemmas}
+\Crefname{lem}{Lemma}{Lemmas}
+\crefname{prop}{Proposition}{Propositions}
+\Crefname{prop}{Proposition}{Propositions}
+\crefname{assum}{Assumption}{Assumptions}
+\Crefname{assum}{Assumption}{Assumptions}
+\crefname{thm}{Theorem}{Theorems}
+\Crefname{thm}{Theorem}{Theorems}
 
 % ---- Running header: each paper calls \runninghead{Short Title} ----
 \newcommand{\runninghead}[1]{%

@@ -1,0 +1,230 @@
+% =====================================================================
+%  Thesis proposal, Appendix: Skeleton residual and bubble budget
+%  Owns: apx:residual
+% =====================================================================
+
+\section{Skeleton residual and bubble budget}
+\label{apx:residual}
+
+This appendix supports \cref{sec:bound}. It gives the two constants of
+\cref{eq:target} in the form in which they presently exist, says what has
+been computed against them, and states the range in which each holds. The
+identities are checked by computer algebra, and the leading-order
+statements as limits of exact expressions, against the same definition of
+the field from which the numerical routines are generated; the comparisons
+with computation are verification tasks of the accompanying code, each with
+a failure criterion stated before it is run.
+
+%--------------------------------------------------------------------------
+\subsection{The planar glide}\label{sec:residual-glide}
+%--------------------------------------------------------------------------
+
+For spherical gravity and no rotation the altitude, speed and flight-path
+angle decouple from the rest of~\crefrange{eq:rdot}{eq:psidot}:
+\[
+  \dot r = V\sin\gamma,\qquad
+  \dot V = -\frac{D}{m} - g\sin\gamma,\qquad
+  V\dot\gamma = \frac{L\cos\sigma}{m} - \Bigl(g - \frac{V^2}{r}\Bigr)\cos\gamma ,
+\]
+with $D/m = \rho V^2/(2\beta)$ for a ballistic coefficient~$\beta$, an
+exponential density of scale height~$H_s$, and $g = \mu/r^2$. Two
+abbreviations recur: the vertical lift-to-drag ratio and the net
+gravitational acceleration,
+\[
+  E_v = \frac{L}{D}\cos\sigma, \qquad G = g - \frac{V^2}{r} .
+\]
+On the equilibrium glide $\gamma = 0$ and $L\cos\sigma/m = G$, so
+$D/m = G/E_v$. As the speed bleeds off the glide altitude descends, and to
+leading order in $\eps = H_s/R_e$ its rate is
+\begin{equation}\label{eq:glide-descent}
+  \dot h_{\mathrm{g}} \;=\; -\,\frac{2H_s\,g}{V E_v} .
+\end{equation}
+
+%--------------------------------------------------------------------------
+\subsection{The phugoid}\label{sec:residual-phugoid}
+%--------------------------------------------------------------------------
+
+Linearized about a point of the glide with the coefficients frozen, the
+three equations have the characteristic polynomial
+$\lambda^3 + a_2\lambda^2 + a_1\lambda + a_0$, in which
+$a_2 = 2G/(E_vV)$ exactly, $H_s\,a_1\to G$ and $a_0/a_1\to -2V/(rE_v)$ as
+$H_s\to 0$. Its roots are one real root $\lambda_{\mathrm{s}}$ and a
+complex pair $-\varsigma\pm i\omega$, the \emph{phugoid}: the oscillation of
+altitude against flight-path angle about the glide. The sum of the roots is
+$-a_2$, so $\varsigma = (a_2 + \lambda_{\mathrm{s}})/2$ exactly, and to
+leading order $\lambda_{\mathrm{s}} = -a_0/a_1 = 2V/(rE_v)$. Hence
+\begin{equation}\label{eq:phugoid}
+  \omega^2 \;=\; \frac{G}{H_s}, \qquad
+  \varsigma \;=\; \frac{g}{V E_v},
+\end{equation}
+each up to a relative correction of order~$\eps$. The real root is positive
+and is not an instability. It is the rate at which a frozen linearization
+registers that the glide itself is descending.
+
+The two quantities in \cref{eq:phugoid} scale differently, and everything
+in this appendix follows from that. The frequency grows like
+$\eps^{-1/2}$. The damping rate does not contain $H_s$ at all; by
+\cref{eq:glide-descent} it is $\abs{\dot h_{\mathrm{g}}}/(2H_s)$, half the
+rate at which the glide descends through scale heights. The damping ratio is
+therefore
+\begin{equation}\label{eq:zeta}
+  \zeta \;=\; \frac{\varsigma}{\omega}
+  \;=\; \frac{\sqrt{g R_e}}{V E_v\sqrt{1 - V^2/(gr)}}\;\sqrt{\eps} ,
+\end{equation}
+of order $\sqrt{\eps}$. For $L/D = 2$ at $6$\,km/s and the terrestrial
+scale height the period is about $265$\,s, the decay time
+$1/\varsigma\approx 1250$\,s and $\zeta\approx 0.034$: the oscillation
+lasts as long as the entry.
+
+%--------------------------------------------------------------------------
+\subsection{The residual constant}\label{sec:residual-constant}
+%--------------------------------------------------------------------------
+
+A trajectory started level on the glide altitude is not on the glide: the
+glide descends at the rate \cref{eq:glide-descent} and the trajectory
+trails it by one phugoid response time, ringing with an altitude amplitude
+$\abs{\dot h_{\mathrm{g}}}/\omega$. In scale heights that amplitude is
+$C_{\calR}\sqrt{\eps}$ with
+\begin{equation}\label{eq:CR}
+  C_{\calR} \;=\; \frac{2\sqrt{g R_e}}{V E_v\sqrt{1 - V^2/(gr)}} ,
+  \qquad\text{so that}\qquad
+  C_{\calR}\sqrt{\eps} \;=\; 2\,\zeta .
+\end{equation}
+The residual constant and the damping ratio are one number, read two ways.
+
+The form has been measured rather than assumed. With the scale height
+varied from $2$ to $30$\,km at fixed anchor density, the largest altitude
+deviation in scale heights scales as $\eps^{0.49}$ and the largest
+flight-path angle as $\eps^{0.98}$, so the altitude channel sets the bound.
+Against direct integration \cref{eq:CR} is an upper bound in every case
+tried, tight to about four percent. The cases vary one quantity at a time
+about a generic lifting body at an angle of attack $\alpha = 16^\circ$,
+$V = 6$\,km/s and zero bank, the angle of attack setting $L/D$:
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+case & $L/D$ & computed & \cref{eq:CR} & ratio \\
+\midrule
+$\alpha = 10^\circ$ & $4.89$ & $0.813$ & $0.822$ & $0.988$ \\
+$\alpha = 16^\circ$ & $3.30$ & $1.193$ & $1.215$ & $0.982$ \\
+$\alpha = 25^\circ$ & $2.09$ & $1.858$ & $1.912$ & $0.972$ \\
+$\alpha = 35^\circ$ & $1.41$ & $2.714$ & $2.834$ & $0.958$ \\
+$V = 5.0$\,km/s & $3.30$ & $1.207$ & $1.236$ & $0.977$ \\
+$V = 6.8$\,km/s & $3.30$ & $1.342$ & $1.362$ & $0.985$ \\
+$\sigma = 30^\circ$ & $3.30$ & $1.373$ & $1.402$ & $0.979$ \\
+$\sigma = 60^\circ$ & $3.30$ & $2.335$ & $2.422$ & $0.964$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The formula bounds rather than equals because the trajectory rings: it
+tracks the envelope of the oscillation, and the computed supremum touches it
+from below.
+
+%--------------------------------------------------------------------------
+\subsection{Why this is not a settling rate}\label{sec:residual-settling}
+%--------------------------------------------------------------------------
+
+\Cref{eq:CR} bounds the distance to the glide for a trajectory that starts
+on it. It does not say that other trajectories approach it, and by
+\cref{eq:zeta} they do so only slowly. The number of oscillations per
+$e$-folding of the amplitude is $1/(2\pi\zeta)$, which grows like
+$\eps^{-1/2}$. In the limit the motion normal to the glide is an undamped
+oscillation on its own timescale. The glide balance is then not a normally
+hyperbolic slow manifold, the hypothesis under which a slow manifold
+persists and attracts~\cite{fenichel1979geometric,jones1995geometric}, and
+the regular-perturbation analysis of the glide notes the same thing from
+the other side: the exact solution does not approach the zeroth-order
+one~\cite{lu2006asymptotic}.
+
+The frozen rate is, moreover, not what either amplitude does. The
+coefficients drift as the vehicle slows, and with that drift retained the
+two amplitudes of the oscillation decay at different rates,
+\begin{equation}\label{eq:decay}
+  \frac{\dot A_h}{A_h} = -\frac32\,\varsigma ,
+  \qquad
+  \frac{\dot A_\gamma}{A_\gamma} = -\frac12\,\varsigma ,
+\end{equation}
+for the altitude deviation and the flight-path angle respectively: the
+frequency rises as the speed falls, so the altitude swing closes faster and
+the angle swing slower. Their product, the action of the oscillator, decays
+at $2\varsigma$. Integration of the full equations confirms both rates to
+about one percent at the terrestrial scale height.
+
+What excites the oscillation is at least as important as what damps it. A
+change of bank from $\sigma_1$ to $\sigma_2$ moves the glide altitude by
+$H_s\ln(\cos\sigma_2/\cos\sigma_1)$, a fixed fraction of a scale height
+however thin the layer. Under bank modulation the altitude therefore
+departs from the instantaneous glide by an amount of order one in scale
+heights, not of order $\sqrt{\eps}$, and so does a trajectory leaving a
+pass.
+
+Two ways of closing the residual bound are consistent with this, and
+choosing between them is part of objective~5.
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \emph{Carry the amplitude.} The radius of the residual ball is the
+    lag $C_{\calR}\sqrt{\eps}$ plus the ringing amplitude, bounded at its
+    excitation and decaying by \cref{eq:decay}. The bound stays explicit
+    and the skeleton stays the glide, at the cost of a residual that is not
+    small immediately after a pass or a bank change.
+  \item \emph{Average.} The phugoid amplitude is promoted to a slow
+    coordinate of the skeleton and the phase is averaged out. The slow
+    variables then follow the averaged inclusion and the fast ones converge
+    in the statistical sense of~\cite{artstein1999invariant}. The residual
+    is the averaging error, which for a smooth field with a single fast
+    phase is of order $\sqrt{\eps}$ on the slow timescale; a rate that is
+    uniform over the selections is what would have to be shown. The
+    skeleton gains a dimension.
+\end{enumerate}
+In the unstretched state variables the two descriptions agree on the
+order: an oscillation of fixed amplitude in scale heights has an altitude
+excursion of order $\eps R_e$ and a flight-path-angle excursion of order
+$\sqrt{\eps}$, so the occupation measures do concentrate on the glide as
+$\eps\to 0$, at the rate $\sqrt{\eps}$ set by the angle. What they do not
+do is concentrate at that rate in the metric of \cref{eq:target}, in which
+altitude is measured in scale heights.
+
+%--------------------------------------------------------------------------
+\subsection{Range of validity}\label{sec:residual-range}
+%--------------------------------------------------------------------------
+
+$C_{\calR}$ diverges as $V^2\to gr$. Near circular speed the lift required
+vanishes, the glide altitude climbs, and by \cref{eq:phugoid} the phugoid
+slows until it is no longer fast: there is no separation of scales to
+exploit. The constant is therefore stated on a corridor bounded away from
+circular speed, and what lies above that bound is the regime of arcs and
+passes, to which the glide description does not apply. The same boundary
+appears independently in the attitude dynamics, where the dynamic pressure
+on the glide falls with the lift required and the trim loses stiffness, so
+that a floor on dynamic pressure belongs among the hypotheses of the
+corridor rather than among its consequences.
+
+%--------------------------------------------------------------------------
+\subsection{The bubble budget}\label{sec:residual-budget}
+%--------------------------------------------------------------------------
+
+By \cref{lem:energy} the specific energy is non-increasing along every
+trajectory of every selection, so a pass that dissipates at least $\delta$
+can occur at most $K_\delta\le\Delta\mathcal{E}/\delta$ times: this is
+\cref{eq:kmax}. The dissipation of a pass is tied to how far it turns the
+flight path. Where the aerodynamic force dominates gravity,
+$\dd V/V = -\dd\gamma/E_v$, and a pass that turns the flight path through
+$\Delta\gamma$ at constant $E_v$ leaves with
+\begin{equation}\label{eq:turning}
+  \frac{V_{\mathrm{out}}}{V_{\mathrm{in}}}
+  \;=\; e^{-\Delta\gamma/E_v} ,
+\end{equation}
+the classical relation for a skip, in which
+$\Delta\gamma = 2\gamma_{\mathrm{entry}}$~\cite{eggers1958comparative}. A
+pass entered at $4^\circ$ with $E_v = 2$ therefore dissipates about
+thirteen percent of the kinetic energy, and an entry that sheds its energy
+in such passes makes about fourteen of them before the speed has fallen by
+a factor $e$. The count needs no heating correlation; the
+integrated heat load gives the same budget its physical reading, and the
+corridor constraint on it is carried separately\apxref{rem:sutton-graves-circularity}.
+
+The width of a pass has been measured as well. A computed pass entered at
+$80$\,km, $6.5$\,km/s and $-4^\circ$ returns to its entry altitude after
+$145$\,s, which is $0.18$ of the slow time $\sqrt{R_e/g}$; the phugoid
+period is $2\pi\sqrt{\eps}=0.21$ of it, and $\sqrt{\eps} = 0.034$. The
+layer scales as $\sqrt{\eps}$ and its width carries the factor $2\pi$: an
+estimate that substitutes $\sqrt{\eps}$ for the width understates it sixfold.

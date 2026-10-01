@@ -61,14 +61,14 @@ flowchart TD
 
     subgraph phase4_certification ["<b>Phase 4: Certification</b>"]
     direction LR
-    dual_polynomial_construction["<b>Dual Polynomial Construction:</b> Skeleton Distance + Bubble Inner Profiles + Residual Margin"]
-    exact_rational_verification["<b>Exact Rational Verification:</b> Machine-checked inequality in exact arithmetic against worst-case envelopes"]
-    dual_polynomial_construction-- "Positivstellensatz Multipliers over Corridor" -->exact_rational_verification
+    closed_form_bound["<b>Closed-Form Bound:</b> Skeleton + Bubble Impulse Sets + Residual Ball"]
+    validated_verification["<b>Validated Verification:</b> Constants evaluated over the corridor in interval arithmetic with outward rounding; derivations checked symbolically"]
+    closed_form_bound-- "Constants C_R and K_delta in closed form" -->validated_verification
     end
 
-   phase1_embedding-- "Polynomial Lift via Savageau-Voit Recast" -->phase2_relaxation
+   phase1_embedding-- "Interval Enclosure of the Aerodynamics: a Differential Inclusion" -->phase2_relaxation
    phase2_relaxation-- "Singular Limit: eps_atm, eps_att, eps_ela -> 0" -->phase3_decomposition
-   phase3_decomposition-- "Supplies exact shape for dual comparison function" -->phase4_certification
+   phase3_decomposition-- "Supplies the shape of the bound" -->phase4_certification
    phase4_certification-->A@{ shape: lean-r, label: "Certified Footprint & Certified Flutter Margin" }
 ```
 
@@ -81,8 +81,8 @@ The reachable set of a hypersonic entry vehicle — every state it can be driven
 admissible control — is what safety-critical and threat analysis actually need bounded.
 Computing it exactly means solving a Hamilton–Jacobi–Isaacs equation on a grid: exponential
 in state dimension, capped in practice around four or five states. A rigid-body entry
-vehicle has thirteen before any augmentation, and twenty-five once ablation, heat load and
-structural deformation are carried.
+vehicle has thirteen before any augmentation, and seventeen plus two per structural mode
+once heat load, wall temperature, ablation and mass loss are carried.
 
 Worse, a grid gives a numerical approximation, not a certificate. And a polynomial barrier
 whose coefficients came out of an interior-point solver has analytical *form* but inherits
@@ -92,15 +92,18 @@ the solver's accuracy. There are two things to beat here, not one.
 
 Embed the hybrid vehicle dynamics into a Banach space of occupation measures, where the
 problem becomes **linear** despite the nonlinearity of the flight mechanics. In the
-thin-atmosphere limit the resulting measure family is *not compact*: mass concentrates onto
-a low-dimensional set of trajectories. Turn that failure of compactness into a profile
-decomposition — a finite-dimensional skeleton, one boundary-layer profile per event, and a
-residual with a quantitative bound — and use its structure to **derive** a comparison
-certificate rather than search for one numerically.
+thin-atmosphere limit the measure family still converges — the corridor is compact — but
+its limit *forgets every atmospheric pass*: a pass lasts a vanishing time and can still
+carry a finite share of the energy dissipated, and a reachable set is a support, not an
+integral. Read the loss where it occurs, on the dissipation along the rescaled time axis,
+and turn it into a profile decomposition — a finite-dimensional skeleton, one boundary-layer
+profile per pass, and a residual with a quantitative bound — and use its structure to
+**derive** the bound rather than search for one numerically.
 
-The bound is then analytical in the strong sense: derived by hand, discharged in exact
-rational arithmetic over the entry corridor. Sum-of-squares programming appears only as an
-independent numerical cross-check, never as the source of the guarantee.
+The bound is then analytical in the strong sense: constants in closed form, evaluated over
+the entry corridor in validated interval arithmetic, with the derivations behind them
+checked symbolically. Sum-of-squares programming appears only as an independent
+cross-check, never as the source of the guarantee.
 
 ## The proposal
 
@@ -113,12 +116,14 @@ The chain it sets out:
 1. **Coupled entry dynamics.** A continuum ODE–PDE model of the entry body: rigid-body 6-DOF,
    ablation and heat load, and aerothermoelastic deformation, with its assumptions stated
    and minimal.
-2. **Polynomial embedding.** The model made polynomial *exactly*, by adjoining auxiliary
-   states rather than by fitting.
-3. **Occupation measures and compactness.** The embedded system lifted to a linear problem on
-   measures, and the compactness the corridor constraints supply, verified.
-4. **Decomposition and certificate.** The concentration that compactness fails by, turned
-   into a profile decomposition and from there into a derived, exactly verified bound.
+2. **Interval embedding.** The aerodynamics enclosed in intervals rather than fitted, so the
+   dynamics become a differential inclusion whose every selection is covered. Transcendentals
+   are evaluated natively, and no auxiliary state is adjoined.
+3. **Occupation measures and what their limit forgets.** The inclusion lifted to a linear
+   problem on measures; the compactness the corridor constraints supply; and the loss that
+   remains anyway, along the fast-time axis.
+4. **Decomposition and certificate.** That loss turned into a profile decomposition, and from
+   there into closed-form constants evaluated in validated arithmetic.
 
 The model is **vehicle-agnostic**: no result depends on a particular body's geometry,
 materials or data, which enter only as inputs, either as specific values or as certified
@@ -159,7 +164,7 @@ own rate laws**.
 | Frame coupling of aero force into inertial energy | enclosed — sharp constant from the load-factor constraint |
 | Higher-order piston-theory forcing | enclosed — keeps the load-bearing pencil linear |
 | Ablation recession | **resolved** — state, bounded by the heat-load budget |
-| Integrated heat load | **resolved** — state with a polynomial rate equation |
+| Integrated heat load | **resolved** — state with its own rate equation |
 | **Aerothermoelastic deformation** | **resolved** — modal state, temperature-dependent banded stiffness, first-order piston forcing |
 
 Aerothermoelasticity was the last effect whose bound was *assumed* rather than certified.
@@ -169,12 +174,15 @@ hypothesis, a uniform spectral gap, whose certification is itself the point. The
 margin is not a separate theorem; it *is* the certificate that the modal bound is
 forward-invariant under the true dynamics rather than posited.
 
-### Exact polynomial closure
+### No polynomial closure on the main line
 
-Everything above is made polynomial *exactly*, by adjoining auxiliary states rather than by
-fitting: density as `y = √(ρ/ρ₀)` with `ẏ ∝ y`, and the temperature-dependent elastic
-modulus by the same exponential lift, `ẇ ∝ w·Ṫ`. No fit residual is smuggled in as a
-disturbance. That closure is the keystone every downstream result routes through.
+An earlier formulation made everything above polynomial *exactly*, by adjoining auxiliary
+states rather than by fitting: density as `y = √(ρ/ρ₀)` with `ẏ ∝ y`, and the
+temperature-dependent elastic modulus by the same exponential lift, `ẇ ∝ w·Ṫ`. The proposal
+no longer routes through it. Interval arithmetic evaluates the transcendentals directly, so
+the state carries only its physical coordinates, and the adjunctions survive only inside
+the sum-of-squares cross-check, which needs polynomial data. What is kept from that
+formulation is its rule: no fit residual is smuggled in as a disturbance.
 
 ### What the framework does and does not own
 
@@ -194,18 +202,21 @@ silently exceeded.*
 
 **Early, and deliberately explicit about it.**
 
-The proposal currently contains its first appendix: the coupled 6-DOF entry dynamics and
-their polynomial embedding. The later chapters are being drafted, and nothing in the
-manuscript should yet be read as a claim.
+The proposal is a draft: a body that states the program and its six objectives, and three
+appendices — the coupled 6-DOF entry dynamics, a sketch of the limit argument, and the
+constants of the bound in the form in which they presently exist. It says what is proved,
+what is computed and what is open, and nothing in it should be read as claiming more.
 
-The shared bibliography, [`manuscript/shared.bib`](manuscript/shared.bib), is assembled by
+The bibliography, [`manuscript/thesis.bib`](manuscript/thesis.bib), is assembled by
 hand: entries are added as sources are read and their details checked against the published
 record, rather than generated and hoped over.
 
 ### Building the proposal
 
 ```bash
-make proposal          # latexmk -> manuscript/proposal/main.pdf
+make proposal          # latexmk -> manuscript/proposal/main.pdf, with appendices
+make proposal-summary  # body only -> manuscript/proposal/main-summary.pdf
+make proposal-dist     # both, copied to manuscript/proposal/dist/ under sendable names
 make clean-proposal    # remove build artifacts
 ```
 
@@ -218,9 +229,11 @@ closes, to generate the numbers the manuscript is permitted to quote, and as a s
 testing whether a modeling decision survives being computed.
 
 It is **not** the contribution, and no result in the proposal depends on a float it produces.
-The one exception runs the other way: the certificate's exact-arithmetic verification is a
+The exceptions run the other way. The certificate's validated-arithmetic verification is a
 script that checks the derived bound and exits nonzero on failure, and *that* script is the
-artifact carrying the guarantee.
+artifact carrying the guarantee. And the derivations the manuscript relies on are reduced to
+identities by computer algebra, against the same definition of the dynamics the code
+integrates: `python -m aether.symbolic` exits nonzero if one of them fails.
 
 ### The demonstration: Artemis I
 
@@ -242,7 +255,7 @@ from those numbers:
   the Final phase, with the target inside it as it shrinks;
 - a **certified** upper bound on the downrange still available, holding for every
   admissible bank history and for atmospheres 0.85 to 1.15 times standard, discharged
-  in exact ball arithmetic and conditional on a stated corridor. Inner sweep and outer
+  in rigorous ball arithmetic and conditional on a stated corridor. Inner sweep and outer
   certificate bracket the flown trajectory between them.
 
 Against the flight: Final phase at 538 s (flown 551 s), Terminal at 880 s (882 s),
@@ -272,7 +285,8 @@ target (2.7 nmi).
 | `trajectory/` | Reference trajectories as pseudospectral polynomials; problem specification, objectives, constraints and phase triggers; an offline library handed to the guidance loop as its nominal |
 | `optimal_control/` | Legendre–Gauss–Lobatto direct transcription and Pontryagin refinement over an arbitrary problem |
 | `estimation/` | Adaptive state estimation (χ² anomaly gating and IAE), navigation through plasma blackout, and heterogeneous measurement models with their covariance |
-| `certification/` | Machinery answering "is this inequality *provably* true", as distinct from "did a float suggest so": rigorous enclosures and verified reachable tubes in Arb ball arithmetic, the entry field written for every arithmetic at once, monotone density enclosures, and a certified downrange bound that carries the corridor hypothesis it rests on |
+| `certification/` | Machinery answering "is this inequality *provably* true", as distinct from "did a float suggest so": rigorous enclosures and verified reachable tubes in Arb ball arithmetic, the entry field written for every arithmetic at once — classical, and over a rotating, oblate planet — monotone density enclosures, and a certified downrange bound that carries the corridor hypothesis it rests on |
+| `symbolic/` | The third arithmetic. The same fields evaluated on SymPy symbols, so that each derivation the manuscript relies on is a residual reduced to zero rather than a calculation read once; and C generated from those expressions, compiled, and audited against them in extended precision, so the fast numerics are a rendering of what was checked |
 | `batch/` | NumPy/CuPy backend abstraction; batched common-outer-grid integrator — a Monte Carlo batch as a rank-3 tensor operation; terminal dispersion from measured ERA5 winds, with exact elliptical containment radii checked against Siouris Table 5.2 |
 | `viz/` | Textured WGS84 ellipsoid, terrain and Blue Marble Next Generation imagery tiles, vehicle glyphs, flow-field rendering, and `scene` — a chase-camera rig with polyline, mesh and glyph projection over the globe |
 | `verification/` | Executable verification tasks with failure criteria stated in advance |
@@ -281,6 +295,8 @@ target (2.7 nmi).
 
 ```bash
 pip install -e ".[dev]"
+pip install -e ".[certification]" # optional: Arb ball arithmetic
+pip install -e ".[symbolic]"     # optional: SymPy; a C compiler is used if one is found
 pip install -e ".[atmosphere]"   # optional: MSIS thermosphere
 pip install -e ".[reanalysis]"   # optional: ERA5 winds
 pip install -e ".[cuda]"         # optional: GPU batch backend
@@ -294,6 +310,7 @@ CFD additionally needs SU2 and gmsh, which are not pip-installable; see
 ```bash
 make test                        # the test suite
 make verify                      # verification tasks -> results/
+make derivations                 # the manuscript's derivations, reduced symbolically
 make example                     # the Artemis I skip entry
 ```
 

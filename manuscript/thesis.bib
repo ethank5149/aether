@@ -641,11 +641,15 @@
   note    = {RESOLVES the placeholder leguernic2009reachability: the venue is
              Nonlinear Analysis: Hybrid Systems as suspected, but the year is
              2010, not 2009 (received 24 October 2008, accepted 11 March 2009)},
-  annotation = {Support-function reachability for linear systems; source of the
-             wrapping-effect bound to quote -- Thm 1: error first-order in
-             the time step and exponential in the horizon times the matrix
-             norm. The number the measure route (no time step) is set
-             against. Confined to linear dynamics.},
+  annotation = {Support-function reachability for linear systems. The method is NOT
+             subject to the wrapping effect, and says so after Thm 2: each
+             direction is propagated from the support function rather than
+             from the previous enclosure, so over-approximations do not
+             compound. The bound to quote -- Thm 1: first-order in the
+             time step and exponential in the horizon times the matrix
+             norm -- is its discretization error, not a wrapping bound.
+             Cite as the case where wrapping is avoided by the
+             representation of the set. Confined to linear dynamics.},
 }
 
 @article{althoff2021set,
@@ -793,11 +797,16 @@
   number  = {2},
   pages   = {109--145},
   year    = {1984},
-  annotation = {Cite Lemma I.1: a bounded sequence of fixed-mass densities does exactly
-             one of compactness / vanishing / dichotomy -- what makes the
-             skeleton/bubble/residual split exhaustive rather than a
-             modelling choice. Strict subadditivity is the condition that
-             rules out dichotomy.},
+  annotation = {Cite Lemma I.1 (p. 115): a bounded sequence of fixed-mass densities does
+             exactly one of compactness / vanishing / dichotomy -- what
+             makes the skeleton/bubble/residual split exhaustive rather
+             than a modelling choice. Strict subadditivity is the
+             condition that rules out dichotomy. The lemma asks only for
+             nonnegative L1 densities of fixed mass, and Remark III.9
+             says the density may be chosen freely: here it is the drag
+             power on the fast-time axis (one dimension), where all three
+             alternatives are non-vacuous. On occupation measures over
+             the compact corridor two of them cannot occur.},
 }
 
 @article{lions1984concentration2,
@@ -825,11 +834,17 @@
   pages   = {145--201},
   year    = {1985},
   note    = {The copy in references/ is a page scan with no text layer},
-  annotation = {The relevant half of Lions: the limit case handles loss of compactness
-             from dilation (scaling invariance), not translation. The skip
-             bubbles are concentration at a shrinking timescale -- a
-             dilation phenomenon -- so it is this modified principle that
-             applies.},
+  annotation = {The limit case handles loss of compactness from dilation (scaling
+             invariance) as well as translation: compactness is recovered
+             up to a translation AND a dilation (Thm I.1), and the defect
+             of the limit is a countable sum of Dirac masses (Lemma I.1).
+             Both halves are used. Translations along the fast-time axis
+             separate the passes (lions1984concentration1); this one
+             resolves each pass at its own width, which is a dilation.
+             The atoms of the limiting dissipation measure are the
+             analogue of its Dirac masses, but nothing here plays the
+             role of the reverse Holder inequality (Lemma I.2) that makes
+             the defect purely atomic -- hence the open Cantor-part step.},
 }
 
 @article{lions1985limit2,
@@ -900,7 +915,13 @@
              forces the scales to be orthogonal, and iterating extracts a
              pairwise-orthogonal family. The proof strategy to transport.
              Warning: the remainder is small in the Strichartz norm only,
-             not in energy.},
+             not in energy. Locators, checked against the paper: (1.18)
+             is the orthogonality condition (scales diverge, or equal
+             scales and cores separate by a diverging number of widths);
+             (1.24) the Strichartz smallness of the remainder as the
+             number of profiles grows; (1.25) almost-orthogonality of
+             the energy; (1.26) the nonlinear decomposition, whose
+             profiles "do not interact up to a small error".},
 }
 
 @incollection{ball1989version,
@@ -1029,7 +1050,13 @@
              solution uniqueness -- the same move made here. Read
              adversarially. Its hypotheses are linear growth of F (Asn
              2.1) and, for the singular-perturbation results, a uniform
-             bound on the fast state along the whole eps-family.},
+             bound on the fast state along the whole eps-family (Thm
+             7.4). Remark 2.2 says the growth condition is used solely to
+             exclude finite-time blow-up, so on a bounded corridor it is
+             automatic; the hypothesis the entry problem violates is the
+             uniform bound, in the altitude measured in scale heights.
+             Where that bound does hold (bounded phugoid), Thm 7.4 gives
+             the averaged limit over invariant measures of the fast flow.},
 }
 
 % The long annotation below triggers a harmless biber warning,
@@ -2138,12 +2165,22 @@
 @inproceedings{chen2013flowstar,
   author    = {Chen, Xin and {\'A}brah{\'a}m, Erika and
                Sankaranarayanan, Sriram},
-  title     = {{Flow*}: An Analyzer for Non-Linear Hybrid Systems},
-  booktitle = {Computer Aided Verification (CAV)},
+  title     = {{Flow*}: An Analyzer for Non-linear Hybrid Systems},
+  booktitle = {Computer Aided Verification (CAV 2013)},
+  editor    = {Sharygina, Natasha and Veith, Helmut},
   series    = {Lecture Notes in Computer Science},
+  volume    = {8044},
+  publisher = {Springer},
+  address   = {Berlin, Heidelberg},
+  pages     = {258--263},
   year      = {2013},
-  note      = {VERIFY the LNCS volume and page range; the copy in references/ is
-               a six-page tool paper with no venue line},
+  doi       = {10.1007/978-3-642-39799-8_18},
+  note      = {Title, authors, pages 258--263, year and DOI checked against the
+               Crossref record on 2026-10-01; editors and ISBN 978-3-642-39798-1
+               from the Crossref record of the proceedings volume, which carries
+               no volume number -- LNCS 8044 is from Springer's listing and
+               should be confirmed against the title page. The copy in
+               references/ is the six-page tool paper with no venue line},
   annotation = {The tool to run a numerical comparison against, if any: Taylor-model
              flowpipe construction for nonlinear hybrid systems -- the
              closest executable competitor. Expect it tighter at short
@@ -2455,8 +2492,12 @@
              that makes an enclosure valid, and the one a naive
              reimplementation loses first) and for the warning that not
              every property of real arithmetic survives the move to
-             intervals -- the wrapping effect in its original setting.
-             Cite with jaulin2001applied for the applied pipeline.},
+             intervals. That warning is the DEPENDENCY problem
+             (subdistributivity in Ch. 4, interval dependency in Ch. 5),
+             and it is not the wrapping effect, which is Ch. 10: the
+             image of a box under a flow re-enclosed in a box. Outward
+             rounding is Ch. 3. Cite with jaulin2001applied for the
+             applied pipeline.},
 }
 
 @book{jaulin2001applied,

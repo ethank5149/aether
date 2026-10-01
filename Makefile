@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install test lint typecheck verify boundary check example proposal proposal-summary proposal-all clean-proposal docs docs-serve docs-clean
+.PHONY: install test lint typecheck verify derivations boundary check example proposal proposal-summary proposal-all proposal-dist clean-proposal docs docs-serve docs-clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
@@ -23,6 +23,13 @@ boundary:
 verify:
 	$(PYTHON) -m aether.verification --output results
 
+# Reduce every derivation the manuscript relies on to zero, symbolically, and
+# exit non-zero if one does not. Seconds, not minutes, so it can be run after
+# any edit to an equation. `verify` runs the same checks as task S1, together
+# with the numerics generated from them; this is the quick form.
+derivations:
+	$(PYTHON) -m aether.symbolic
+
 check: boundary lint typecheck test verify
 
 example:
@@ -40,12 +47,17 @@ docs-clean:
 
 # ---------------------------------------------------------------- proposal
 # Two deliverables, both LuaLaTeX + Biber via latexmk:
-#   proposal          -> main.pdf          full copy, with the dynamics appendix
+#   proposal          -> main.pdf          full copy, with the three appendices
 #   proposal-summary  -> main-summary.pdf  body-only teaser for cold emails
 # The summary predefines \summarymode, which main.tex uses to drop the
-# appendix and blank the parenthetical pointers into it, so no reference
+# appendices and blank the parenthetical pointers into them, so no reference
 # dangles. References are kept in both (the body's inline citations need them).
+#
+#   proposal-dist     -> dist/<name>.pdf   the two PDFs under names fit to attach
+# `main-summary.pdf` is a build name. An attachment is read by its filename
+# before it is opened, so the copies that are sent are named for what they are.
 PROPOSAL_DIR := manuscript/proposal
+PROPOSAL_NAME ?= Knox-PhD-proposal
 
 proposal:
 	cd $(PROPOSAL_DIR) && latexmk -pdf -lualatex main.tex
@@ -55,6 +67,11 @@ proposal-summary:
 	  -usepretex="\def\summarymode{}" main.tex
 
 proposal-all: proposal proposal-summary
+
+proposal-dist: proposal-all
+	mkdir -p $(PROPOSAL_DIR)/dist
+	cp $(PROPOSAL_DIR)/main.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME).pdf
+	cp $(PROPOSAL_DIR)/main-summary.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME)-summary.pdf
 
 clean-proposal:
 	cd $(PROPOSAL_DIR) && latexmk -c main.tex && \

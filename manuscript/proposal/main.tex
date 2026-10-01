@@ -4,13 +4,19 @@
 \documentclass[english,11pt]{extarticle}
 \input{../preamble}
 \runninghead{Certified analytical bounds for hypersonic reachable sets}
+\hypersetup{
+  pdftitle={Certified analytical bounds for hypersonic reachable sets},
+  pdfauthor={Ethan Knox},
+  pdfsubject={Preliminary PhD research proposal},
+}
 
 % ---- Summary-mode switch --------------------------------------------------
-%  `make proposal`         -> full copy (with appendix).
+%  `make proposal`         -> full copy (with the three appendices).
 %  `make proposal-summary` -> body-only copy for cold emails; it predefines
-%  \summarymode, which drops the appendix and neutralises the parenthetical
-%  pointers into it (\apxref / \apxeqref below), so the body stays clean and
-%  no cross-reference dangles.
+%  \summarymode, which drops the appendices and neutralises the parenthetical
+%  pointers into them (\apxref / \apxeqref below), so the body stays clean
+%  and no cross-reference dangles. Every pointer from the body into an
+%  appendix must go through one of those two macros for that to hold.
 \newif\ifsummary
 \ifdefined\summarymode\summarytrue\fi
 \ifsummary
@@ -26,8 +32,8 @@
 \begin{document}
 
 \title{\textbf{Certified analytical bounds for hypersonic reachable sets}\\[0.4em]
-  {\large\normalfont\textit{A measure-theoretic profile decomposition in exact
-  interval arithmetic}}}
+  {\large\normalfont\textit{A measure-theoretic profile decomposition in
+  validated interval arithmetic}}}
 \author{\textbf{Ethan Knox}}
 \affil{\small\textit{Independent Researcher, Champaign, IL}}
 \date{Preliminary PhD Research Proposal \\[0.5em] \today}
@@ -37,26 +43,30 @@
 \begin{abstract}
 The reachable set of a nonlinear control system can be embedded in a space
 of occupation measures, where the dynamics become a linear constraint and
-the reachable set is read off the support of a terminal measure. This
-research asks what that embedding yields under two departures from the
-standard program: when the vector field is not a function but a set-valued
-map, enclosed in exact interval arithmetic; and when the measure family
-loses tightness in a singular limit. Rescaled by the fast timescale, mass
-concentrates on a low-dimensional slow manifold, and the limit admits a
-profile decomposition in the manner of Lions' concentration
-alternative---a finite-dimensional skeleton, one boundary-layer bubble per
-event, and a compact residual of order~$\sqrt{\eps}$. Almost-orthogonality
-of the scaling groups, transported from the Bahouri--G\'erard construction
-to defect measures under bounded adversarial uncertainty, is what makes the
-decomposition a bound rather than an ansatz. The constants that size it are
-required in closed form, derived from the physical constraint set and the
-aerodynamic interval widths rather than from a numerical solver.
-Hypersonic entry supplies the instance: a six-degree-of-freedom vehicle
-whose thin-atmosphere limit furnishes the singular perturbation, whose
-equilibrium-glide condition furnishes the slow manifold, and whose skip
-events furnish the bubbles. The result is a certificate rather than a
-computation: explicit algebraic bounds, valid uniformly over the entire
-admissible family, in the minimal physical state space.
+the reachable set is the union of the supports of the admissible terminal
+measures. This research asks what that embedding yields under two
+departures from the standard program: when the vector field is not a
+function but a set-valued map, enclosed in validated interval arithmetic;
+and when the measure family loses compactness along the fast-time axis in a
+singular limit. On the state space nothing is lost---the family is
+tight---but its weak limit forgets every event that lasts a vanishing time,
+and a reachable set is a support, not an integral. The target theorem is a
+profile decomposition in the manner of Lions' concentration-compactness
+alternative, taken on the energy dissipation along the rescaled time axis:
+a finite-dimensional skeleton, one boundary-layer bubble per event, and a
+residual that is small in a weaker norm, with an explicit bound of
+order~$\sqrt{\eps}$ as the aim. Almost-orthogonality of the scaling groups,
+in the sense of the Bahouri--G\'erard construction and under bounded
+adversarial uncertainty, is what would make the decomposition a bound
+rather than an ansatz. The constants that size it are required in closed
+form, derived from the physical constraint set and the aerodynamic interval
+widths rather than from a numerical solver. Hypersonic entry supplies the
+instance: a six-degree-of-freedom vehicle whose thin-atmosphere limit
+furnishes the singular perturbation, whose equilibrium glide and
+exo-atmospheric arcs furnish the skeleton, and whose atmospheric passes
+furnish the bubbles. The aim is a certificate rather than a computation:
+explicit algebraic bounds, valid uniformly over the entire admissible
+family, in the minimal physical state space.
 \end{abstract}
 \pagebreak
 
@@ -79,10 +89,13 @@ right instance and what its state space looks like%
 \ifsummary
 , and the coupled dynamics---frames, state vector, translational and
 rotational equations, the aerodynamic bridge from attitude to force, and
-the slow-manifold condition---are carried in a companion appendix omitted
+the glide condition---are carried, together with sketches of the limit
+argument and of the constants it rests on, in companion appendices omitted
 from this copy%
 \else
-, and \cref{apx:dyn} carries the coupled dynamics in full%
+, \cref{apx:dyn} carries the coupled dynamics in full, and
+\cref{apx:time,apx:residual} sketch the limit argument and the constants it
+rests on%
 \fi
 . What matters first is that the
 problem is an analytical one before it is an aerospace one, and that it
@@ -93,70 +106,128 @@ provenance of the guarantee.
 Embed the hybrid flight dynamics into a Banach space of occupation
 measures. The nonlinear flight mechanics $\dot x = f_q(x,c,t)$ become
 \emph{linear}: the Liouville equation is a linear constraint on a measure
-$\mu$ over $[0,T]\times\calX\times\calU$, and
-$\operatorname{supp}\mu_T$ outer-approximates the reachable set. So far
+$\mu$ over $[0,T]\times\calX\times\calU$ and its terminal marginal
+$\mu_T$, and the reachable set at time~$T$ is the union of
+$\operatorname{supp}\mu_T$ over the measures that satisfy it. No single
+measure bounds it. The outer bound comes from the dual: a pair of
+functions $(\cert,\certT)$, the first non-decreasing along every admissible
+trajectory and at least one on the initial set, the second majorizing it at
+time~$T$, encloses the reachable set in the superlevel set
+$\{\certT\ge 1\}$~\cite{henrion2014convex,korda2014convex}. So far
 this is the occupation-measure program of Lasserre, Henrion and
 collaborators~\cite{lasserre2008nonlinear,vinter1993convex}. The embedding buys linearity
 at the cost of uniqueness, and the way it is recovered is standard: a
 trajectory family satisfying the Liouville constraint lies in the convex
 hull of the generalized curves, so measures correspond to convex mixtures
 of trajectories rather than to one of them~\cite{henrion2014convex,ball1989version}.
-The same relaxation is what admits the interval envelope, and that is the
-first thing that has to be built rather than borrowed. Because the true
-aerodynamics are transcendental, they are enclosed in strict intervals, and
-a vector field selected from an interval is a set-valued map; the
-resulting differential inclusion is the object the measure must describe,
-not the nominal field~\cite{filippov1988differential,aubin1984differential}. Occupation-measure
-theory for inclusions of exactly this kind already exists and must be cited
-as prior art: it defines an occupational invariant measure without
-assuming solution uniqueness, which is the same move made
-here~\cite{artstein1999invariant}. What it assumes is worth stating plainly,
-because it is where the entry problem is likely to fail: the vector fields
-must satisfy a linear growth condition, and the singular-perturbation
-results additionally require a uniform bound on the fast state along the
-whole $\eps$-family~\cite{artstein1999invariant,artstein2000value}.
 
-\begin{openitem}{Liouville equation for differential inclusions}
-The current framework embeds the flight mechanics
-$\dot x = f_q(x,c,t)$ as a linear Liouville constraint on an occupation
-measure $\mu$ over $[0,T]\times\calX\times\calU$. By bounding true
-non-polynomial aerodynamics within strict intervals, the vector field
-becomes a differential inclusion $\dot x \in \calF(x,c,t)$. We must
-formulate a robust Liouville equation capable of acting on set-valued
-maps, and rigorously prove that the support of the resulting occupation
-measure, $\operatorname{supp}\mu_T$, securely outer-approximates all
-possible trajectories generated by any vector field selected from the
-interval inclusion.
+The same relaxation admits the interval envelope. Because the true
+aerodynamics are transcendental and known only to within an envelope, they
+are enclosed in intervals, and a vector field selected from an interval is
+a set-valued map; the resulting differential inclusion is the object the
+measure must describe, not the nominal
+field~\cite{filippov1988differential,aubin1984differential}. Written with
+the selection as an additional box-valued input, the inclusion is a control
+system with a bounded disturbance, and at fixed $\eps$ its Liouville
+constraint is the standard one. What is not standard is carrying the outer
+approximation through the singular limit of \cref{sec:profile}, uniformly
+over the selections. Occupation-measure theory for inclusions of exactly
+this kind already exists, and it is the nearest prior art: it defines an
+occupational invariant measure without assuming solution uniqueness, which
+is the same move made here~\cite{artstein1999invariant}. What it assumes is
+worth stating plainly, because it locates where the entry problem leaves
+it. The linear growth condition on the field serves only to exclude
+finite-time blow-up, and is automatic on a bounded corridor. The
+singular-perturbation theorem, however, assumes a uniform bound on the
+fast state along the whole
+$\eps$-family~\cite{artstein1999invariant,artstein2000value}, and the
+natural fast state of entry is the altitude measured in scale heights: on a
+corridor of fixed altitude extent it ranges over an interval of length
+proportional to $1/\eps$, the aerodynamic terms grow exponentially in it,
+and a skip carries it out of every bounded set. The hypothesis fails
+exactly at the events of interest.
+
+\begin{openitem}{Interval embedding, uniform through the singular limit}
+\emph{Question.} Does the occupation-measure outer approximation of the
+reachable set survive, with constants independent of $\eps$, when the
+vector field is an interval inclusion $\dot x \in \calF_\eps(x,c,t)$?
+
+\emph{To establish.} At fixed $\eps$ the inclusion is a control system with
+a box-valued disturbance and its Liouville constraint is standard. The work
+is the uniformity: a certified upper and lower envelope of the atmospheric
+density, which fixes $\calF_\eps$ concretely\apxref{sec:density}, and a
+proof that every trajectory of every selection is represented by a feasible
+measure whose bounds on mass, support and dissipation do not degrade as
+$\eps\to 0$.
+
+\emph{Success.} The embedding stated for the full inclusion, with each
+hypothesis either verified on the entry corridor or named as an assumption.
 \end{openitem}
 
-\subsection{Why the guarantee must be exact}\label{sec:provenance}
-The standard polynomial barrier with coefficients obtained from an
-interior-point solver has analytical \emph{form} but inherits the solver's
-accuracy~\cite{prajna2007framework}, so it is not a certificate; a numerical
-solver's failure modes are documented, and they include the loss of strict
-feasibility on which every rounding-based scheme
-depends~\cite{roux2018validating,peyrl2008computing}. Provenance is not a
-matter of care. Interval arithmetic is the setting in which a guarantee
-has meant, for forty years, an enclosure rather than an approximation, and
-the property that makes an enclosure valid at all---inclusion
-isotonicity---is exactly what a reimplementation loses first; not every law
-of real arithmetic survives the move to intervals, which is the original
-form of the wrapping effect~\cite{moore2009introduction,nedialkov1999validated}. Applied
-interval analysis supplies the machinery the pipeline would be built from,
-and it is deliberately conservative: certified set inversion, deterministic
-intersection geometries, and a customized exact-arithmetic integrator to
-ensure floating-point inaccuracies do not compromise the final
-bounds~\cite{jaulin2001applied}.
+\subsection{The provenance of the guarantee}\label{sec:provenance}
+A polynomial barrier whose coefficients come from an interior-point solver
+has analytical \emph{form} but inherits the solver's
+accuracy~\cite{prajna2007framework}, and the documented failure modes of
+numerical semidefinite solvers include the loss of strict feasibility on
+which the repair schemes depend~\cite{roux2018validating}. A solver's
+output can be made into a certificate: rounded to rational coefficients and
+re-verified exactly, it is a proof~\cite{peyrl2008computing}. The obstacle
+is scale, not principle. The rounding needs a strictly feasible Gram
+matrix, which a tight bound does not have, and exact rational certificates
+carry a documented bit-complexity whose exponent grows with the number of
+variables~\cite{kaltofen2012exact,magron2021exact}---a cost the
+thirteen-state field of \cref{sec:application} does not invite as a main
+line.
 
-\begin{openitem}{Exact-arithmetic computational pipeline}
-The proposal demands a guarantee verified in exact arithmetic rather than
-produced by a numerical solver. Floating-point inaccuracies inherent to
-standard simulation tools compromise the analytical certificate. Must
-implement a custom, exact-arithmetic interval integrator (likely leveraging
-C/C++ or specialized rational arithmetic libraries). This pipeline must
-process the hybrid dynamics, manage the boundary-layer bubble transitions,
-and compute the intersection geometries deterministically to verify the
-final bounds.
+The program therefore fixes an order of evidence. The certificate itself is
+a closed-form bound: the constants of \cref{sec:profile}, derived from the
+decomposition and evaluated over the corridor in validated interval
+arithmetic. Behind it stand symbolic checks of the derivations those
+constants rest on, run as part of the build against the same definition of
+the dynamics that is evaluated numerically. A moment-sum-of-squares
+computation on a reduced model is the third tier: an independent
+cross-check, to which the exact-certification machinery above belongs, and
+never the source of the guarantee.
+
+Interval arithmetic is the setting in which a guarantee has meant, for
+forty years, an enclosure rather than an approximation. It is rigorous in
+floating point: every operation is rounded outward, so the computed
+interval contains the exact result, and nothing is gained for soundness by
+exact rational arithmetic, which cannot in any case evaluate an exponential
+or a sine~\cite[Ch.~3]{moore2009introduction}. Two distinct losses have to
+be managed, and they are often run together. The first is the
+\emph{dependency problem}. Interval arithmetic is inclusion
+isotonic---the property that makes an enclosure valid at all---but not
+every law of real arithmetic survives the move to intervals: distributivity
+weakens to subdistributivity, and repeated occurrences of a variable are
+treated as independent~\cite[Chs.~4--5]{moore2009introduction}. The second
+is the \emph{wrapping effect}: the image of a box under a flow is not a
+box, and re-enclosing it at every step admits points that no trajectory
+reaches~\cite[Ch.~10]{moore2009introduction}. Refining the step does not
+help. Under interval Euler steps of size~$h$, re-boxed at each, a rigid
+rotation inflates a box by $(1+h)^{2\pi/h}$ per revolution, which
+\emph{increases} to $e^{2\pi}\approx 535$ as $h\to 0$; what controls
+wrapping is the
+representation of the set---Lohner's QR factorization, zonotopes, Taylor
+models~\cite{nedialkov1999validated,makino2003taylor}. Applied interval
+analysis supplies the machinery the pipeline is built from, and it is
+deliberately conservative: certified set inversion, contractors, and
+validated integration~\cite{jaulin2001applied}.
+
+\begin{openitem}{Validated computational pipeline}
+\emph{Question.} Can the closed-form constants, and the pass enclosures
+they do not cover, be evaluated over the whole corridor with every rounding
+error accounted for?
+
+\emph{To build.} An interval evaluator for the transcendental field and its
+Jacobian with outward rounding, contractors for the corridor constraints,
+and a validated integrator for the passes, extending the ball-arithmetic
+prototype described in \cref{sec:status}.
+
+\emph{Success.} Every inequality the certificate asserts is discharged by a
+program that returns either a proof or an explicit failure to decide at the
+working precision, and the dynamics it evaluates are the dynamics that were
+checked symbolically.
 \end{openitem}
 
 
@@ -167,131 +238,218 @@ final bounds.
 This section carries the new content. The instance supplies a small
 parameter---in the entry problem the thin-atmosphere ratio
 $\eps_{\mathrm{atm}} = H_s/R_e \to 0$, where $H_s$ is the atmospheric
-scale height and $R_e$ the planetary radius---and the question is what the
+scale height and $R_e$ the planetary radius, written $\eps$ where the other
+small parameters are not in play---and the question is what the
 occupation-measure family does in that limit.
 
-\subsection{Loss of tightness and the defect measure}
-Rescaled by the phugoid-to-secular
-time ratio (which, as in the classical Chapman--Loh variables, enters as
+\subsection{Loss of compactness along the time axis and the defect measure}
+On the corridor nothing is lost in the usual sense. The set
+$[0,T]\times\calX\times\calU$ is compact, so the occupation measures---which
+live in the cone $\Mplus([0,T]\times\calX\times\calU)$ of nonnegative
+Radon measures, topologized weakly-$*$ as the dual of
+$C([0,T]\times\calX\times\calU)$---form a tight family and converge along
+subsequences. The limit is nevertheless the wrong object, because it
+forgets the atmospheric passes. A pass lasts a time of order
+$\sqrt{\eps_{\mathrm{atm}}}$, the phugoid-to-secular time ratio (which, as
+in the classical Chapman--Loh variables, enters as
 $\sqrt{\eps_{\mathrm{atm}}}$, not
-$\eps_{\mathrm{atm}}$~\cite{chapman1959approximate,loh1968reentry}), the occupation-measure
-family \emph{is not tight}. Mass concentrates onto the low-dimensional
-equilibrium-glide slow manifold $\Lambda = 1$. In the 3-DOF (point-mass)
+$\eps_{\mathrm{atm}}$~\cite{chapman1959approximate,loh1968reentry}). It
+therefore carries occupation mass of that order, and none in the limit,
+while its share of what distinguishes one trajectory from another---the
+energy dissipated, the heat absorbed, the turn of the velocity
+vector---need not vanish with it. A reachable set is a support, not an
+integral, and what has no mass still counts. That is the gap between this
+problem and the limit theory of value
+functions~\cite{artstein2000value}: an integral survives the loss of a null
+set, and a support does not. The loss has to be read where it occurs, along
+the fast-time axis $\tau = t/\sqrt{\eps_{\mathrm{atm}}}$, on which the
+horizon $[0,T/\sqrt{\eps_{\mathrm{atm}}}]$ exhausts the half-line and
+translations act non-compactly.
+
+Between passes the vehicle is outside the sensible atmosphere, on an arc
+governed by gravity alone; once captured, it stays near the
+equilibrium-glide balance $\Lambda = 1$. In the 3-DOF (point-mass)
 approximation this is the scalar condition
 $L\cos\sigma/[m(g - V^2/r)] = 1$; in the full 6-DOF formulation the lift
 component $L\cos\sigma$ is not an independent input but is determined by
 the attitude quaternion through the body-to-LVLH
-rotation\apxref{sec:aero-force,sec:glide-manifold}, so the slow manifold is
+rotation\apxref{sec:aero-force,sec:glide-manifold}, so the balance is
 a single scalar constraint on the 13-dimensional translational-rotational
-state. The full dynamics carry $J_2$ oblate gravity throughout: the
-gravitational acceleration has both a radial component
-$g_D(r,\phi)$ and a northward component
-$g_N(r,\phi)$\apxref{sec:gravity}, and the general slow-manifold
-condition\apxeqref{eq:glide-full} retains both. The simplified scalar
-$\Lambda = 1$ is the leading-order reduction under spherical gravity and
-small flight-path angle. Retaining $J_2$ is not a refinement but a
-necessity, and for a reason sharper than the size of the terms. During
-skip maneuvers the northward component $g_N$ produces a heading drift whose
-sign is fixed by the hemisphere, so it accumulates across successive skips;
-the radial component $g_D$ varies the centrifugal balance at re-entry
-between ${+}\,0.16\%$ and ${-}\,0.32\%$ of the leading gravitational term,
-changing sign at $35.3^\circ$ latitude, so it accumulates only while the
-ground track stays on one side of that parallel and partially cancels
-across it. The two effects therefore have different sign structures, no
-single worst-case latitude bounds both at once, and the enclosure may be
-neither tightened by assuming they reinforce nor loosened by assuming they
-cancel\apxref{sec:glide-manifold,rem:j2-skip}.
+state, and the slow set is its intersection with the trim and
+quasi-static-deflection conditions of the two faster groups---one
+constraint set for each. The balance is taken with planetary rotation and
+oblate gravity retained\apxeqref{eq:glide-full}, and the two do not enter
+on equal terms: flying east at entry speed the Coriolis term is tens of
+percent of the net acceleration $g - V^2/r$ that the lift has to balance,
+while the $J_2$ terms are a percent of it at most\apxref{rem:j2-glide}. The
+scalar $\Lambda = 1$ is the reduction under spherical gravity, no rotation
+and small flight-path angle.
 
-The loss of tightness is read on the \emph{defect measure} of the rescaled
-family. The occupation measures live in the cone
-$\Mplus([0,T]\times\calX\times\calU)$ of nonnegative Radon measures,
-topologized weakly-$*$ as the dual of $C_0([0,T]\times\calX\times\calU)$.
-Writing the weak-$*$ limit as $\mu_\eps\rightharpoonup\mu_0+\nu$, with
-$\mu_0$ the limiting glide-manifold measure, the \emph{defect measure}
-$\nu\ge 0$ is the nonnegative remainder---the mass that fails to concentrate
-on the slow manifold as $\eps_{\mathrm{atm}}\to 0$. On $\nu$ the situation is the measure-theoretic analogue of Lions'
-concentration alternative---vanishing, dichotomy, or
-concentration~\cite{lions1984concentration1}. The relevant scaling group is
-the phugoid time dilation $t\mapsto t/\sqrt{\eps_{\mathrm{atm}}}$ that
-localizes each atmospheric pass\apxref{sec:glide-manifold}, so the bubbles
-are concentration at a shrinking timescale and it is the dilation half of
-the principle---the limit-case modification---that applies, not the
-translation (escape-to-infinity) case~\cite{lions1985limit1}.
+The loss is read on a \emph{defect measure}, and the object has to be chosen
+so that the passes carry mass. The part of the occupation-measure limit
+that lies off the glide cannot serve, since the passes have none. The
+energy dissipation can. Along every trajectory of the inclusion the
+specific mechanical energy in the rotating frame,
+$\mathcal{E} = \tfrac12 V^2 + \Phi_g - \tfrac12\omega_E^2 r^2\cos^2\phi$,
+changes at the rate $\dot{\mathcal{E}} = -P$, where $P = DV/m \ge 0$ is the
+drag power: neither the lift nor the Coriolis force does
+work\apxref{lem:energy}. The total dissipation
+$\int_0^T P\dd t \le \mathcal{E}_{\max} - \mathcal{E}_{\min}$ is therefore
+bounded uniformly over controls, over selections of the interval field,
+and over $\eps$. Let
+\begin{equation}\label{eq:defect}
+  \nu_\eps(\tau)
+  \;=\; \frac{\sqrt{\eps}\;P\bigl(\sqrt{\eps}\,\tau\bigr)}
+             {\int_0^T P\dd t}
+\end{equation}
+be the dissipation density on the fast-time axis, normalized to unit mass
+and extended by zero. Along any sequence $\eps_n\to 0$, with a trajectory
+chosen for each, these are nonnegative densities of fixed mass on the
+line, which is exactly the hypothesis of Lions' concentration-compactness
+lemma~\cite[Lemma~I.1]{lions1984concentration1}, and here all three of its
+alternatives mean something:
+\begin{itemize}[itemsep=1pt]
+  \item \emph{vanishing}---no window of fixed fast-time width holds a fixed
+    share of the dissipation: the glide, on which the drag is bounded and
+    such a window holds a share of order $\sqrt{\eps}$;
+  \item \emph{compactness}, up to translation---one pass carries the
+    dissipation;
+  \item \emph{dichotomy}---the dissipation splits between pieces whose
+    fast-time separation diverges: two passes a positive time apart, or a
+    pass followed by a glide.
+\end{itemize}
+Translations along the fast-time axis therefore separate the passes, and it
+is the dilation half of the principle---the limit-case
+modification~\cite{lions1985limit1}---that resolves each one at its own
+width, since a pass shorter than $\sqrt{\eps}$ is a Dirac mass at that
+scale. The trichotomy is Lions' lemma applied as stated. That the vanishing
+part is the glide and the concentrated pieces are the passes is asymptotics
+still to be argued, from the inner and outer expansions of the classical
+theory~\cite{shi1971skip}, and one step of the argument is
+open\apxref{apx:time}.
 
 \subsection{Skeleton, bubbles, residual}
-Rather than restore compactness, we extract the profile decomposition the
-dichotomy hands us:
+Rather than restore compactness, we extract the profile decomposition that
+iterating the dichotomy hands us:
 \begin{itemize}
-  \item a finite-dimensional \emph{skeleton} $S$---the concentration
-    component, the glide manifold as a graph over $(r,V)$ in the corridor
-    subspace, for which a rigorous characterization with quantitative
-    accuracy estimates already exists~\cite{lu2006asymptotic};
+  \item a finite-dimensional \emph{skeleton} $S$---what survives the limit:
+    the exo-atmospheric arcs between passes, which are conics up to the
+    oblateness correction, followed by the equilibrium glide, a graph over
+    $(r,V)$ in the corridor subspace once the balance is solved for the
+    vertical lift fraction. For the glide a rigorous characterization with
+    quantitative accuracy estimates already
+    exists~\cite{lu2006asymptotic}, and it treats the glide as a
+    \emph{regular} perturbation: the exact solution is not attracted to the
+    zeroth-order one, a point that returns in \cref{sec:bound};
 
-  \item one \emph{boundary-layer bubble} per skip event, the analogue of a
-    concentrating profile: a compact impulse set $\calI_j$ of dimension
-    $\le m$, carried by an internal scaling group at each atmospheric pass,
+  \item one \emph{boundary-layer bubble} per atmospheric pass, the analogue
+    of a concentrating profile: the pass rescaled to its own width, whose
+    net effect on the slow coordinates is a compact impulse set $\calI_j$,
     with orthogonality read off the scale-and-core separation condition
     that governs concentrating profiles
-    generally~\cite{gerard1998description}. The $J_2$ oblate-gravity terms are
-    retained in the bubble dynamics: the northward component $g_N$
-    introduces a heading drift during each skip, and the
-    variation of $g_D$ with latitude modifies the centrifugal balance at
-    re-entry. The two carry different sign structures across a multi-skip
-    ground track, so both have to be enclosed term by term rather than
-    bounded at a single worst-case
-    latitude\apxref{sec:glide-manifold,rem:j2-skip};
+    generally~\cite{gerard1998description}. The decomposition of skip entry
+    into an aerodynamic inner region and a gravitational outer one is
+    classical~\cite{shi1971skip,chapman1959approximate}. What is not
+    classical is a statement uniform over a family of trajectories, with an
+    explicit remainder at fixed $\eps$;
 
-\begin{openitem}{Wrapping-effect suppression in boundary-layer bubbles}
-Boundary-layer bubbles represent discrete atmospheric skip events as
-compact impulse sets $\calI_j$ carried by internal scaling groups. Because
-our framework fixes time as the independent variable, integrating interval
-bounds through highly dynamic skip events will induce severe ``wrapping
-effects'' (artificial inflation of bounding boxes). Must develop advanced
-intersection geometries (zonotopes, Taylor models, etc.)\ integrated into
-the profile decomposition to prove geometries maintain tight corridor
-bounds through multiple skip events without the reachable set exploding
-prematurely.
-\end{openitem}
-
-  \item a \emph{compact residual} with a quantitative bound,
-    $O(\sqrt{\eps})$ in the corridor metric, in a norm chosen so that the
-    loss of compactness actually disappears rather than merely being
-    hidden~\cite{solimini1995note}.
+  \item a \emph{residual}: what the finitely many profiles do not capture.
+    In a profile decomposition the remainder is not compact and is not
+    small in the conserved norm; it is small in a weaker one, and only as
+    the number of extracted profiles
+    grows~\cite{bahouri1999high,solimini1995note}. Here the weaker norm is
+    the largest share of dissipation held by any fast-time window: on a
+    glide the residual carries most of the dissipation, and almost none of
+    it in any one window. The quantitative bound the program needs is a
+    different statement, a distance to the skeleton in state space, and it
+    is taken up in \cref{sec:bound}.
 \end{itemize}
 
-The number of bubbles is bounded \emph{a~priori},
-$K \le K_{\max}(Q_{\max})$, by the integrated heat-load
-budget (a trajectory can only afford so many
-skips~\cite{shi1971skip,eggers1958comparative}). That derivation carries a
-dependency which has to be discharged rather than assumed: the heat-load
-budget is integrated from a stagnation-point correlation whose
-chemical-equilibrium assumption is weakest at high altitude, which is
-precisely where a skip peaks\apxref{rem:sutton-graves-circularity}. The
-wrapping effect to be suppressed
-here is not new: for linear systems it is already quantified, and the term
-is first order in the time step and exponential in the horizon times the
-matrix norm~\cite{leguernic2010reachability}.
+The number of bubbles is bounded \emph{a~priori}, and the bound comes from
+the same monotone quantity. A pass that dissipates at least $\delta$ of
+specific energy can occur at most
+\begin{equation}\label{eq:kmax}
+  K_\delta \;\le\; \frac{\mathcal{E}_{\max}-\mathcal{E}_{\min}}{\delta}
+\end{equation}
+times, for every control and every selection of the interval field. Passes
+below the threshold are assigned to the residual, which is the device of
+the profile-decomposition literature: only finitely many profiles exceed
+any given size. The integrated heat-load budget gives the count its
+physical reading---a trajectory can only afford so many
+skips~\cite{shi1971skip,eggers1958comparative}---but it routes through a
+stagnation-point heating correlation, and the energy budget does
+not\apxref{rem:sutton-graves-circularity}.
+
+Enclosing a pass is where the wrapping effect has to be met. For linear
+systems it can be avoided altogether: support-function methods propagate
+each direction independently, so successive over-approximations do not
+compound, and what remains is a discretization error of first order in the
+time step~\cite{leguernic2010reachability}. Nothing comparable is available
+for a nonlinear pass.
+
+\begin{openitem}{Enclosures of the pass maps}
+\emph{Question.} Can the net effect of one atmospheric pass on the slow
+coordinates be enclosed tightly enough that a sequence of $K_\delta$
+passes does not exhaust the corridor?
+
+\emph{To prove and build.} Wrapping in a pass has a specific source.
+Trajectories of a set enter the layer at different times, the set is
+sheared along the flow, and re-enclosing the sheared set in a box at every
+step admits points that no trajectory reaches. The remedy that fits the
+decomposition is to enclose the \emph{pass map}---entry state to exit
+state, in the rescaled time of the profile---as a single object, a
+zonotope or Taylor-model enclosure of a map rather than a tube of boxes,
+and to compose pass maps with the outer flow.
+
+\emph{Success.} A bound on the growth of the enclosure per pass, explicit
+in the interval widths, and its verification on a multi-pass corridor
+against sampled trajectories.
+\end{openitem}
 
 \subsection{Almost-orthogonality of the scaling groups}
-The multi-parameter separation of the
-three scaling groups (atmospheric, attitude, elastic) is the
-Bahouri--G\'erard almost-orthogonality argument, transported to defect
-measures: two profiles are almost-orthogonal when their scale parameters
-diverge, so that their rescaled supports become asymptotically disjoint and
-their cross terms vanish in the weak-$*$ pairing on
-$\Mplus([0,T]\times\calX\times\calU)$. Establishing this non-interaction for
-all three groups simultaneously is the one genuinely new obligation, and it
-sits on the critical path.
+Three scaling groups act on the time axis. The atmospheric one dilates by
+$\sqrt{\eps_{\mathrm{atm}}}$; those of the attitude and the elastic motion
+dilate by $\eps_{\mathrm{att}} = T_{\mathrm{att}}/T_{\mathrm{slow}}$ and
+$\eps_{\mathrm{ela}} = T_{\mathrm{ela}}/T_{\mathrm{slow}}$, the
+short-period attitude and first structural periods measured against the
+slow time $T_{\mathrm{slow}} = \sqrt{R_e/g}$. Their separation is the
+Bahouri--G\'erard almost-orthogonality condition, read on the dissipation:
+two profiles are orthogonal when their scales diverge or, at equal scale,
+when their centers separate by a diverging number of
+widths~\cite[(1.18)]{bahouri1999high}. Two things follow from it, and they
+differ in kind. The dissipation is a measure, so it splits
+\emph{additively} across orthogonal profiles; that is the analogue of the
+energy identity of the wave-equation theory, and it costs nothing. The
+state does not split additively, because the profiles interact through the
+nonlinear dynamics: the state leaving one pass is the datum of the next
+arc. What has to be proved is the analogue of the nonlinear statement of
+that theory, that the contributions of separate profiles compose without
+interacting, up to an error that is explicit and uniform over the family.
+For passes separated in time this is a matching estimate between inner and
+outer solutions. For the three groups it is scale separation where the
+timescale bands are ordered; where two bands cross inside the corridor the
+groups are not orthogonal there, and the decomposition has to carry one
+joint profile on the coupled subsystem rather than two. Establishing this
+with the scales themselves known only to within the aerodynamic intervals
+is the one genuinely new obligation, and it sits on the critical path.
 
-\begin{openitem}{Bahouri--G\'erard under interval disturbances}
-The framework relies on the Bahouri--G\'erard almost-orthogonality argument
-to separate the multi-parameter scaling groups (atmospheric, attitude, and
-elastic). Under interval aerodynamics, these groups couple with an
-adversarial, bounded uncertainty. We must prove the non-interaction theorem
-for the defect measures while accounting for interval bounds, guaranteeing
-that the gap between the upper and lower aerodynamic bounds does not cause
-mass to leak between scaling groups during atmospheric transition,
-preserving the compact residual bound $O(\sqrt{\eps})$.
+\begin{openitem}{Almost-orthogonality under interval disturbances}
+\emph{Question.} Do the scaling groups remain orthogonal, in the sense of
+the Bahouri--G\'erard condition, for every selection of the aerodynamic
+interval field---and where they do not, what replaces the decomposition?
+
+\emph{To prove.} A non-interaction theorem: for profiles separated in scale
+or in time, the map from entry data to exit data factors through the
+individual pass maps and the outer flow, with an explicit remainder,
+uniformly over selections. The interval widths enter twice: as a
+disturbance within each profile, and through the periods $T_{\mathrm{att}}$
+and $T_{\mathrm{ela}}$, which depend on the uncertain coefficients, so that
+the ordering of the bands is itself a hypothesis to be verified over the
+corridor. Where two bands cross, the statement is for a joint profile.
+
+\emph{Success.} The theorem for the atmospheric and attitude groups with
+the remainder in closed form; the elastic group either included or
+enclosed as a widened interval, as in the fallback of \cref{sec:plan}.
 \end{openitem}
 
 The argument worth transporting is the constructive one: splitting a
@@ -300,44 +458,94 @@ forces those scales to be orthogonal, and iterating extracts a pairwise
 orthogonal family, so orthogonality is produced by the construction rather
 than assumed by it~\cite{bahouri1999high}.
 
-\subsection{The certified bound}
+\subsection{The certified bound}\label{sec:bound}
 The target statement is
 \begin{equation}\label{eq:target}
-  \calR_{\mathrm{cert}}(w)
+  \calR_\eps(T)
   \;\subseteq\;
   \biggl(
     \underbrace{\Phi_S(\Theta)}_{\text{skeleton}}
     \;\oplus\;
-    \underbrace{\bigoplus_{j=1}^{K}\calI_j}_{\text{bubbles}}
+    \underbrace{\bigoplus_{j=1}^{K_\delta}\calI_j}_{\text{bubbles}}
   \biggr)
   \;\oplus\;
-  \underbrace{\B\!\bigl(C_{\calR}\sqrt{\eps}\bigr)}_{\text{residual}},
+  \underbrace{\B_\varrho\bigl(C_{\calR}\sqrt{\eps}\bigr)}_{\text{residual}},
 \end{equation}
 uniformly over the admissible family generated by the uncertainty set, not
-along a nominal trajectory. The exact residual corridor constant
-$C_{\calR}$ and the maximum bubble count $K_{\max}$ are derived as
-explicit, closed-form algebraic expressions directly from the physical
-corridor bounds and aerodynamic interval widths, completely independent of
-numerical optimization logic. In the spherical-LVLH coordinates the
-corridor bounds are box constraints on $(r,V)$, so the interval widths
-that enter $C_{\calR}$ and $K_{\max}$ have no wrapping from corridor
-intersection---the constants inherit the tightness of the coordinate
-choice. Requiring the constants in closed form, rather than as the output
-of a solver, is what separates a certificate from a computation: exact
-rational certificate representations are known to exist, with a documented
-bit-complexity that grows with the number of
-variables~\cite{kaltofen2012exact,magron2021exact}.
+along a nominal trajectory. Here $\calR_\eps(T)$ is the set of slow states
+reachable at time~$T$ from the initial set, under every admissible control
+and every selection of the interval field. $\Theta$ is the compact set of
+skeleton parameters---initial data and slow controls---and
+$\Phi_S\colon\Theta\to\calX$ the endpoint map of the skeleton flow.
+$\calI_j$ is the set of displacements of the time-$T$ endpoint
+attributable to pass~$j$: its impulse set, carried to time~$T$ by the
+skeleton flow, over all states from which the pass can be entered. The sum
+$\oplus$ is the Minkowski sum, and $\B_\varrho(a)$ is the ball of
+radius~$a$ in the corridor metric~$\varrho$, a weighted supremum norm in
+which altitude is measured in scale heights and each remaining slow
+coordinate in units of its corridor width. Passes compose in sequence, not
+in parallel, and the sum is the telescoped form of that composition: the
+endpoint of a trajectory with $K$ passes differs from the skeleton endpoint
+by a sum of $K$ displacements, one from each $\calI_j$. The sum forgets
+that successive displacements are correlated, which makes the bound
+conservative and not unsound.
 
-\begin{openitem}{Analytical derivation of corridor constants}
-The ultimate guarantee relies on deriving the residual corridor constant
-$C_{\calR}$ and the maximum boundary-layer bubble count
-$K_{\max}(Q_{\max})$. The number of bubbles is bounded a priori by the
-integrated heat-load budget. We must derive explicit, closed-form algebraic
-expressions for $C_{\calR}$ and $K_{\max}$ strictly from the physical
-corridor bounds (which are box constraints on $(r,V)$ in the
-spherical-LVLH state), the initial conditions, and the aerodynamic
-interval widths, entirely without relying on numerical interior-point
-solvers.
+The residual constant $C_{\calR}$ and the bubble count $K_\delta$ are to be
+derived as explicit, closed-form expressions in the corridor bounds and
+the aerodynamic interval widths, independent of any numerical
+optimization. Both exist in first form. The count is \cref{eq:kmax}. On
+the glide, with $L/D$ the lift-to-drag ratio and $\sigma$ the bank angle,
+\begin{equation}\label{eq:CR-body}
+  C_{\calR}
+  \;=\; \frac{2\sqrt{g R_e}}
+             {V\,(L/D)\cos\sigma\,\sqrt{1 - V^2/(g r)}} ,
+\end{equation}
+which bounds the computed distance to the glide to within a few percent
+over the range of lift-to-drag ratio, speed and bank
+tested\apxref{apx:residual}. The same analysis shows what the formula does
+not yet cover, and the limitation is structural. $C_{\calR}\sqrt{\eps}$ is
+twice the damping ratio of the phugoid, the oscillation of altitude against
+flight-path angle about the glide. Its damping \emph{rate},
+$g/[V(L/D)\cos\sigma]$, does not depend on $\eps$, while its frequency
+grows like $\eps^{-1/2}$. In the limit the motion normal to the glide is an
+undamped oscillation on its own timescale: the glide balance is not a
+normally hyperbolic slow manifold in the sense the geometric theory
+requires~\cite{fenichel1979geometric}, and no boundary-layer estimate of
+Tikhonov type brings a trajectory onto it. The constant above is the
+ringing amplitude of a trajectory started level on the glide; a trajectory
+leaving a pass rings with whatever amplitude the pass left it, for a time
+comparable to the entry. The residual bound therefore has to carry that
+amplitude, either as an explicit decaying term or by promoting the phugoid
+amplitude to a slow coordinate of the skeleton and averaging over its
+phase; and $C_{\calR}$ diverges as $V$ approaches circular speed, which is
+where the glide gives way to arcs and passes.
+
+In the spherical-LVLH coordinates the altitude and speed bounds of the
+corridor are box constraints on $(r,V)$. The heating, dynamic-pressure and
+load limits are not: each is a curve $h \ge h_{\min}(V)$. Each is, however,
+monotone in altitude and in speed at fixed attitude, so contracting a box
+against it returns the exact interval hull of the feasible part, and the
+interval widths that enter $C_{\calR}$ and $K_\delta$ inherit that
+tightness\apxref{sec:coord-rationale}. Requiring the constants in closed
+form, rather than as the output of a solver, is what separates a
+certificate from a computation in the sense of \cref{sec:provenance}.
+
+\begin{openitem}{Closed-form constants}
+\emph{Question.} What are $C_{\calR}$ and $K_\delta$ as functions of the
+corridor bounds, the initial set and the aerodynamic interval widths?
+
+\emph{To derive.} The count from the energy budget, with the threshold
+$\delta$ chosen against the residual it leaves behind. The residual in
+three parts: the lag behind the glide, which \cref{eq:CR-body} already
+gives; the ringing left by a pass, which decays at a rate independent of
+$\eps$ and has to be carried explicitly or absorbed into the skeleton by
+averaging; and the matching error at each pass. Each constant is to hold
+for every selection of the interval field, and its range of
+validity---bounded away from circular speed---is part of the statement.
+
+\emph{Success.} Formulas whose evaluation over the corridor in validated
+interval arithmetic bounds the distance from sampled trajectories of the
+full model to skeleton plus bubbles, with no fitted number.
 \end{openitem}
 
 
@@ -345,14 +553,13 @@ solvers.
 \section{The application: hypersonic entry}\label{sec:application}
 %==========================================================================
 Entry is not an arbitrary illustration of the machinery above. It supplies
-the singular perturbation, the slow manifold and the concentrating events
-in one system, and it is a problem on which the exact methods are already
-known to fail.
+the singular perturbation, the skeleton and the concentrating events in one
+system, and it is a problem the existing methods are known not to reach.
 
-\subsection{Why the exact methods do not reach it}
-Exact computation means solving a Hamilton--Jacobi--Isaacs equation on a
-grid, which is exponential in state dimension and capped in practice near
-four or five states~\parencite{bansal2017hamilton,mitchell2005time}.
+\subsection{Why existing methods do not reach it}
+The direct method solves a Hamilton--Jacobi--Isaacs equation on a grid,
+which is exponential in state dimension and capped in practice near four or
+five states~\parencite{bansal2017hamilton,mitchell2005time}.
 A rigid-body entry vehicle carries thirteen states,
 \begin{equation}\label{eq:state-rigid}
   x = (r,\lambda,\phi,\, V,\gamma,\psi,\,
@@ -369,92 +576,148 @@ configuration sense (three translational, three rotational), while
 twelve-dimensional state manifold once the unit-quaternion constraint
 $\norm{\vvec{q}} = 1$ is imposed.
 
-So the exact grid-HJI method quits before the real problem starts. What
-makes the measure-theoretic route viable is not that it evades the
+So the grid method stops before the real problem starts.
+
+Set-propagation methods go further. Taylor-model and zonotope flowpipes
+return rigorous outer bounds at ten to twenty states, and they are the
+baseline this program has to be measured
+against~\cite{chen2013flowstar,althoff2021set,makino2003taylor}. What they
+return is an enclosure of one instance: a numerical set for one vehicle,
+one initial box and one horizon, whose tightness tends to degrade with the
+width of the initial set and with the length of weakly damped motion it has
+to follow---and the phugoid is weakly damped for the whole of the glide.
+They are the right tool inside a pass, where the horizon is short, and that
+is how objective~3 uses them. They do not produce a bound whose dependence
+on the corridor and on the interval widths is explicit, which is what a
+statement uniform over a family requires.
+
+What makes the measure-theoretic route viable is not that it evades the
 dimension but that the bound it produces does not scale with it: the
 skeleton is low-dimensional by construction, the bubbles are compact, and
 the residual is a single ball.
 
 \subsection{The state space and the corridor}
 The translational state is carried in geocentric spherical position
-$(r,\lambda,\phi)$ and wind-frame velocity $(V,\gamma,\psi)$ so that the
-entry-corridor constraints (bounded altitude, bounded speed, heating and
-load-factor limits) are box constraints on states, the natural setting for
-interval arithmetic. Attitude is a unit quaternion, free of Euler-angle
-singularities. Because interval arithmetic
-evaluates transcendentals natively, the traditional algebraic adjunctions
-required to force the system into a polynomial
-format~\cite{savageau1987recasting} are obsolete. The state space carries only the
-physical dimensions---spherical position, wind-frame velocity, attitude
-quaternion, body rates, thermal, ablation, and modal states---with no
-artificial embeddings.
+$(r,\lambda,\phi)$ and wind-frame velocity $(V,\gamma,\psi)$, so that the
+altitude and speed bounds of the entry corridor are box constraints on
+states and the heating, dynamic-pressure and load limits are monotone in
+the two coordinates they bind---the natural setting for interval
+contraction. Attitude is a unit quaternion, free of Euler-angle
+singularities. The chart has a price, which is stated rather than hidden:
+the longitude and heading rates are singular at the geographic poles, so
+the corridor is taken with $\abs{\phi}\le\phi_{\max}<\pi/2$, and a
+trajectory class that overflies a pole needs a second chart or a Cartesian
+formulation\apxref{sec:coord-rationale}.
 
-\begin{openitem}{State-space minimization}
-The shift to exact interval arithmetic renders traditional Savageau-style
-polynomial adjunctions---the density-square-root embedding
-$y = \sqrt{\rho/\rho_0}$ and the polynomial surrogate for wall temperature
-(Varma--Savageau--Voit recasting~\cite{savageau1987recasting})---obsolete, as
-transcendentals are evaluated natively. These auxiliary states are
-eliminated entirely\apxref{sec:thermal}, collapsing the state space to its
-minimal physical dimensions and removing a source of wrapping. The
-coordinate system is settled: translational position in geocentric
-spherical $(r,\lambda,\phi)$, planet-relative velocity in wind-frame
-components $(V,\gamma,\psi)$, and attitude as a unit quaternion. This
-choice makes the entry corridor a box in state space (tightening interval
-intersections) and keeps the equilibrium-glide slow manifold
-native\apxref{sec:glide-manifold}. The trade-off---transcendental dynamics versus
-polynomial dynamics with nonlinear corridor intersection---is resolved in
-favor of the spherical formulation, where wrapping is distributed across
-time steps and controlled by step-size refinement rather than concentrated
-in corridor intersection\apxref{sec:summary-table}.
+Because interval arithmetic evaluates transcendentals natively, the
+algebraic adjunctions that recast the system in polynomial
+form~\cite{savageau1987recasting} are not needed on the main line; they
+survive only inside the moment-sum-of-squares cross-check. The state space
+therefore carries only the physical dimensions---spherical position,
+wind-frame velocity, attitude quaternion, body rates, thermal, ablation,
+and modal states---with no artificial embeddings, and the two auxiliary
+states of the polynomial formulation, the density root
+$y = \sqrt{\rho/\rho_0}$ and the wall-temperature surrogate, are
+gone\apxref{sec:thermal}. This is a design decision rather than an open
+problem, and its trade is stated once: transcendental dynamics in
+coordinates native to the corridor and the glide, against polynomial
+dynamics in which the corridor is a nonlinear function of the
+state\apxref{sec:summary-table}.
+
+\begin{openitem}{Independent verification}
+\emph{Question.} Is the certificate right, by evidence that does not share
+its derivation?
+
+\emph{To build.} Three checks, in the order of \cref{sec:provenance}.
+Symbolic verification of every derivation behind the constants, run with
+the build. A moment-sum-of-squares outer approximation on a reduced
+polynomial model, as a cross-check that shares neither the decomposition
+nor the interval arithmetic. And a comparison on a common benchmark---a
+capsule skip entry reconstructed from published data---against Taylor-model
+flowpipes and against sampled trajectories of the full model, reported for
+each coordinate group rather than as a single number.
+
+\emph{Success.} Containment of every sample by the certified set, agreement
+with the cross-check where both apply, and a stated tightness against the
+baseline, coordinate by coordinate.
 \end{openitem}
 
 
 %==========================================================================
-\section{Plan of work}
+\section{Plan of work}\label{sec:plan}
 %==========================================================================
 Six concrete obligations carry the program; they are stated where each
 arises above and gathered here, in order, as the plan of work.
 \begin{enumerate}[leftmargin=*,itemsep=2pt]
-  \item \emph{Liouville equation for differential inclusions}: a measure
-    embedding valid for the set-valued (interval) dynamics.
-  \item \emph{Exact-arithmetic computational pipeline}: a deterministic
-    interval integrator that verifies the bounds without floating point.
-  \item \emph{Wrapping-effect suppression in boundary-layer bubbles}: tight
-    enclosures carried through skip events without premature blow-up.
-  \item \emph{Bahouri--G\'erard under interval disturbances}:
-    almost-orthogonality of the scaling groups under bounded
+  \item \emph{Interval embedding, uniform through the singular limit}: the
+    outer approximation for the set-valued (interval) dynamics, with
+    constants independent of $\eps$.
+  \item \emph{Validated computational pipeline}: interval evaluation,
+    contraction and integration that discharge the certificate with every
+    rounding error accounted for.
+  \item \emph{Enclosures of the pass maps}: tight enclosures carried through
+    a sequence of atmospheric passes without premature blow-up.
+  \item \emph{Almost-orthogonality under interval disturbances}:
+    non-interaction of the scaling groups under bounded
     uncertainty---\textbf{the critical path}, on which the profile
     decomposition and the closed-form bound rest.
-  \item \emph{Analytical derivation of the corridor constants}: closed-form
-    $C_{\calR}$ and $K_{\max}$ from the physical corridor and interval
-    widths, free of any numerical solver.
-  \item \emph{State-space minimization}: elimination of the Savageau-style
-    polynomial adjunctions now that transcendentals are evaluated natively.
+  \item \emph{Closed-form constants}: $C_{\calR}$ and $K_\delta$ from the
+    physical corridor and the interval widths, free of any numerical
+    solver.
+  \item \emph{Independent verification}: symbolic checks of the
+    derivations, a moment-sum-of-squares cross-check, and a benchmark
+    against set-propagation tools and sampled trajectories.
 \end{enumerate}
 Objectives 1--2 establish the interval occupation-measure embedding, 3--4 the
-profile decomposition, and 5--6 reduce it to closed form; objective 4 gates
-the rest.
+profile decomposition, and 5--6 reduce it to closed form and check it;
+objective 4 gates the rest.
+
+\subsection{Where the work stands}\label{sec:status}
+The computational layers of the program have working prototypes; the
+central theorem is open. An implementation of the coupled model is public,
+with a suite of
+verification tasks whose failure criteria are stated before they
+run.\footnote{\url{https://github.com/ethank5149/aether}} Three of its
+results bear directly on the claims above. The residual scaling has been
+measured rather than assumed: with the scale height varied over more than a
+decade, the distance to the glide scales as $\eps^{0.49}$, and the closed
+form \cref{eq:CR-body} bounds it from above to within about four percent.
+The translational equations of motion, the energy balance behind
+\cref{eq:kmax} and the linearization behind $C_{\calR}$ are reduced to
+identities by computer algebra, against the same definition of the dynamics
+that the code evaluates in floating point and in interval arithmetic, and
+compiled numerical routines are generated from those expressions. And a validated-arithmetic prototype exists: enclosures
+of the entry field and reachable tubes in ball arithmetic, with a certified
+bound on the downrange still available to a capsule on a published skip
+entry, holding for every bank history that keeps the trajectory inside a
+stated corridor. None of this is the theorem. It is evidence that the
+constants are computable and that the pipeline can be built, and the same
+suite records the obstacle of \cref{sec:bound}, the weakly damped phugoid,
+as a computed fact rather than a conjecture.
 
 \subsection{Sequencing}
 The dependency structure suggests three phases rather than six parallel
-tracks. The first establishes the embedding---objective~1, with the density
-envelope of objective~2 that it needs in order to be stated on a concrete
-inclusion\apxref{sec:density}. The second attacks the critical path:
-objective~4, which is where the program either works or does not, and which
-should therefore be reached early enough that a negative result is still
-recoverable. Objective~3 runs alongside it, since the almost-orthogonality
-argument and the enclosure geometry constrain each other. The third phase
-reduces the decomposition to closed form---objectives~5 and~6---and
-completes the exact-arithmetic pipeline, which is the only deliverable that
-cannot be shortened by a weaker theorem.
+tracks. The first establishes the embedding---objective~1, together with the
+certified envelope of the atmospheric density that it needs in order to be
+stated on a concrete inclusion\apxref{sec:density}. The second attacks the
+critical path: objective~4, which is where the program either works or does
+not, and which should therefore be reached early enough that a negative
+result is still recoverable. Objective~3 runs alongside it, since the
+almost-orthogonality argument and the enclosure geometry constrain each
+other. The third phase reduces the decomposition to closed
+form---objective~5---completes the validated pipeline of objective~2, and
+runs the symbolic and moment-sum-of-squares checks of objective~6 against
+the result. The pipeline is the only deliverable that cannot be shortened
+by a weaker theorem.
 
-If objective~4 resists a proof for all three scaling groups
-simultaneously, the fallback is to establish it for the atmospheric and
-attitude groups and to treat the elastic group as a widened interval rather
-than a separate profile. That weakens the residual constant without
-invalidating the decomposition, and it is worth identifying now as the
-retreat position.
+Two retreat positions are worth identifying now. If objective~4 resists a
+proof for all three scaling groups simultaneously, the fallback is to
+establish it for the atmospheric and attitude groups and to treat the
+elastic group as a widened interval rather than a separate profile. That
+weakens the residual constant without invalidating the decomposition. And
+if the ringing left by a pass cannot be bounded in closed form, the phugoid
+amplitude is carried as one more slow coordinate of the skeleton, which
+costs a dimension and keeps the bound.
 
 \ifsummary\else
 \pagebreak
@@ -465,6 +728,8 @@ retreat position.
 \crefalias{subsubsection}{subsubappendix}
 
 \input{appendices/entry_dynamics_and_embedding}
+\input{appendices/concentration_along_time}
+\input{appendices/residual_and_budget}
 \fi
 
 \printbibliography[title={References}]
