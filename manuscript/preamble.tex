@@ -207,24 +207,27 @@
 % ---- Research-objective boxes (the proposal's open problems) --------------
 %  These carry the load-bearing theorems the program still has to prove. They
 %  are content, not scaffolding, so they read as numbered "Objective N" boxes
-%  in a calm academic blue rather than an alarm colour. Like the \todo list
-%  and the decide/gap/idea ledger, they are gated by \ifdraftnotes: a formal
-%  copy compiled with \draftnotesfalse drops every draft annotation at once,
-%  so a single switch produces a clean submission document. Each box also
-%  registers a line in \listoftodos (see the "\listoftodos[Open items]" call
-%  in the body), tying the open problems into the existing todo machinery.
+%  in a calm academic blue rather than an alarm colour.
+%
+%  They are deliberately NOT gated by \ifdraftnotes. That switch exists to
+%  strip drafting annotations (the decide/gap/idea ledger, the \todo list)
+%  from a submission copy; gating the objectives with it too meant that
+%  \draftnotesfalse silently deleted all six -- and with them the body's
+%  entire plan of work, while "Plan of work" kept claiming they were "stated
+%  where each arises above". The two categories have opposite requirements:
+%  annotations must not survive into a submitted draft, and these must.
+%
+%  Each box still registers a line in \listoftodos (see the commented-out
+%  "\listoftodos[Open items]" call in the body), so enabling that list gives
+%  a one-page index of the open problems.
 \newtcolorbox{objective@box}[1][]{colback=blue!3,colframe=blue!45!black,
   fonttitle=\bfseries,coltitle=blue!55!black,
   boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=3pt,bottom=3pt,#1}
 
 \newcounter{objective}
-\ifdraftnotes
-  \newenvironment{openitem}[1]{%
-    \stepcounter{objective}%
-    \phantomsection
-    \addcontentsline{tdo}{todo}{Objective~\theobjective: #1}%
-    \begin{objective@box}[title={Objective~\theobjective.\ #1}]%
-  }{\end{objective@box}}
-\else
-  \excludecomment{openitem}
-\fi
+\newenvironment{openitem}[1]{%
+  \stepcounter{objective}%
+  \phantomsection
+  \addcontentsline{tdo}{todo}{Objective~\theobjective: #1}%
+  \begin{objective@box}[title={Objective~\theobjective.\ #1}]%
+}{\end{objective@box}}

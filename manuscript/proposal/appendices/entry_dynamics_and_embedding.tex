@@ -94,9 +94,16 @@ $\mat{R}_{\mathcal{A}\mathcal{B}}\mat{R}_{\mathcal{B}\mathcal{C}} =
     function of $(\lambda,\phi)$ alone.
 
   \item $\mathcal{W}$ (\textbf{Wind frame}): $x$-axis along the
-    planet-relative velocity, $z$-axis in the
-    $\vvec{V}$--$\hat{e}_D$ plane pointing ``downward'' from the velocity,
-    $y$-axis completing the right-handed system. Parameterized by
+    planet-relative velocity, third axis in the
+    $\vvec{V}$--$\hat{e}_D$ plane, $y$-axis completing the right-handed
+    system. The triad actually used below
+    is~$(\hat{V},\hat{n}_\gamma,\hat{n}_\psi)$
+    of~\crefrange{eq:Vhat}{eq:npsi}, in which $\hat{n}_\gamma$ points along
+    increasing flight-path angle---radially \emph{outward} at level
+    flight, $\hat{n}_\gamma|_{\gamma=0} = -\hat{e}_D$---so that a positive
+    normal force appears as a positive $F_\gamma$ and the point-mass
+    identification $F_\gamma = L\cos\sigma$ carries the expected sign.
+    Parameterized by
     flight-path angle~$\gamma$ (positive climbing) and
     heading~$\psi$ (clockwise from North):
     \[
@@ -174,7 +181,7 @@ northward components:
 \begin{align}
   g_D(r,\phi) &= \frac{\mu}{r^2}\biggl[
     1 + \tfrac{3}{2}\,J_2\Bigl(\frac{R_e}{r}\Bigr)^{\!2}
-        \bigl(1-5\sin^2\!\phi\bigr)
+        \bigl(1-3\sin^2\!\phi\bigr)
   \biggr], \label{eq:gD}\\[4pt]
   g_N(r,\phi) &= -\frac{3\mu}{r^2}\,J_2
     \Bigl(\frac{R_e}{r}\Bigr)^{\!2}
@@ -185,9 +192,24 @@ northward components:
 \begin{remark}\label{rem:gravity-spherical}
 This reproduces the Cartesian form under the
 identifications $r_3/\norm{\vvec{r}} = \sin\phi$ and
-$\norm{\vvec{r}} = r$. The spherical form makes the interval evaluation
-tighter: $g_D$ and~$g_N$ are explicit functions of $(r,\phi)$, with no
-square root of a sum of squares.
+$\norm{\vvec{r}} = r$, but the reduction is not a term-by-term match and
+is worth doing explicitly. The Cartesian $J_2$ perturbation carries the
+factor $\bigl(1-5(r_3/\norm{\vvec{r}})^2\bigr)$ on its two equatorial
+components and $\bigl(3-5(r_3/\norm{\vvec{r}})^2\bigr)$ on its polar one;
+projecting that vector onto~$\hat{r}$ and using
+$\cos^2\!\phi + \sin^2\!\phi = 1$ collapses the pair to
+\[
+  \bigl(1-5\sin^2\!\phi\bigr)\cos^2\!\phi
+  + \bigl(3-5\sin^2\!\phi\bigr)\sin^2\!\phi
+  = 1-3\sin^2\!\phi ,
+\]
+which is the factor appearing in~\cref{eq:gD}. Carrying the Cartesian
+$\bigl(1-5\sin^2\!\phi\bigr)$ into the radial component instead would
+double the polar correction and move its sign change from
+$\phi = \arcsin(1/\sqrt{3}) \approx 35.3^\circ$ to
+$\arcsin(1/\sqrt{5}) \approx 26.6^\circ$. The spherical form makes the
+interval evaluation tighter: $g_D$ and~$g_N$ are explicit functions of
+$(r,\phi)$, with no square root of a sum of squares.
 \end{remark}
 
 
@@ -227,19 +249,44 @@ The translational dynamical equations are:
   \\[6pt]
   \dot\psi &= \frac{1}{V\cos\gamma}\biggl\{
     \frac{F_\psi}{m}
-    - \frac{V^2}{r}\cos\gamma\sin\psi\tan\phi
-    + g_N\sin\psi \nonumber\\
+    + \frac{V^2}{r}\cos^2\!\gamma\,\sin\psi\tan\phi
+    - g_N\sin\psi \nonumber\\
     &\qquad{}+ 2\omega_E V
-      \bigl[\tan\gamma\cos\phi\cos\psi - \sin\phi\bigr]
-    + \omega_E^2 r\cos\phi\sin\phi
-      \frac{\sin\psi}{\cos\gamma}
+      \bigl[\sin\phi\cos\gamma - \sin\gamma\cos\phi\cos\psi\bigr]
+    + \omega_E^2 r\cos\phi\sin\phi\sin\psi
     \biggr\}. \label{eq:psidot}
 \end{align}
 
 \begin{remark}\label{rem:vinh-reduction}
 With $g_N = 0$ (spherical gravity) and
 $\omega_E = 0$ (non-rotating planet), these reduce to the classical Vinh
-equations for unpowered entry~\cite{vinh1980hypersonic}.
+equations for unpowered entry~\cite{vinh1980hypersonic}:
+\[
+  \dot V = \frac{F_V}{m} - g\sin\gamma,\qquad
+  V\dot\gamma = \frac{F_\gamma}{m} - \Bigl(g-\frac{V^2}{r}\Bigr)\cos\gamma,
+  \qquad
+  V\cos\gamma\,\dot\psi = \frac{F_\psi}{m}
+    + \frac{V^2}{r}\cos^2\!\gamma\,\sin\psi\tan\phi .
+\]
+This reduction is the working check on the signs
+in~\crefrange{eq:Vdot}{eq:psidot}, and it is worth performing rather than
+assuming: the three equations are assembled by projecting Newton's law onto
+the wind triad~\crefrange{eq:Vhat}{eq:npsi}, and the transport term
+$\vvec{\omega}_{\mathcal{L}\mathcal{E}}\times\vvec{V}$ contributes to each
+projection with a different power of $\cos\gamma$.
+\end{remark}
+
+\begin{remark}\label{rem:great-circle}
+The sign of the curvature term in~\cref{eq:psidot} is fixed by a
+one-line test. Take spherical gravity, a non-rotating planet, no lateral
+aerodynamic force, and level flight ($\gamma = 0$) at northern latitude
+$\phi > 0$ on a due-east heading ($\psi = \pi/2$). Then
+$\dot\psi = (V/r)\tan\phi > 0$: with $\psi$ measured clockwise from North,
+an increasing~$\psi$ turns the velocity from east toward south, which is
+the equatorward bending of a great circle. The opposite sign would curve
+the ground track poleward, and because the $J_2$ heading drift of
+\cref{rem:j2-skip} is read off this same equation, a sign error here would
+propagate into the bubble dynamics rather than cancel.
 \end{remark}
 
 \begin{remark}\label{rem:psi-singularity}
@@ -256,13 +303,24 @@ $[\gamma]$ does not contain $\pm\pi/2$.
 \subsection{Rotational dynamics}\label{sec:rot-dyn}
 %--------------------------------------------------------------------------
 
-The quaternion kinematics, driven by the body rate relative
-to~$\mathcal{E}$:
-\begin{equation}\label{eq:qdot}
-  \dot{\vvec{q}} = \half\,\mat{\Omega}(\vvec{\omega})\,\vvec{q},
+The state carries $\vvec{\omega} = (p,q_b,r_b)^\tr$, the angular velocity
+of~$\mathcal{B}$ with respect to the \emph{inertial} frame, resolved in
+body-frame components; this is the vector for which Euler's
+equations~\cref{eq:euler} take their standard form. The quaternion
+of~\cref{sec:coord-rationale} relates $\mathcal{B}$ to the \emph{rotating}
+frame~$\mathcal{E}$, so its kinematics are driven by the body rate relative
+to~$\mathcal{E}$,
+\begin{equation}\label{eq:omega-rel}
+  \vvec{\omega}_{\mathcal{B}\mathcal{E}}
+  = \vvec{\omega} - \mat{R}(\vvec{q})^\tr\,\vvec{\omega}_E ,
 \end{equation}
-with $\vvec{\omega} = (p,q_b,r_b)^\tr$ the inertial angular velocity in
-body-frame components and
+and not by $\vvec{\omega}$ itself:
+\begin{equation}\label{eq:qdot}
+  \dot{\vvec{q}}
+  = \half\,\mat{\Omega}\bigl(\vvec{\omega}_{\mathcal{B}\mathcal{E}}\bigr)\,
+    \vvec{q},
+\end{equation}
+with
 \begin{equation}\label{eq:Omega}
   \mat{\Omega}(\vvec{a})
   = \begin{pmatrix}
@@ -283,6 +341,23 @@ amplitudes:
 \end{equation}
 where $\vvec{M} = \vvec{M}_a + \vvec{M}_{\mathrm{rcs}}$ is the total
 external moment in~$\mathcal{B}$.
+
+\begin{remark}\label{rem:omega-transport}
+\Cref{eq:omega-rel} is the one place where the choice of a rotating base
+frame reaches the attitude state, and it cannot be dropped as a small
+term. Omitting it leaves \cref{eq:qdot} driven by the inertial rate, which
+biases the attitude by $\norm{\vvec{\omega}_E} \approx
+4.18\times10^{-3}\,\mathrm{deg/s}$---about $6^\circ$ over a
+$1500\,\mathrm{s}$ multi-skip entry. The bias matters more than its size
+suggests. It is systematic rather than bounded-uncertain, so interval
+arithmetic does not absorb it: it translates the enclosure instead of
+widening it, and an enclosure translated off the true attitude is no longer
+an enclosure. Because the slow-manifold
+condition~\cref{eq:glide-full} constrains a specific component of
+$\mat{R}_{\mathcal{L}\mathcal{B}}\vvec{F}_a^{\mathcal{B}}$, the same offset
+enters the glide balance directly, and the skeleton would be extracted
+about the wrong surface.
+\end{remark}
 
 
 %--------------------------------------------------------------------------
@@ -364,9 +439,29 @@ standard operation in validated numerics~\cite{moore2009introduction}.
 The angle of attack~$\alpha$ and sideslip~$\beta$ are
 determined by the quaternion and velocity direction. Let
 $\vvec{V}^{\mathcal{B}} = \mat{R}_{\mathcal{L}\mathcal{B}}^{\tr}\,
-\vvec{V}_{\mathcal{L}}$ be the velocity in body-frame components. Then
-$\alpha = \operatorname{atan2}(-V_z^{\mathcal{B}}, -V_x^{\mathcal{B}})$
-and $\beta = \arcsin(V_y^{\mathcal{B}}/V)$.
+\vvec{V}_{\mathcal{L}}
+= (V_x^{\mathcal{B}},V_y^{\mathcal{B}},V_z^{\mathcal{B}})^\tr$ be the
+vehicle's velocity in body-frame components. Then
+\begin{equation}\label{eq:aoa-sideslip}
+  \alpha = \operatorname{atan2}\bigl(V_z^{\mathcal{B}},
+                                     V_x^{\mathcal{B}}\bigr),
+  \qquad
+  \beta  = \arcsin\bigl(V_y^{\mathcal{B}}/V\bigr).
+\end{equation}
+Both are referred to the same vector, which is the only condition that has
+to be checked and the easiest one to lose: the freestream direction
+is~$-\vvec{V}^{\mathcal{B}}$, and defining~$\alpha$ from the freestream
+while defining~$\beta$ from the velocity offsets~$\alpha$ by~$\pi$, so that
+purely axial flight $\vvec{V}^{\mathcal{B}} = (V,0,0)^\tr$ returns
+$\alpha = 180^\circ$ instead of~$0$. \Cref{eq:aoa-sideslip} fixes the
+velocity as the reference for both; the equivalent freestream convention is
+$\alpha = \operatorname{atan2}(-V_z^{\mathcal{B}},-V_x^{\mathcal{B}})$
+\emph{together with} $\beta = \arcsin(-V_y^{\mathcal{B}}/V)$. The
+distinction is not cosmetic, because $\alpha$ and~$\beta$ are the arguments
+of the aerodynamic coefficients in~\cref{eq:Fa-body}: a $\pi$~offset
+evaluates the vehicle reversed in its own aerodynamic database, and under
+interval arithmetic the resulting enclosure is wide and wrong rather than
+visibly broken.
 \end{remark}
 
 
@@ -422,37 +517,58 @@ Equation~(\ref{eq:glide-full}) retains the $J_2$
 contributions through $g_D(r,\phi)$ and $g_N(r,\phi)$. The simplified
 form $\Lambda = L\cos\sigma/[m(g-V^2/r)] = 1$ is the leading-order
 reduction under spherical gravity ($J_2 = 0$) and small flight-path angle.
-The $J_2$ correction to the glide balance is $O(J_2)$, ranging from
-${\approx}\,0.16\%$ of the leading gravitational term near the equator to
-${\approx}\,0.65\%$ near the poles (through the $(1-5\sin^2\!\phi)$ factor);
-for the interval pipeline it is enclosed exactly.
+The $J_2$ correction to the glide balance is $O(J_2)$ and, through the
+$(1-3\sin^2\!\phi)$ factor of \cref{eq:gD}, it decreases monotonically with
+latitude but \emph{changes sign} partway: it is ${+}\,0.16\%$ of the leading
+gravitational term at the equator, vanishes at
+$\phi = \arcsin(1/\sqrt{3}) \approx 35.3^\circ$, and reaches ${-}\,0.32\%$
+at the poles. The sign change inside the corridor matters
+more than the magnitude, since a trajectory crossing $35.3^\circ$ has the
+correction act in both directions on a single pass. For the interval
+pipeline it is enclosed exactly.
 \end{remark}
 
 \begin{remark}\label{rem:j2-skip}
 The $J_2$ contribution is especially significant
 during skip maneuvers. When the vehicle leaves the slow manifold (the
-defining condition of a boundary-layer bubble), three $J_2$ effects
-compound:
+defining condition of a boundary-layer bubble), two $J_2$ effects act on
+the bubble, and they have \emph{different} sign structures---which is the
+substantive point, since it is what forbids treating either as a monotone
+accumulation over a multi-skip ground track.
 \begin{enumerate}
   \item The northward gravitational component $g_N(r,\phi)$ enters the
     heading rate $\dot\psi$ (Eq.~\ref{eq:psidot}), producing a
     latitude-dependent heading drift during each skip that is absent under
-    spherical gravity. Northward and southward skips are not symmetric.
-  \item The radial component $g_D(r,\phi)$ varies with latitude by up to
-    $\approx 0.65\%$ of the leading term through the $(1-5\sin^2\!\phi)$
-    factor, modifying the
-    effective centrifugal balance $g_D - V^2/r$ that governs the
-    re-entry angle after each skip peak.
-  \item Over $K$ skips the ground track may span a significant latitude
-    range, so the $J_2$ corrections at successive re-entries are evaluated
-    at different~$\phi$, and the effects are cumulative.
+    spherical gravity. Its shape is $-\sin\phi\cos\phi$: odd in~$\phi$, so
+    the sign is fixed by the hemisphere; vanishing at the equator and at
+    the poles; largest at $\abs{\phi} = 45^\circ$, where it reaches
+    $0.16\%$ of the leading gravitational term. Within one hemisphere the
+    drift therefore keeps a single sign and \emph{does} accumulate across
+    successive skips. Northward and southward skips are not symmetric.
+  \item The radial component $g_D(r,\phi)$ modifies the effective
+    centrifugal balance $g_D - V^2/r$ that governs the re-entry angle after
+    each skip peak. Its shape is $(1-3\sin^2\!\phi)$: even in~$\phi$, so it
+    acts identically in both hemispheres, and it changes sign at
+    $\abs{\phi} = \arcsin(1/\sqrt{3}) \approx 35.3^\circ$, running from
+    ${+}\,0.16\%$ of the leading term at the equator to ${-}\,0.32\%$ at
+    the poles. A ground track confined to one side of $35.3^\circ$ thus
+    accumulates this correction with a fixed sign, while one that crosses
+    $35.3^\circ$ has it partially cancel between passes.
 \end{enumerate}
-For the interval pipeline, these effects are enclosed automatically: the
-interval evaluations of $g_D([r],[\phi])$ and $g_N([r],[\phi])$ widen with
-the latitude interval, which is itself widest during a skip (where the
-ground track sweeps the most latitude). Retaining $J_2$ in the dynamics
-is therefore not a refinement but a necessity for tight certified bounds on
-skip trajectories.
+The consequence for the certificate is a prohibition rather than an
+estimate. Over $K$ skips the ground track may span a wide latitude range,
+and the two effects are evaluated at a different~$\phi$ at every
+re-entry; because their sign structures differ, no single worst-case
+latitude bounds both at once, and the enclosure may neither be tightened by
+assuming the corrections reinforce nor loosened by assuming they cancel.
+Both must be carried term by term. For the interval pipeline this happens
+automatically: the interval evaluations of $g_D([r],[\phi])$ and
+$g_N([r],[\phi])$ widen with the latitude interval, which is itself widest
+during a skip, where the ground track sweeps the most latitude---and an
+interval $[\phi]$ straddling $35.3^\circ$ correctly returns a $g_D$
+correction of both signs rather than a spuriously signed one. Retaining
+$J_2$ in the dynamics is therefore not a refinement but a necessity for
+tight certified bounds on skip trajectories.
 \end{remark}
 
 
@@ -480,6 +596,30 @@ Wall temperature:
 \end{equation}
 No embedding, no recasting. The transcendentals $\sqrt{\rho}$ and $V^3$
 are evaluated directly as interval operations.
+
+\begin{remark}\label{rem:sutton-graves-circularity}
+\Cref{eq:Qdot} carries an obligation that has to be discharged before the
+bubble count can be called \emph{a~priori}. The bound
+$K \le K_{\max}(Q_{\max})$ is derived from the integrated heat-load budget,
+the budget is integrated from~\cref{eq:Qdot}, and Sutton--Graves assumes
+chemical equilibrium---the assumption in its envelope least likely to hold
+at high altitude, which is exactly where a skip peaks. The events being
+counted therefore occur in the regime where the correlation that counts
+them is weakest, and the circularity is not removed by widening the
+interval on $k_Q$: an enclosure of the wrong correlation is still an
+enclosure of the wrong correlation.
+
+Two ways out, and the choice is an open one. Either replace~\cref{eq:Qdot}
+above a transition altitude with a correlation valid in
+thermochemical non-equilibrium and enclose the switch as a hybrid guard, or
+weaken the claim: derive $K_{\max}$ from an inequality that only needs a
+certified \emph{lower} bound on the heat load per pass, for which a
+conservative equilibrium estimate is admissible because underestimating the
+heating can only overestimate~$K_{\max}$. The second is cheaper and keeps
+the closed form, at the cost of a looser bubble count; it is the fallback
+if the first proves unavailable. Either way the dependency must be stated,
+because a reviewer reading the $K_{\max}$ derivation will find it.
+\end{remark}
 
 \begin{remark}\label{rem:thermal-embedding}
 The density-square-root embedding
@@ -527,8 +667,9 @@ theory may fail, and the modal forcing should be flagged as uncertain
 \subsection{Density model and interval envelope}\label{sec:density}
 %--------------------------------------------------------------------------
 
-\emph{To be completed:} functional form of the atmospheric density profile
-suitable for interval evaluation. The NRLMSIS~2.0 model provides the
+The functional form of the atmospheric density profile suitable for
+interval evaluation is not yet settled, and it is the first thing
+Objective~1 has to fix. The NRLMSIS~2.0 model provides the
 reference; the interval pipeline requires either a closed-form analytic
 approximation with certified error bounds, or a piecewise-exponential
 envelope
