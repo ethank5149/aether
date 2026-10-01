@@ -432,6 +432,85 @@ def _a_pass_dissipates_in_proportion_to_its_turn() -> Any:
     return sp.limit(ratio, s.ballistic_coefficient, 0, "+") + 1 / s.vertical_lift_to_drag
 
 
+def _the_depth_of_a_pass_is_set_by_its_entry_angle() -> Any:
+    r"""Along a pass, :math:`\cos\gamma - E_v H_s\rho/(2\beta)` changes only through gravity.
+
+    Its rate along the planar field is exactly
+    :math:`(g - V^2/r)\sin\gamma\cos\gamma/V`: the lift and the density
+    gradient cancel. Where the aerodynamic force dominates the quantity is
+    therefore conserved, and a pass entered from thin air at an angle
+    :math:`\gamma_e` levels out at the density
+    :math:`\rho_b = 2\beta(1-\cos\gamma_e)/(E_v H_s)`. The vertical lift
+    acceleration there is :math:`V^2(1-\cos\gamma_e)/H_s`, about
+    :math:`V^2\gamma_e^2/(2H_s)`: this is how the load in a pass comes to
+    scale as :math:`\gamma_e^2/\varepsilon` against gravity, and why holding
+    the load fixed as the layer thins forces :math:`\gamma_e \sim
+    \sqrt\varepsilon`.
+    """
+    s = GlideSymbols()
+    density = s.reference_density * sp.exp(-(s.radius - s.body_radius) / s.scale_height)
+    invariant = sp.cos(s.gamma) - s.vertical_lift_to_drag * s.scale_height * density / (
+        2 * s.ballistic_coefficient
+    )
+    rate = lie_derivative(invariant, s.state, list(s.rates))
+    entry_angle = sp.Symbol("gamma_e", positive=True)
+    bottom_density = (
+        2 * s.ballistic_coefficient * (1 - sp.cos(entry_angle))
+        / (s.vertical_lift_to_drag * s.scale_height)
+    )
+    lift_at_the_bottom = (
+        s.vertical_lift_to_drag * bottom_density * s.speed**2 / (2 * s.ballistic_coefficient)
+    )
+    return [
+        rate - s.net_gravity * sp.sin(s.gamma) * sp.cos(s.gamma) / s.speed,
+        lift_at_the_bottom - s.speed**2 * (1 - sp.cos(entry_angle)) / s.scale_height,
+    ]
+
+
+def _glide_phugoid_and_skip_are_one_oscillator() -> Any:
+    r"""Level flight :math:`z` scale heights off the glide accelerates at :math:`G(e^{-z}-1)`.
+
+    With :math:`G = g - V^2/r` and the ballistic coefficient that puts the
+    glide at :math:`(r, V)`, the vertical acceleration :math:`V\dot\gamma` at
+    level flight and radius :math:`r + H_s z` tends to :math:`G(e^{-z} - 1)`
+    as :math:`H_s \to 0` with :math:`z` fixed: lift falls off exponentially
+    with altitude and what it has to balance does not. Since
+    :math:`\ddot h = V\dot\gamma` at level flight, the altitude in scale
+    heights obeys :math:`\ddot z = k\,(e^{-z} - 1)`, :math:`k = G/H_s`, to
+    leading order, at frozen speed and with the damping left out.
+
+    The remaining entries are what that equation says. Its energy
+    :math:`\tfrac12\dot z^2 + k\,(e^{-z} + z)` is conserved; the curvature of
+    the potential at its minimum is :math:`k`, the phugoid frequency squared,
+    so the phugoid is its small oscillation; far above the glide the
+    acceleration tends to :math:`-k`, a ballistic arc under :math:`-G`, so a
+    skip is its large one; and an oscillation that crosses the glide altitude
+    at a flight-path angle :math:`\gamma_0` turns where
+    :math:`e^{-z} + z - 1 = V^2\gamma_0^2/(2 G H_s)`, which is of order
+    :math:`\gamma_0^2/\varepsilon`.
+    """
+    s = GlideSymbols()
+    height = s.scale_height
+    z, z_rate, angle = sp.symbols("z z_dot gamma_0", real=True)
+    level = (s.speed * s.rates[2]).subs(s.gamma, 0)
+    displaced = level.subs(s.radius, s.radius + height * z).subs(
+        s.ballistic_coefficient, s.glide_ballistic_coefficient
+    )
+    stiffness = s.phugoid_frequency_squared
+    potential = stiffness * (sp.exp(-z) + z)
+    restoring = stiffness * (sp.exp(-z) - 1)
+    energy = z_rate**2 / 2 + potential
+    crossing_rate = s.speed * angle / height
+    return [
+        sp.limit(sp.simplify(displaced), height, 0, "+") - s.net_gravity * (sp.exp(-z) - 1),
+        lie_derivative(energy, (z, z_rate), (z_rate, restoring)),
+        sp.diff(potential, z, 2).subs(z, 0) - stiffness,
+        sp.limit(restoring, z, sp.oo) + stiffness,
+        crossing_rate**2 / (2 * stiffness)
+        - s.speed**2 * angle**2 / (2 * s.net_gravity * height),
+    ]
+
+
 # -- the corridor, and wrapping ---------------------------------------------------
 
 
@@ -589,6 +668,21 @@ DERIVATIONS: tuple[Derivation, ...] = (
         "in a pass, d ln V / d gamma = -1/E_v: dissipation is proportional to the turn",
         "apx:residual, eq:turning; apx:time, lem:impulse",
         _a_pass_dissipates_in_proportion_to_its_turn,
+        kind="limit",
+    ),
+    Derivation(
+        "pass-depth",
+        "cos(gamma) - E_v H_s rho/(2 beta) changes only through gravity, so a pass entered at "
+        "gamma_e bottoms out where the lift is V^2 (1 - cos gamma_e)/H_s",
+        "sec:profile; apx:residual, eq:pass-depth",
+        _the_depth_of_a_pass_is_set_by_its_entry_angle,
+    ),
+    Derivation(
+        "one-oscillator",
+        "z scale heights off the glide, level flight accelerates at G(e^-z - 1): glide, phugoid "
+        "and skip are the equilibrium, small and large oscillations of one equation",
+        "sec:bound, eq:oscillator-body; apx:residual, eq:oscillator",
+        _glide_phugoid_and_skip_are_one_oscillator,
         kind="limit",
     ),
     Derivation(

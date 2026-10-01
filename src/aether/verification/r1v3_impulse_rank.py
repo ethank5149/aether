@@ -70,12 +70,18 @@ from aether.aerothermal import stefan_recession_rate, sutton_graves
 from aether.atmosphere import USStandard1976
 from aether.verification.common import VerificationReport, write_csv
 
-__all__ = ["impulse_jacobian", "impulse_of_pass", "lift_drag_polars", "run_r1v3"]
+__all__ = [
+    "arc_after_pass",
+    "impulse_jacobian",
+    "impulse_of_pass",
+    "lift_drag_polars",
+    "run_r1v3",
+]
 
 _FloatArray = NDArray[np.float64]
 
 R_E, MU = 6.371e6, 3.986004418e14
-#: Trajectory scale sqrt(R_e/g) and phugoid scale 2*pi*sqrt(H_s/g), s.
+#: Trajectory scale sqrt(R_e/g), s, and the atmospheric scale height, m.
 _T_SLOW, _H_S = 806.0, 7.2e3
 #: Vehicle and TPS: generic, open data, traceable to no system.
 _S_REF, _R_NOSE, _A_ABL, _MASS0 = 12.0, 0.30, 4.0, 1200.0
@@ -215,6 +221,65 @@ def impulse_of_pass(params: _FloatArray, gamma_deg: float = _GAMMA_0) -> tuple[_
     return np.array([d[1], d[2], d[3], d[5], d[6], d[7], d[8], d[9]]), sol
 
 
+def arc_after_pass(sol: Any, alpha_deg: float = _ALPHA_0) -> tuple[float, float]:
+    """Duration and apogee altitude of the arc that follows a pass.
+
+    Continued from the state at which the pass ended, at a fixed angle of
+    attack and with the bank held where the pass left it, until the vehicle
+    comes back down through the entry altitude. A pass is only short or long
+    against what surrounds it, and this is one of the two things that do; the
+    other is the oscillation about the glide.
+
+    Only the translational states are carried: nothing here needs the thermal
+    ones, and the heating correlation is undefined in the vacuum the arc
+    reaches. Above the tabulated atmosphere the density is continued at the
+    table's own logarithmic slope; what drag is left up there is of the order
+    of a millionth of gravity and does not move either number returned.
+    """
+    alpha = float(np.radians(np.clip(alpha_deg, 2.0, 48.0)))
+    c_lift, c_drag = float(_CL(alpha)), float(_CD(alpha))
+    top = float(_ALT[-1])
+    rho_top = float(_RHO(top))
+    tail_height = -rho_top / float(_RHO(top, 1))
+    exit_state = sol.y[:, -1]
+    bank, mass = float(exit_state[6]), float(exit_state[7])
+
+    def rhs(t: float, x: _FloatArray) -> list[float]:
+        r, _th, ph, speed, ga, ps = x
+        h = r - R_E
+        rho = float(_RHO(max(h, 0.0))) if h < top else rho_top * np.exp(-(h - top) / tail_height)
+        qbar = 0.5 * rho * speed * speed
+        lift, drag = qbar * _S_REF * c_lift, qbar * _S_REF * c_drag
+        g, cg = MU / r**2, np.cos(ga)
+        return [
+            speed * np.sin(ga),
+            speed * cg * np.sin(ps) / (r * np.cos(ph)),
+            speed * cg * np.cos(ps) / r,
+            -drag / mass - g * np.sin(ga),
+            lift * np.cos(bank) / (mass * speed) + (speed / r - g / speed) * cg,
+            lift * np.sin(bank) / (mass * speed * cg)
+            + (speed / r) * cg * np.sin(ps) * np.tan(ph),
+        ]
+
+    def came_back(t: float, x: _FloatArray) -> float:
+        return float((x[0] - R_E) - _H_ENTRY)
+
+    came_back.terminal = True  # type: ignore[attr-defined]
+    came_back.direction = -1.0  # type: ignore[attr-defined]
+    arc = solve_ivp(
+        rhs,
+        (0.0, 3000.0),
+        exit_state[:6],
+        rtol=1e-10,
+        atol=1e-12,
+        events=came_back,
+        max_step=1.0,
+    )
+    if arc.t_events[0].size == 0:
+        raise RuntimeError("the vehicle did not come back to the entry altitude after the pass")
+    return float(arc.t[-1]), float(arc.y[0].max() - R_E)
+
+
 def impulse_jacobian(n_seg: int) -> _FloatArray:
     """Normalized Jacobian of the impulse with respect to in-pass controls.
 
@@ -251,27 +316,47 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
 
     _base, sol = impulse_of_pass(np.array([_ALPHA_0] * 4 + [0.0] * 4))
     duration = float(sol.t[-1])
+    # A pass is short or long only against what surrounds it: the arc that
+    # follows, and the oscillation about the glide at the speed of the pass.
+    lowest = int(np.argmin(sol.y[0]))
+    radius_low, speed_low = float(sol.y[0][lowest]), float(sol.y[3][lowest])
+    net_gravity = MU / radius_low**2 - speed_low**2 / radius_low
+    period = float(2.0 * np.pi * np.sqrt(_H_S / net_gravity))
+    arc, apogee = arc_after_pass(sol)
+    root_eps = float(np.sqrt(_H_S / R_E))
+    shed = 1.0 - float(sol.y[3][-1] / _V_ENTRY) ** 2
     report.add_section(
-        "The nominal pass, and the width of the layer it occupies",
+        "The nominal pass, and what it has to be compared with",
         f"Entry at {_H_ENTRY / 1e3:.0f} km, {_V_ENTRY:.0f} m/s, "
         f"gamma = {_GAMMA_0:.1f} deg, bank {np.degrees(_SIGMA_0):.0f} deg. The "
-        f"pass reaches {(sol.y[0].min() - R_E) / 1e3:.1f} km, peak wall temperature "
+        f"pass reaches {(radius_low - R_E) / 1e3:.1f} km, peak wall temperature "
         f"{sol.y[10].max():.0f} K, and returns to the entry altitude after "
-        f"**{duration:.1f} s**.\n\n"
-        f"That duration is {duration / _T_SLOW * 100:.1f}% of `T_slow` = {_T_SLOW:g} s. "
-        "It should be compared against the layer width, and the comparison "
-        "carries a correction. The layer is set by the phugoid period "
-        "`T_phug = 2*pi*sqrt(H_s/g)`, against `T_slow = sqrt(R_e/g)`, so the "
-        "ratio is `2*pi*sqrt(eps_atm)`, **not** `sqrt(eps_atm)`:\n\n"
-        f"- `sqrt(eps_atm)` = {np.sqrt(_H_S / R_E):.4f} ({np.sqrt(_H_S / R_E) * 100:.1f}%)\n"
-        f"- `2*pi*sqrt(eps_atm)` = {2 * np.pi * np.sqrt(_H_S / R_E):.4f} "
-        f"({2 * np.pi * np.sqrt(_H_S / R_E) * 100:.1f}%)\n"
-        f"- measured pass duration = {duration / _T_SLOW:.4f} "
-        f"({duration / _T_SLOW * 100:.1f}%)\n\n"
-        "The measurement lands on the second. The functional form "
-        "`rho(eps) = C_R*sqrt(eps)` is unaffected, but any numerical estimate "
-        "that substitutes `sqrt(eps) = 0.034` understates the layer by a "
-        "factor of `2*pi`, and `C_R` is meant to be explicit.",
+        f"**{duration:.1f} s**, leaving at gamma = {np.degrees(sol.y[4][-1]):+.1f} deg "
+        f"with {100 * shed:.1f}% of its kinetic energy shed.\n\n"
+        "Three times surround it, and at the physical scale height they are not "
+        "separated:\n\n"
+        f"- the pass: **{duration:.0f} s**, {duration / _T_SLOW:.2f} of `T_slow` = "
+        f"{_T_SLOW:g} s;\n"
+        f"- the arc that follows it, up to {apogee / 1e3:.0f} km and back down to the entry "
+        f"altitude: **{arc:.0f} s**, {arc / duration:.1f} times the pass;\n"
+        "- the oscillation about the glide at the speed of the pass, whose period is "
+        f"`2*pi*sqrt(H_s/(g - V^2/r))` = **{period:.0f} s** at the lowest point: the pass "
+        f"is {duration / period:.2f} of a period.\n\n"
+        f"The entry angle is {np.radians(abs(_GAMMA_0)) / root_eps:.1f} times "
+        f"`sqrt(eps_atm)` = {root_eps:.4f} rad ({np.degrees(root_eps):.1f} deg). That ratio "
+        "is what places a pass: held fixed as the layer thins it gives passes that last "
+        "`O(sqrt(eps))` under bounded loads, the troughs of an oscillation; sent to "
+        "infinity (a fixed entry angle) it gives passes that last `O(eps)` under loads "
+        "that grow like `1/eps`, and concentrate. Here it is about two, and the pass is "
+        "neither: it is the lower half of one large oscillation about the glide, which "
+        "is why its duration is half a period.\n\n"
+        f"`sqrt(eps_atm) * T_slow` = {root_eps * _T_SLOW:.0f} s, so an estimate that "
+        "substitutes `sqrt(eps)` for the width of a pass understates it by a factor of "
+        f"{duration / (root_eps * _T_SLOW):.1f}. An earlier version of this task compared "
+        "the pass with `2*pi*sqrt(H_s/g)`. That period leaves out the centrifugal relief: "
+        "the oscillation is restored by `g - V^2/r`, not by `g`, and at this speed the "
+        f"difference is a factor of {period / (2.0 * np.pi * np.sqrt(_H_S / (MU / radius_low**2))):.1f}"
+        " in the period.",
     )
 
     # --- rank, and its saturation in control freedom -------------------

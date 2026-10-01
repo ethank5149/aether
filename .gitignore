@@ -47,3 +47,5 @@ manuscript/**/*.synctex.gz
 manuscript/**/*.bcf
 manuscript/**/*.run.xml
 manuscript/**/*.bbl-SAVE-ERROR
+
+reference/
