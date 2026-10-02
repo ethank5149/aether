@@ -29,9 +29,14 @@ package from those numbers:
   corridor. Inner sweep and outer certificate bracket the flown trajectory
   between them.
 
-Against the flight: Final phase at 538 s (flown 551 s), Terminal at 880 s
-(882 s), skip apogee 284 kft (287 kft), and the Terminal phase starting
-2.0 nmi from the target (2.7 nmi).
+Against the flight: Final phase at 498 s (flown 551 s), Terminal at 866 s
+(882 s), skip apogee 273 kft (287 kft), six bank reversals (six), and the
+Terminal phase starting 0.3 nmi from the target (2.7 nmi).
+
+What the example leaves out, and says so where it runs: wind; the dependence
+of the aerodynamic coefficients on Mach number; the attitude dynamics; the
+vehicle's mass change; radiative heating; and the heat shield's thermal
+response.
 
 Inputs
 ------
@@ -48,12 +53,21 @@ Inputs
      - Newtonian panel method at design L/D (:mod:`aether.aerodynamics.panels`)
    * - Skip guidance
      - PredGuid predictor-corrector bank-angle modulation (:mod:`aether.guidance.skip`)
+   * - Equations of motion
+     - A point mass at trim over a rotating, oblate Earth, with altitude above
+       the WGS 84 ellipsoid: the routine compiled from the symbolic field
+       (:mod:`aether.flight.entry`, :mod:`aether.symbolic`)
+   * - Entry interface
+     - The published geodetic, inertial state, carried into the field's
+       geocentric, planet-relative one (:func:`aether.flight.entry.interface_state`)
    * - Atmosphere
-     - ERA5 reanalysis winds + MSIS thermosphere (:mod:`aether.atmosphere`)
+     - The 1976 standard to 80 km, joined to a fit of NRLMSISE-00 above, as
+       one expression (:mod:`aether.symbolic.atmosphere`); no wind
    * - Finite roll rate
-     - Explicitly modelled in the coupled simulator (:mod:`aether.flight`)
+     - In the loop that flies the plant, and as a state of the guidance's own
+       predictions (:mod:`aether.guidance.skip`)
    * - Certified downrange bound
-     - Exact ball arithmetic over corridor (:mod:`aether.certification.range_bound`)
+     - Ball arithmetic over a corridor (:mod:`aether.certification.range_bound`)
 
 Running the Example
 -------------------
@@ -70,12 +84,10 @@ or directly:
 
    python -m examples.artemis1.entry
 
-The script requires the ``viz``, ``atmosphere``, and ``reanalysis`` extras
-for the full demonstration (ERA5 winds, rendering). Install them with:
-
-.. code-block:: bash
-
-   pip install -e ".[viz,atmosphere,reanalysis]"
+It needs SymPy for the symbolic field, ``python-flint`` for the certified
+bound, and the upper-atmosphere model the standard atmosphere is fitted to
+above 86 km. A C compiler is used when one is found and is not required:
+without one the generated code runs through NumPy, more slowly.
 
 Key Outputs
 -----------
@@ -93,6 +105,8 @@ Key Outputs
    :width: 100%
    :alt: Artemis I trajectory and reachable footprint
 
+   Rendered from an earlier version of the example, before it flew the
+   compiled symbolic field; the areas quoted are that version's.
    Top: altitude vs. downrange for the simulated skip entry, colored by speed,
    with the four PredGuid guidance phases shaded. Bottom-left: the bank-angle
    command history with bank reversals marked. Bottom-right: the reachable
@@ -128,30 +142,31 @@ The demonstration script is at ``examples/artemis1/entry.py`` (outside
      - Role in the demonstration
    * - :mod:`aether.guidance.skip`
      - PredGuid skip guidance (predictor-corrector bank-angle modulation)
-   * - :mod:`aether.atmosphere`
-     - ERA5 reanalysis winds, MSIS thermosphere, standard atmosphere
+   * - :mod:`aether.flight.entry`
+     - The simulator: the compiled symbolic field, with event-accurate predictions
+   * - :mod:`aether.symbolic`
+     - The field, the atmosphere and the reference figure on symbols, and the
+       C generated from them
+   * - :mod:`aether.guidance.footprint`
+     - The landing footprint, by sweeping bank schedules
    * - :mod:`aether.certification.range_bound`
-     - Certified downrange bound in exact ball arithmetic
-   * - :mod:`aether.batch`
-     - Batched Monte Carlo propagation for the landing footprint
+     - Certified downrange bound in ball arithmetic
    * - :mod:`aether.geometry`
      - Orion outer mould line from CEV wind-tunnel proportions
    * - :mod:`aether.aerodynamics`
      - Newtonian panel method for hypersonic drag and L/D
 
-The script is structured as a sequence of phases:
+The script is structured as a sequence of steps:
 
-1. **Geometry & aerodynamics setup** — build the Orion shape, compute the
-   panel-method aerodynamic database.
-2. **Atmosphere & winds** — load ERA5 reanalysis for the entry epoch, construct
-   the wind field.
-3. **Guidance & simulator** — configure the PredGuid skip guidance and the
-   coupled 13+ state simulator with finite roll rate.
-4. **Reference trajectory** — fly the nominal trajectory to terminal speed.
-5. **Batched dispersion** — run the Monte Carlo batch over wind and model
-   uncertainty.
-6. **Certified bound** — compute the exact-arithmetic downrange certificate.
-7. **Visualization** — render the globe, footprint, and trajectory.
+1. **Geometry and aerodynamics** — build the Orion shape and find the trim
+   angle at the design L/D by the panel method.
+2. **Entry interface** — carry the published state into the field's.
+3. **Guidance and plant** — configure the skip guidance on its own model, and
+   the plant on the atmosphere and L/D the flight met.
+4. **The flight** — fly to terminal speed and compare with the flight's
+   published phases and reversals.
+5. **Footprints** — sweep bank schedules from three instants.
+6. **Certified bound** — compute the downrange certificate in ball arithmetic.
 
 The source file ``examples/artemis1/entry.py`` is the canonical reference —
 read it alongside this tutorial to see how the modules compose.

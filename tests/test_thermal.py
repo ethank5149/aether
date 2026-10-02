@@ -374,3 +374,89 @@ class TestCharringThermalSolver:
         t = 0.7
         mdot = solver.gas_flux(mms.bulk_density_t(eta, t), mms.thickness(t))
         assert np.allclose(mdot, mms.gas_flux(eta, t), atol=1e-12)
+
+
+class TestWhatTheConservationLawsSayOfThisSolver:
+    """Two places where this hand-written solver and the conservation laws part.
+
+    Found when the heat shield was restated on symbols
+    (:mod:`aether.symbolic.thermal`), where the temperature equation is
+    derived from conservation of mass and energy instead of transcribed, and
+    held against Chen and Milos, *J. Spacecraft Rockets* 36(3), 1999,
+    Eqs. (1) and (9). They are marked as expected failures, strictly, so that
+    the suite says what is known to be wrong here and fails the day it is
+    fixed without the mark being removed.
+    """
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "the pyrolysis-gas convection term has the opposite sign to conservation of "
+            "energy: gas_flux solves d(mdot)/d(eta) = -l rho_dot, which is the flux into the "
+            "body (negative), and rhs then adds mdot c_pg dT/d(eta) / l where the derived "
+            "equation, and Chen & Milos Eq. (1) with their Eq. (9), subtract it"
+        ),
+    )
+    def test_gas_flowing_to_a_hotter_surface_cools_the_solid(self, material):
+        """With a hot surface and decomposition in depth, the gas term must lower dT/dt."""
+        import dataclasses
+
+        grid = ChebyshevGrid(16, interval=(0.0, 1.0), max_derivative=2)
+        frame = LandauFrame(0.05)
+        eta = grid.x
+        temperature = 300.0 + 900.0 * (1.0 - eta) ** 2  # hot at the surface, eta = 0
+        densities = np.vstack([
+            np.full_like(eta, 0.9 * c.virgin_density + 0.1 * c.char_density)
+            for c in material.components
+        ])
+        state = ThermalState(temperature, densities, 0.0)
+        with_gas = CharringThermalSolver(grid, material, frame, "material_frame")
+        without = CharringThermalSolver(
+            grid, dataclasses.replace(material, gas_specific_heat=1e-12), frame, "material_frame"
+        )
+        packed = with_gas.pack(state)
+
+        def still(_t, _state):
+            return 0.0
+
+        difference = (with_gas.rhs(0.0, packed, still) - without.rhs(0.0, packed, still))[
+            : grid.size
+        ]
+        assert np.all(difference[1:-1] < 0.0)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "by default the gas continuity and the decomposition enthalpy are sourced with "
+            "the density rate at fixed eta, which counts the grid's own motion as "
+            "decomposition; conservation of mass sources them with the rate at fixed depth "
+            "(Chen & Milos Eq. (9)), which is the 'material_frame' option"
+        ),
+    )
+    def test_a_receding_surface_does_not_make_gas_out_of_grid_motion(self, material):
+        """With no decomposition at all, a density gradient and a moving grid, there is no
+        gas: the temperature rate must not depend on the gas's heat capacity."""
+        import dataclasses
+
+        grid = ChebyshevGrid(16, interval=(0.0, 1.0), max_derivative=2)
+        frame = LandauFrame(0.05)
+        eta = grid.x
+        temperature = np.full_like(eta, 250.0) + 40.0 * (1.0 - eta)  # too cold to decompose
+        densities = np.vstack([
+            c.char_density + (c.virgin_density - c.char_density) * (0.3 + 0.7 * eta)
+            for c in material.components
+        ])
+        packed = CharringThermalSolver(grid, material, frame).pack(
+            ThermalState(temperature, densities, 0.0)
+        )
+
+        def receding(_t, _state):
+            return 1.0e-4
+
+        rates = [
+            CharringThermalSolver(
+                grid, dataclasses.replace(material, gas_specific_heat=heat), frame
+            ).rhs(0.0, packed, receding)[: grid.size]
+            for heat in (1800.0, 3600.0)
+        ]
+        assert np.allclose(rates[0], rates[1], rtol=1e-9, atol=1e-12)

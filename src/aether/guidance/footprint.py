@@ -36,7 +36,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import scipy.integrate
@@ -150,6 +150,10 @@ class EntryFootprint:
         Terminal points of every control history that satisfied the path
         limits. The footprint is their hull; these are kept because the density
         inside the hull is itself informative.
+    schedules:
+        The control history behind each of ``samples``, in the same order, as
+        ``((until_time, bank), ...)``: a landing point without the control that
+        reaches it cannot be flown again.
     boundary:
         Hull of ``samples``, ordered, as ground points.
     max_downrange_m, min_downrange_m, max_crossrange_m:
@@ -170,6 +174,7 @@ class EntryFootprint:
     origin: GeodeticPosition
     heading: float
     samples: tuple[GeodeticPosition, ...] = ()
+    schedules: tuple[tuple[tuple[float, float], ...], ...] = ()
     boundary: tuple[GeodeticPosition, ...] = ()
     max_downrange_m: float = 0.0
     min_downrange_m: float = 0.0
@@ -223,6 +228,7 @@ def assemble_footprint(
     binding: tuple[str, ...] = (),
     worst_heat_flux_w_cm2: float = 0.0,
     worst_g_load: float = 0.0,
+    schedules: Sequence[Sequence[tuple[float, float]]] = (),
 ) -> EntryFootprint:
     """Hull the terminal points and measure the footprint's extent."""
     if not terminals:
@@ -242,6 +248,7 @@ def assemble_footprint(
         origin=origin,
         heading=heading,
         samples=tuple(terminals),
+        schedules=tuple(tuple(schedule) for schedule in schedules),
         boundary=tuple(terminals[i] for i in hull_idx),
         max_downrange_m=float(max(downrange)),
         min_downrange_m=float(min(downrange)),
@@ -267,6 +274,10 @@ class FlownSchedule(NamedTuple):
     altitudes: _FloatArray
     speeds: _FloatArray
     final: _FloatArray
+    heat_flux: _FloatArray | None = None
+    """Stagnation heat flux at each sample (W/m²), where the body's model reports one."""
+    load_factor: _FloatArray | None = None
+    """Aerodynamic load at each sample in standard gravities, likewise."""
 
 
 def fly_bank_schedule(
@@ -354,7 +365,7 @@ def _ground_point(state: _FloatArray) -> GeodeticPosition:
 
 def entry_footprint(
     state: _FloatArray,
-    body: EntryBody,
+    body: Any,
     *,
     limits: EntryPathLimits,
     terminal_speed: float,
@@ -364,6 +375,7 @@ def entry_footprint(
     step: float = 5.0,
     n_constant: int = 21,
     n_reversals: int = 6,
+    schedules: Sequence[Sequence[tuple[float, float]]] | None = None,
 ) -> EntryFootprint:
     """Map the footprint of an entry body by sweeping its bank schedules.
 
@@ -378,24 +390,42 @@ def entry_footprint(
     :func:`~aether.guidance.entry_ocp.stagnation_heat_flux`, in the same
     exponential atmosphere the dynamics fly; see its note on radiative heating
     at lunar-return speeds.
+
+    ``body`` is an :class:`~aether.guidance.entry.EntryBody`, flown by the
+    hand-written equations, or a model that flies itself --
+    :class:`aether.flight.entry.EntryModel`, whose ``fly_schedule`` integrates
+    the compiled field and reports the heat flux and the load from that field's
+    own outputs. Such a model also says where a state is on the ground, since
+    its latitude is geocentric and a footprint is drawn in geodetic ones.
+
+    ``schedules`` replaces the two families of :func:`bank_schedules` by
+    control histories of the caller's choosing, each ``[(until_time, bank),
+    ...]``; ``n_constant`` and ``n_reversals`` are then not used. The history
+    behind each landing point is kept in :attr:`EntryFootprint.schedules`,
+    so a second sweep can be built on what the first one found.
     """
-    origin = _ground_point(state)
+    locate = getattr(body, "ground_point", _ground_point)
+    flyer = getattr(body, "fly_schedule", None)
+    origin = locate(state)
     heading = float(state[5])
 
     terminals: list[GeodeticPosition] = []
+    kept: list[Sequence[tuple[float, float]]] = []
     rejected = 0
     violations: Counter[str] = Counter()
     worst_q = 0.0
     worst_g = 0.0
-    for schedule in bank_schedules(body.max_bank, n_constant, n_reversals, max_time):
-        flown = fly_bank_schedule(
-            state, body, schedule, terminal_speed=terminal_speed, max_time=max_time, step=step,
-        )
+    if schedules is None:
+        schedules = bank_schedules(body.max_bank, n_constant, n_reversals, max_time)
+    for schedule in schedules:
+        fly = fly_bank_schedule if flyer is None else flyer
+        arguments = (state, schedule) if flyer is not None else (state, body, schedule)
+        flown = fly(*arguments, terminal_speed=terminal_speed, max_time=max_time, step=step)
         if flown is None or flown.times.size < 3:
             rejected += 1
             violations["integration"] += 1
             continue
-        if flown.final[3] > terminal_speed and flown.final[0] > _R_EARTH:
+        if flown.final[3] > terminal_speed and flown.altitudes[-1] > 0.0:
             # Still fast and still airborne when the clock ran out: a schedule
             # that holds too much lift up from a lunar-return speed climbs out
             # of the atmosphere for good. Where it happens to be then is not a
@@ -403,14 +433,19 @@ def entry_footprint(
             rejected += 1
             violations["skip_out"] += 1
             continue
-        peak_q = max(
-            stagnation_heat_flux(float(h), float(v), limits.nose_radius_m)
-            for h, v in zip(flown.altitudes, flown.speeds, strict=True)
-        )
-        peak_g = max(
-            g_load(body, float(h), float(v))
-            for h, v in zip(flown.altitudes, flown.speeds, strict=True)
-        )
+        if flown.heat_flux is not None and flown.load_factor is not None:
+            # The model's own outputs along the flight; W/m² to W/cm².
+            peak_q = float(np.max(flown.heat_flux)) / 1.0e4
+            peak_g = float(np.max(flown.load_factor))
+        else:
+            peak_q = max(
+                stagnation_heat_flux(float(h), float(v), limits.nose_radius_m)
+                for h, v in zip(flown.altitudes, flown.speeds, strict=True)
+            )
+            peak_g = max(
+                g_load(body, float(h), float(v))
+                for h, v in zip(flown.altitudes, flown.speeds, strict=True)
+            )
         worst_q = max(worst_q, peak_q)
         worst_g = max(worst_g, peak_g)
         broken = [
@@ -425,7 +460,8 @@ def entry_footprint(
             rejected += 1
             violations.update(broken)
             continue
-        terminals.append(_ground_point(flown.final))
+        terminals.append(locate(flown.final))
+        kept.append(schedule)
 
     binding = tuple(name for name, _ in violations.most_common())
     notes = ""
@@ -438,4 +474,5 @@ def entry_footprint(
     return assemble_footprint(
         label, epoch, origin, heading, terminals, rejected,
         notes=notes, binding=binding, worst_heat_flux_w_cm2=worst_q, worst_g_load=worst_g,
+        schedules=kept,
     )

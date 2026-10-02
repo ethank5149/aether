@@ -12,6 +12,7 @@ from aether.guidance.footprint import (
     assemble_footprint,
     convex_hull,
     entry_footprint,
+    fly_bank_schedule,
     hull_contains,
     to_local,
 )
@@ -152,6 +153,37 @@ class TestEntryFootprint:
         behind = GeodeticPosition(origin.latitude - np.deg2rad(10.0), origin.longitude, 0.0)
         assert not footprint.contains(behind)
         assert footprint.distance_to(behind) > 0.0
+
+    def test_each_landing_keeps_the_control_that_reached_it(self, interface_state):
+        """One history per sample, in order; flown again, it lands on its sample."""
+        footprint = entry_footprint(
+            interface_state, BODY, limits=LOOSE, terminal_speed=300.0,
+            n_constant=5, n_reversals=2, step=10.0,
+        )
+        assert len(footprint.schedules) == len(footprint.samples) > 0
+        for schedule, sample in zip(footprint.schedules, footprint.samples, strict=True):
+            again = fly_bank_schedule(
+                interface_state, BODY, schedule, terminal_speed=300.0, max_time=4000.0, step=10.0
+            )
+            assert again is not None
+            assert again.final[2] == pytest.approx(sample.latitude, abs=1e-12)
+            assert np.sin(again.final[1]) == pytest.approx(np.sin(sample.longitude), abs=1e-12)
+
+    def test_the_sweep_can_be_of_the_callers_own_histories(self, interface_state):
+        """``schedules`` replaces the two default families: two in, and two landings out."""
+        chosen = [[(np.inf, 0.0)], [(200.0, 0.5), (np.inf, -0.5)]]
+        footprint = entry_footprint(
+            interface_state, BODY, limits=LOOSE, terminal_speed=300.0, step=10.0,
+            n_constant=99, n_reversals=99, schedules=chosen,
+        )
+        assert footprint.schedules == tuple(tuple(history) for history in chosen)
+        assert len(footprint.samples) == 2 and footprint.rejected == 0
+        wings_level = entry_footprint(
+            interface_state, BODY, limits=LOOSE, terminal_speed=300.0, step=10.0,
+            n_constant=1, n_reversals=0, schedules=None,
+        )
+        # linspace(-max, max, 1) is the one bank -max, so the default is not this sweep.
+        assert wings_level.samples[0] != footprint.samples[0]
 
 
 class TestEmptyFootprint:

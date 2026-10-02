@@ -247,6 +247,38 @@
              threshold may sit.},
 }
 
+@article{claeys2017semidefinite,
+  author  = {Claeys, Mathieu and Henrion, Didier and Kru{\v{z}}{\'i}k, Martin},
+  title   = {Semi-Definite Relaxations for Optimal Control Problems with
+             Oscillation and Concentration Effects},
+  journal = {ESAIM: Control, Optimisation and Calculus of Variations},
+  volume  = {23},
+  number  = {1},
+  pages   = {95--117},
+  year    = {2017},
+  doi     = {10.1051/cocv/2015041},
+  note    = {ADDED 2026-10-01 by Claude in the third-review pass; not held in
+             references/. Title, authors and abstract read off the arXiv
+             version, arXiv:1412.2278v1 (6 Dec 2014). The DOI resolves to the
+             journal; volume, issue and pages are from a secondary listing,
+             because the publisher's page refused the request. VERIFY volume
+             and pages against the journal before sending: this entry was not
+             added by the author},
+  annotation = {The prior art for occupation measures that carry concentration. Controls
+             entering affinely and unbounded are relaxed to a measure in
+             time whose atoms are jumps of the state (their refs to the
+             impulsive-control papers); this paper uses DiPerna-Majda
+             measures to carry oscillation and concentration of the
+             CONTROL together, and builds the moment-SOS hierarchy on
+             them. The distinction to keep: there the concentration is
+             put in by an unbounded control. Here the control is bounded
+             and the concentration is produced by the singular limit,
+             through a state-dependent force, so the jump is fixed by an
+             inner problem (the pass map) instead of being free. Treating
+             the aerodynamic impulse as a free measure of bounded
+             variation is exactly the too-large limit of prop:slow.},
+}
+
 % ------------------------------------- moment-SOS and real algebraic geometry
 %
 % Machinery, not claim: Papers 1-3 cross-check appendices only. Read for the
@@ -963,6 +995,31 @@
              statement. Take the theorem from ball1989version.},
 }
 
+@book{ambrosio2000functions,
+  author    = {Ambrosio, Luigi and Fusco, Nicola and Pallara, Diego},
+  title     = {Functions of Bounded Variation and Free Discontinuity Problems},
+  series    = {Oxford Mathematical Monographs},
+  publisher = {Oxford University Press},
+  address   = {Oxford},
+  year      = {2000},
+  isbn      = {0-19-850245-1},
+  note      = {ADDED 2026-10-01 by Claude in the third-review pass. Title,
+               series, copyright year and ISBN read off the front matter of
+               the copy in references/ (a 2006 digital reprint, split by
+               chapter). The theorem number was read off that copy's Section
+               3.10. VERIFY Theorem 3.96 yourself before sending: this entry
+               was not added by the author},
+  annotation = {Cite Theorem 3.96 (chain rule in BV, Sec. 3.10): for u in BV and f in C1,
+             the diffuse part of D(f o u) is grad f(u) times the diffuse
+             part of Du, and the jump part is f(u+) - f(u-) on the jump
+             set. In one variable this is all that prop:liouville needs:
+             the limiting velocity is BV in time, so a test function
+             along the limit trajectory picks up a flow term from the
+             diffuse part and a difference across each atom. Section 3.2
+             has the one-variable facts (one-sided limits, the three
+             parts of the derivative).},
+}
+
 % -------------------------------------- singular perturbation and slow manifolds
 %
 % Paper 1 Section 4. Read the Artstein group ADVERSARIALLY: it is an
@@ -1013,6 +1070,62 @@
              skip's itinerary.},
 }
 
+@article{eke2002dynamics,
+  author  = {Eke, Fidelis O. and Mao, T. C.},
+  title   = {On the Dynamics of Variable Mass Systems},
+  journal = {International Journal of Mechanical Engineering Education},
+  volume  = {30},
+  number  = {2},
+  pages   = {123--137},
+  year    = {2002},
+  note    = {ADDED 2026-10-01 by Claude while the symbolic checks were
+             extended to the rotational dynamics. Authors, title, journal,
+             volume, issue and the page range 123--137 are read off the copy
+             in references/ (running heads; fifteen pages). The year is NOT
+             printed on that copy, which carries only "Received 10th August
+             2000"; 2002 is the year of volume 30 and should be confirmed.
+             The first author's given name is expanded from "F. O.".
+             VERIFY before sending: this entry was not added by the author},
+  annotation = {The general equations of motion of a body that gains or loses mass, by
+             Kane's method. Cite Eq. (61), the recommended rotational
+             equation: I alpha + omega x I omega + (dI/dt) omega + [jet
+             damping, a surface integral of rho p x (omega x p) v_r.n] = M.
+             The two mass-variation moments it names as dominant are the
+             inertia-variation moment and the jet-damping moment. For
+             ablation they CANCEL: mass leaves from where it sat, so the
+             inertia it removes is exactly the angular momentum it carries
+             off, and Euler's equation has no dI/dt term from recession.
+             That cancellation is not stated in the paper; it is the
+             derivation `euler-equations` in aether.symbolic. In a rocket
+             the two do not cancel, because the propellant burns far from
+             the exit plane.},
+}
+
+@article{canavin1977floating,
+  author  = {Canavin, J. R. and Likins, P. W.},
+  title   = {Floating Reference Frames for Flexible Spacecraft},
+  journal = {Journal of Spacecraft and Rockets},
+  volume  = {14},
+  number  = {12},
+  pages   = {724--732},
+  year    = {1977},
+  note    = {ADDED 2026-10-01 by Claude while the symbolic checks were
+             extended to the rotational dynamics. Read off the copy in
+             references/: J. Spacecraft, Vol. 14, No. 12, December 1977,
+             pp. 724--732; received 18 Jan 1977, presented as AIAA Paper
+             77-66. VERIFY before sending: this entry was not added by the
+             author},
+  annotation = {Defines the body frames a flexible vehicle can be given. The Tisserand
+             (mean-axis) frame is the one "with respect to which the
+             relative momentum is zero", so the angular momentum is I omega
+             with no contribution from the deformation, and Euler's
+             equation keeps its form with a time-varying I. Cite for the
+             frame in which eq:euler is right as written. The appendix's
+             body frame is only said to sit at the mass centre; its
+             orientation has to be the mean-axis one for the I-dot term to
+             be the whole story.},
+}
+
 @article{naidu2001singular,
   author  = {Naidu, D. Subbaram and Calise, Anthony J.},
   title   = {Singular Perturbations and Time Scales in Guidance and Control of
@@ -1054,10 +1167,46 @@
              (Sec. 10.1): an O(eps) statement cannot be translated into a
              numerical bound on the error. That is the gap the proposal's
              closed-form constants are meant to close. It does NOT treat
-             passage through resonance: for crossing frequencies a source
-             such as Sanders--Verhulst--Murdock (Averaging Methods in
-             Nonlinear Dynamical Systems, 2nd ed., Springer 2007) is still
-             to be obtained and read.},
+             passage through resonance: for crossing frequencies see
+             sanders2007averaging, Chs. 7--8.},
+}
+
+@book{sanders2007averaging,
+  author    = {Sanders, Jan A. and Verhulst, Ferdinand and Murdock, James},
+  title     = {Averaging Methods in Nonlinear Dynamical Systems},
+  edition   = {2},
+  series    = {Applied Mathematical Sciences},
+  volume    = {59},
+  publisher = {Springer},
+  address   = {New York},
+  year      = {2007},
+  isbn      = {978-0-387-48916-2},
+  doi       = {10.1007/978-0-387-48918-6},
+  note      = {ADDED 2026-10-01 by Claude in the third-review pass; not held in
+               references/. Chapter and section titles, and the statements
+               paraphrased in the annotation, were read off the manuscript
+               the first author posts (``Revised 2nd Edition'', dated 15 June
+               2007, https://www.cs.vu.nl/~jansa/ftp/BK0/book.pdf), whose
+               pagination may differ from the printed book: cite by chapter
+               and section, not by page. Series, volume, ISBN and DOI are
+               from the publisher's listing. VERIFY against the printed book
+               before sending: this entry was not added by the author},
+  annotation = {The standard monograph for averaging with proofs, and the source for what
+             is NOT available. Ch. 7 (Averaging over Angles): with several
+             angles and variable frequencies the resonant set is dense;
+             away from resonance average over all angles, near one average
+             over particular angles, "then attempt to match". Sec. 7.4:
+             near a resonance, within O(sqrt eps), "one cannot average at
+             all"; Arnold lets solutions through a passive resonance at
+             the cost of a weaker error estimate, and Neishtadt does the
+             same where capture is possible for MOST initial conditions,
+             the theorems being stated in the measure of the exceptional
+             set. Ch. 8 (Passage Through Resonance) opens: "We cannot
+             present a complete theory as such a theory is not available";
+             its method is an inner expansion in the resonance zone
+             matched to an outer one -- the same structure as a pass. An
+             outer bound cannot discard a set of small measure, which is
+             why this is the critical path.},
 }
 
 @article{artstein1999invariant,
@@ -1509,6 +1658,29 @@
              surface. Cite for when a decoupled correlation is safe.},
 }
 
+@article{chen1999ablation,
+  author  = {Chen, Y.-K. and Milos, Frank S.},
+  title   = {Ablation and Thermal Response Program for Spacecraft Heatshield
+             Analysis},
+  journal = {Journal of Spacecraft and Rockets},
+  volume  = {36},
+  number  = {3},
+  pages   = {475--483},
+  year    = {1999},
+  doi     = {10.2514/2.3469},
+  note    = {Added by Claude on 2026-10-02 from the library copy, whose page
+             476 was read as an image for Eqs. (1), (6), (8)-(11). The first
+             page number is inferred from that and the paper's nine pages;
+             VERIFY the page range.},
+  annotation = {The governing equations of a charring ablator as FIAT solves
+             them: internal energy balance (1), mixture heat capacity (4)-(5),
+             decomposition enthalpy (6), three-component Arrhenius
+             decomposition (7)-(8), quasi-steady gas mass balance (9),
+             surface energy balance (10), blowing correction (11). Appendix A
+             derives (1) and (6) from conservation of mass and energy rather
+             than quoting them, and cites (8), (10), (11) as constitutive.},
+}
+
 @article{amar2008onedimensional,
   author  = {Amar, A. J. and Blackwell, B. F. and Edwards, J. R.},
   title   = {One-Dimensional Ablation Using a Full {N}ewton's Method and Finite
@@ -1633,7 +1805,10 @@
   number  = {12},
   pages   = {1109--1118},
   year    = {1956},
-  doi     = {10.2514/8.3766},
+  doi     = {10.2514/8.3740},
+  note    = {DOI changed by Claude on 2026-10-01 from 10.2514/8.3766 to the one
+             printed in the footer of the library copy (10.2514/8.3740).
+             VERIFY that it resolves to this paper.},
   annotation = {Piston theory as a double expansion in thickness ratio and 1/M, valid when
              the delta/M^3 and delta^2/M^2 terms are negligible. Key for
              the degree cost: first-order (small-disturbance) piston
@@ -1669,6 +1844,61 @@
 % distinction that matters throughout: an EMPIRICAL MEAN model (MSIS) and a
 % REANALYSIS (ERA5) are different objects, and the stochastic forcing of
 % Paper 3 is the residual of the first, not of the second.
+
+@techreport{noaa1976standard,
+  author      = {{National Oceanic and Atmospheric Administration} and
+                 {National Aeronautics and Space Administration} and
+                 {United States Air Force}},
+  title       = {{U.S.} Standard Atmosphere, 1976},
+  institution = {U.S. Government Printing Office},
+  address     = {Washington, D.C.},
+  number      = {NOAA-S/T 76-1562},
+  year        = {1976},
+  note        = {Added by Claude on 2026-10-02 as the source of the layer
+                 definition stated in Appendix A (also issued as
+                 NASA-TM-X-74335, which is what the code cites). VERIFY the
+                 report number and publisher against a copy; none is in the
+                 library.},
+  annotation  = {The definition of the atmosphere below 86 km: seven
+                 geopotential layers with constant lapse rate of the
+                 molecular-scale temperature, hydrostatic, perfect gas.
+                 Above 86 km it is a species-wise diffusive equilibrium
+                 with no closed form.},
+}
+
+@techreport{nima2000department,
+  author      = {{National Imagery and Mapping Agency}},
+  title       = {Department of Defense World Geodetic System 1984: Its
+                 Definition and Relationships with Local Geodetic Systems},
+  institution = {National Imagery and Mapping Agency},
+  number      = {TR8350.2, Third Edition, Amendment 1},
+  year        = {2000},
+  note        = {Added by Claude on 2026-10-02 for the two ellipsoid constants
+                 quoted in Appendix A (a = 6378137 m, 1/f = 298.257223563).
+                 VERIFY the edition and amendment against a copy; none is in
+                 the library.},
+  annotation  = {The WGS84 reference ellipsoid. Only its semi-major axis and
+                 flattening are used.},
+}
+
+@inproceedings{rea2024orion,
+  author    = {Rea, Jeremy and McNamara, Luke and Kane, Mark},
+  title     = {Orion {A}rtemis {I} Entry Performance},
+  booktitle = {AAS Guidance, Navigation and Control Conference},
+  number    = {AAS 24-174},
+  address   = {Breckenridge, Colorado},
+  year      = {2024},
+  note      = {Added by Claude on 2026-10-02. The copy in the library is the
+               NTRS release (20240000024) and prints the paper number and
+               authors but not the conference; VERIFY the conference name,
+               place and dates before the entry is relied on.},
+  annotation = {The flight report the Artemis I example is compared with:
+               the entry interface state (Table 1), PredGuid phase times
+               (Table 2), bank reversal times, flown and predicted
+               (Table 3), skip apogee 287.4 kft, splashdown (Table 4), and
+               the estimators' 10 percent thinner atmosphere and 5 percent
+               lower L/D.},
+}
 
 @article{picone2002nrlmsise,
   author  = {Picone, J. M. and Hedin, A. E. and Drob, D. P. and Aikin, A. C.},

@@ -1,23 +1,24 @@
-"""The coupled flight simulator: one rigid body, one system of ODEs.
+"""Flight: the entry flown from the compiled symbolic field, and the simulator before it.
 
-Thirteen rigid-body states -- geocentric position, body-frame velocity, attitude
-quaternion, body rates -- augmented by mass, retained structural modes, and a
-thermal grid carrying surface recession. They are advanced *together* rather
-than in sequence, which is what makes the couplings real: aerodynamic load
-drives the modal oscillators, recession moves the surface the heating is
-computed at, and mass depletion changes the acceleration a burn produces.
+Two things live here, and they are not of the same standing.
 
-The right-hand side contains **no branch on flight regime**. Atmospheric density
-decays smoothly, so every aerodynamic and aerothermal term vanishes numerically
-above the sensible atmosphere on its own -- a regime test would be a discrete
-event where the physics has none, and an implicit integrator asked to step
-across one either crawls or smears it.
+:mod:`aether.flight.entry` is the simulator of record for unpowered entry.
+Every rate it integrates comes out of a routine compiled from the symbolic
+field of :mod:`aether.symbolic` -- the field the manuscript's notes on the
+dynamics state and its derivations check -- over a rotating, oblate planet whose
+atmosphere lies on the reference ellipsoid. It is what the Artemis I example
+flies.
 
-Generic rigid-body dynamics over an arbitrary central body, assembled from the
-structural, thermal, aerothermal, attitude and orbital kernels. What is flown,
-and to what end, lives elsewhere.
+:mod:`aether.flight.simulator` is the hand-written simulator that preceded
+it: thirteen rigid-body states in inertial Cartesian components, augmented by
+mass, retained structural modes and a thermal grid, with finite-thrust arcs
+from :mod:`aether.flight.propulsion`. It is not generated from the symbolic
+field and is not the model the appendix states; its thermal kernel differs
+from conservation of energy in two places that the thermal test suite pins.
+It is kept for what was built on it and is not being extended.
 """
 
+from aether.flight.entry import *  # noqa: F403
 from aether.flight.propulsion import *  # noqa: F403
 from aether.flight.simulator import *  # noqa: F403
 from aether.flight.state import *  # noqa: F403

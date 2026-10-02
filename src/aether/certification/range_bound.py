@@ -64,9 +64,16 @@ from typing import Any
 
 import numpy as np
 
-from aether.certification.rigorous import interval, outward
+from aether.certification.rigorous import ARB_OPS, interval, outward
+from aether.certification.rotating_field import Planet, jacobi_energy, surface_radius
 
-__all__ = ["Corridor", "RangeBound", "certified_downrange_bound", "drag_lower_bound"]
+__all__ = [
+    "Corridor",
+    "RangeBound",
+    "certified_downrange_bound",
+    "drag_lower_bound",
+    "potential_drop",
+]
 
 _MU = 3.986004418e14
 _R_EARTH = 6378137.0
@@ -162,6 +169,58 @@ def drag_lower_bound(
     return worst
 
 
+def potential_drop(
+    corridor: Corridor,
+    planet: Planet,
+    latitude_band: tuple[float, float],
+    *,
+    latitude_bands: int = 256,
+    altitude_bands: int = 16,
+) -> float:
+    r"""Largest fall of the rotating frame's potential between two points of a corridor.
+
+    Over a rotating, oblate planet the energy that drag dissipates is the
+    Jacobi integral, :math:`\tfrac12 V^2 + U(r, \phi)` with
+
+    .. math::
+
+        U = \Phi_g(r, \phi) - \tfrac12\,\omega_E^2 r^2\cos^2\phi ,
+
+    and the altitude is measured from the ellipsoid, :math:`r = R(\phi) + h`.
+    What a body can gain from the potential inside the corridor is at most
+    :math:`\sup U - \inf U` over the box of altitudes and latitudes, and this
+    returns an upper bound on that, enclosed in Arb and rounded outward.
+
+    The box is cut into bands of latitude and of altitude and :math:`U` is
+    enclosed on each. Nothing is assumed of its shape -- neither that it rises
+    with altitude nor that the ellipsoid is nearly a level surface of it,
+    though both are true and the second is why the answer is close to
+    :math:`g\,\Delta h`.
+    """
+    south, north = float(latitude_band[0]), float(latitude_band[1])
+    if not -np.pi / 2 < south <= north < np.pi / 2:
+        raise ValueError(f"the latitude band must lie inside the poles, got {latitude_band}")
+    if latitude_bands < 1 or altitude_bands < 1:
+        raise ValueError("at least one band of latitude and one of altitude are needed")
+    lat_edges = np.linspace(south, north, latitude_bands + 1)
+    alt_edges = np.linspace(corridor.altitude_floor_m, corridor.altitude_ceiling_m,
+                            altitude_bands + 1)
+    zero = interval(0.0, 0.0)
+    highest, lowest = -np.inf, np.inf
+    for lat_low, lat_high in itertools.pairwise(lat_edges):
+        latitude = interval(float(lat_low), float(lat_high))
+        surface = surface_radius(latitude, ARB_OPS, planet=planet)
+        for alt_low, alt_high in itertools.pairwise(alt_edges):
+            radius = surface + interval(float(alt_low), float(alt_high))
+            # The Jacobi energy at rest is the potential of the rotating frame.
+            potential = jacobi_energy(
+                [radius, zero, latitude, zero, zero, zero], ARB_OPS, planet=planet
+            )
+            low, high = outward(potential)
+            highest, lowest = max(highest, high), min(lowest, low)
+    return float(np.nextafter(highest - lowest, np.inf))
+
+
 def certified_downrange_bound(
     corridor: Corridor,
     ballistic_coefficient: float,
@@ -170,6 +229,8 @@ def certified_downrange_bound(
     radius_m: float = _R_EARTH,
     terminal_speed_ms: float | None = None,
     subdivisions: int = 256,
+    planet: Planet | None = None,
+    latitude_band: tuple[float, float] | None = None,
 ) -> RangeBound:
     r"""Certified upper bound on the downrange still available inside ``corridor``.
 
@@ -200,6 +261,19 @@ def certified_downrange_bound(
     descent the corridor allows, and :math:`\cos\gamma \le 1`. The result
     holds for every bank history that keeps the trajectory inside the
     corridor.
+
+    **Over a rotating, oblate planet.** With ``planet`` and ``latitude_band``
+    given, the bound is for the field
+    :func:`~aether.certification.rotating_field.rotating_entry_field`: the
+    speeds are relative to the planet, the altitudes are heights above its
+    ellipsoid, and the energy is the Jacobi integral, which that field
+    dissipates at exactly the drag power. The kinetic part is as before. The
+    potential part is :func:`potential_drop` over the corridor and the band of
+    latitudes the trajectory is hypothesised to stay in, which joins the
+    corridor as part of the hypothesis. What is bounded is the length of the
+    path through the air, :math:`\int V\cos\gamma\,\mathrm dt`, and the
+    ground track is shorter than that wherever the body is above the
+    equatorial radius.
     """
     final_speed = corridor.speed_low_ms if terminal_speed_ms is None else float(terminal_speed_ms)
     if not corridor.speed_high_ms > final_speed > 0.0:
@@ -240,13 +314,22 @@ def certified_downrange_bound(
     # altitude bounded as a function of energy, which is the corridor in the
     # (V, h) plane that the heating, load and dynamic-pressure limits define,
     # not the box used here.
-    floor_radius = _R_EARTH + corridor.altitude_floor_m
-    radius_floor = interval(floor_radius, floor_radius)
-    radius_ceiling = interval(
-        _R_EARTH + corridor.altitude_ceiling_m, _R_EARTH + corridor.altitude_ceiling_m
-    )
-    mu = interval(_MU, _MU)
-    potential = mu / radius_floor - mu / radius_ceiling
+    if planet is None:
+        floor_radius = _R_EARTH + corridor.altitude_floor_m
+        radius_floor = interval(floor_radius, floor_radius)
+        radius_ceiling = interval(
+            _R_EARTH + corridor.altitude_ceiling_m, _R_EARTH + corridor.altitude_ceiling_m
+        )
+        mu = interval(_MU, _MU)
+        potential = mu / radius_floor - mu / radius_ceiling
+    else:
+        if latitude_band is None:
+            raise ValueError(
+                "over a rotating planet the potential depends on latitude: say which band "
+                "of latitudes the trajectory is hypothesised to stay in"
+            )
+        drop = potential_drop(corridor, planet, latitude_band)
+        potential = interval(drop, drop)
     weakest = interval(rho_min, rho_min) * interval(final_speed, final_speed) ** 2 / (
         2.0 * ballistic_coefficient
     )

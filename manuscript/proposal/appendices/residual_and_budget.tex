@@ -6,14 +6,15 @@
 \section{Skeleton residual and bubble budget}
 \label{apx:residual}
 
-This appendix supports \cref{sec:bound}. It gives the two constants of
-\cref{eq:target} in the form in which they presently exist, says what has
-been computed against them, and states the range in which each holds. The
+This appendix supports \cref{sec:bound}. It gives the two constants behind
+\cref{eq:target} that presently exist, the lag behind the glide and the
+count of passes, together with the equation that connects glide, phugoid
+and skip; it says what has been computed against them, and states the range
+in which each holds. The
 identities are checked by computer algebra, and the leading-order
 statements as limits of exact expressions, against the same definition of
-the field from which the numerical routines are generated; the comparisons
-with computation are verification tasks of the accompanying code, each with
-a failure criterion stated before it is run.
+the field that is evaluated numerically; each comparison with computation
+was run against a failure criterion stated beforehand.
 
 %--------------------------------------------------------------------------
 \subsection{The planar glide}\label{sec:residual-glide}
@@ -158,23 +159,30 @@ departs from the instantaneous glide by an amount of order one in scale
 heights, not of order $\sqrt{\eps}$, and so does a trajectory leaving a
 pass.
 
-Two ways of closing the residual bound are consistent with this, and
-choosing between them is part of objective~5.
+Two ways of closing the bound are consistent with this.
 \begin{enumerate}[leftmargin=*,itemsep=2pt]
-  \item \emph{Carry the amplitude.} The radius of the residual ball is the
-    lag $C_{\calR}\sqrt{\eps}$ plus the ringing amplitude, bounded at its
-    excitation and decaying by \cref{eq:decay}. The bound stays explicit
-    and the skeleton stays the glide, at the cost of a residual that is not
-    small immediately after a pass or a bank change.
-  \item \emph{Average.} The phugoid amplitude is promoted to a slow
-    coordinate of the skeleton and the phase is averaged out. The slow
-    variables then follow the averaged inclusion and the fast ones converge
-    in the statistical sense of~\cite{artstein1999invariant}. The residual
-    is the averaging error, which for a smooth field with a single fast
-    phase is of order $\sqrt{\eps}$ on the slow timescale; a rate that is
-    uniform over the selections is what would have to be shown. The
-    skeleton gains a dimension.
+  \item \emph{Carry the amplitude as an error.} The radius of the residual
+    ball is the lag $C_{\calR}\sqrt{\eps}$ plus the ringing amplitude,
+    bounded at its excitation and decaying by \cref{eq:decay}. The bound
+    stays explicit and the limit system stays the glide alone, at the cost
+    of a residual that is of order one in scale heights after every pass
+    and every bank change.
+  \item \emph{Carry the amplitude as a coordinate.} The amplitude is
+    promoted to a slow coordinate of the limit system and the phase is
+    averaged out. The slow variables then follow the averaged inclusion and
+    the fast ones converge in the statistical sense
+    of~\cite{artstein1999invariant}. The residual is the averaging error,
+    which for a smooth field with a single fast phase is of order
+    $\sqrt{\eps}$ on the slow timescale; a rate that is uniform over the
+    selections, with its constant, is what would have to be shown. The
+    limit system gains a dimension.
 \end{enumerate}
+The body takes the second, for a reason given in
+\cref{sec:residual-oscillator}: the bank history acts on the amplitude
+throughout, so a bound of the first kind does not hold uniformly over bank
+histories. The first remains the form the bound takes for bank histories
+that vary slowly against the oscillation.
+
 In the unstretched state variables the two descriptions agree on the
 order: an oscillation of fixed amplitude in scale heights has an altitude
 excursion of order $\eps R_e$ and a flight-path-angle excursion of order
@@ -182,6 +190,70 @@ $\sqrt{\eps}$, so the occupation measures do concentrate on the glide as
 $\eps\to 0$, at the rate $\sqrt{\eps}$ set by the angle. What they do not
 do is concentrate at that rate in the metric of \cref{eq:target}, in which
 altitude is measured in scale heights.
+
+%--------------------------------------------------------------------------
+\subsection{Glide, phugoid and skip as one oscillator}
+\label{sec:residual-oscillator}
+%--------------------------------------------------------------------------
+
+Let $z = (h - h_{\mathrm{g}})/H_s$ be the altitude above the glide in scale
+heights. At level flight $\ddot h = V\dot\gamma = L\cos\sigma/m - G$, and
+the lift at the altitude $h_{\mathrm{g}} + H_s z$ is the lift on the glide
+times $e^{-z}$, that is, $G\,e^{-z}$. To leading order in $\eps$, at frozen
+speed and with the damping left out, the altitude therefore obeys
+\begin{equation}\label{eq:oscillator}
+  \ddot z \;=\; \omega^2\bigl(e^{-z} - 1\bigr),
+  \qquad \omega^2 = \frac{G}{H_s} ,
+\end{equation}
+which is checked as the limit $H_s\to 0$, at fixed~$z$, of the exact
+vertical acceleration of the planar field. The equation is conservative,
+with energy
+\[
+  W \;=\; \tfrac12\,\dot z^2 + \omega^2\bigl(e^{-z} + z\bigr) ,
+\]
+and its potential has a single minimum, at $z = 0$. Three regimes of entry
+flight are three ranges of its amplitude. At the minimum the vehicle is on
+the glide. Near it the potential is quadratic, with curvature $\omega^2$,
+and the motion is the phugoid of \cref{eq:phugoid}. Far from it the two
+sides of the well differ. Below the glide the wall is exponential, and the
+trajectory rebounds from it within a few scale heights; above, the
+acceleration tends to $-\omega^2$, that is, $\ddot h\to -G$, a ballistic
+arc under the net gravity. A large oscillation is therefore a skip. Let
+$\gamma_0$ be the flight-path angle at which the trajectory crosses the
+glide altitude, so that $\dot z = V\gamma_0/H_s$ there. The rebound lasts a
+time of order $H_s/(V\gamma_0)$, the arc lasts $2V\gamma_0/G$, and the two
+turning points are the roots of
+\begin{equation}\label{eq:amplitude}
+  e^{-z} + z - 1 \;=\; \frac{V^2\gamma_0^2}{2\,G\,H_s}
+  \;=\; \frac{V^2}{2\,G\,R_e}\;\frac{\gamma_0^2}{\eps} .
+\end{equation}
+The amplitude in scale heights is a function of $\gamma_0/\sqrt{\eps}$,
+with a factor fixed by the speed. Held fixed as $\eps\to 0$, that ratio
+gives an oscillation a fixed number of scale heights deep whose period is
+of order $\sqrt{\eps}$: the bounded-load limit of \cref{rem:regimes}. Sent
+to infinity, it gives the skip. The classical theory describes skip paths
+in these terms, as oscillatory paths of large amplitude~\cite{shi1971skip};
+\cref{eq:oscillator} is the equation of which that is a statement.
+
+What the equation leaves out is of two kinds. The damping of
+\cref{eq:phugoid} and the drift of the coefficients behind \cref{eq:decay}
+are each of relative order $\sqrt{\eps}$ over one period. The motion of the
+equilibrium when the bank changes is not small at all. With the vertical
+lift scaled by $c(t) = \cos\sigma(t)/\cos\sigma_{\mathrm{ref}}$ against a
+reference bank, the equation reads $\ddot z = \omega^2(c\,e^{-z} - 1)$, its
+equilibrium is at $z = \ln c$, and
+\begin{equation}\label{eq:pumping}
+  \dot{W} \;=\; \omega^2\,(c - 1)\,e^{-z}\,\dot z .
+\end{equation}
+A bank history that adds lift while the vehicle climbs and removes it while
+it descends raises the energy of the oscillation at every instant, and the
+opposite one lowers it. The second is what a guidance law does when it
+feeds the altitude rate back into the bank command, which is how the large
+phugoid oscillations of vehicles of high lift-to-drag ratio are removed in
+practice~\cite{lu2014entry}. The first is open to any admissible control
+that can follow the oscillation, and a reachable set has to contain what it
+produces. The amplitude is a controlled variable, and that is why it is
+carried as a coordinate.
 
 %--------------------------------------------------------------------------
 \subsection{Range of validity}\label{sec:residual-range}
@@ -222,9 +294,38 @@ a factor $e$. The count needs no heating correlation; the
 integrated heat load gives the same budget its physical reading, and the
 corridor constraint on it is carried separately\apxref{rem:sutton-graves-circularity}.
 
-The width of a pass has been measured as well. A computed pass entered at
-$80$\,km, $6.5$\,km/s and $-4^\circ$ returns to its entry altitude after
-$145$\,s, which is $0.18$ of the slow time $\sqrt{R_e/g}$; the phugoid
-period is $2\pi\sqrt{\eps}=0.21$ of it, and $\sqrt{\eps} = 0.034$. The
-layer scales as $\sqrt{\eps}$ and its width carries the factor $2\pi$: an
-estimate that substitutes $\sqrt{\eps}$ for the width understates it sixfold.
+How deep a pass goes is fixed in the same way. Along the planar field the
+quantity $\cos\gamma - E_v H_s\,\rho/(2\beta)$ changes only through
+gravity, at the rate $G\sin\gamma\cos\gamma/V$: the lift and the density
+gradient cancel exactly. Where the aerodynamic force dominates it is
+conserved, so a pass entered from thin air at a flight-path angle
+$-\gamma_e$ levels out at the density $\rho_{\mathrm{b}}$ where
+\begin{equation}\label{eq:pass-depth}
+  \frac{E_v H_s\,\rho_{\mathrm{b}}}{2\beta} \;=\; 1 - \cos\gamma_e ,
+  \qquad\text{that is, where}\qquad
+  \frac{L\cos\sigma}{m}
+  \;=\; \frac{V^2\,(1-\cos\gamma_e)}{H_s}
+  \;\approx\; \frac{V^2\gamma_e^2}{2H_s} .
+\end{equation}
+Against gravity the load at the bottom of a pass is of order
+$\gamma_e^2/\eps$, and holding it fixed as the layer thins forces
+$\gamma_e\sim\sqrt{\eps}$. The same identity measures what this inner
+description neglects. Across a pass the conserved quantity drifts by at
+most $G\gamma_e/V$ times the time spent in the layer, which is a few times
+$H_s/(V\gamma_e)$, so the correction to \cref{eq:pass-depth} is of relative
+order $\eps/\gamma_e^2$: the reciprocal of the same parameter, and the
+small parameter of the matching in \cref{obj:composition}.
+
+The width of a pass has been measured as well, and against what surrounds
+it. A computed pass entered at $80$\,km, $6.5$\,km/s and $-4^\circ$, which
+is twice $\sqrt{\eps} = 0.034$\,rad, returns to its entry altitude after
+$145$\,s, having shed $14$ percent of its kinetic energy. The arc that
+follows lasts $185$\,s, against the $2V\gamma_0/G = 179$\,s of
+\cref{sec:residual-oscillator}, and the period $2\pi/\omega$ of the small
+oscillation about the glide at the speed of the pass is $286$\,s. These are
+$0.18$, $0.23$ and $0.35$ of the slow time $\sqrt{R_e/g}$. At the
+terrestrial scale height the three are not separated: the pass lasts half a
+period of the oscillation, and is one of its troughs more than it is an
+event short against it. An estimate that substitutes
+$\sqrt{\eps}\,\sqrt{R_e/g} = 27$\,s for the width of a pass understates it
+fivefold.

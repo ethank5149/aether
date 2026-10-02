@@ -25,9 +25,11 @@ import sympy as sp
 
 from aether.certification.rotating_field import (
     Planet,
+    altitude,
     j2_gravity,
     jacobi_energy,
     rotating_entry_field,
+    surface_radius,
 )
 from aether.symbolic.ops import SYMPY_OPS
 
@@ -47,6 +49,7 @@ _PLANET = Planet(
     radius=sp.Symbol("R_e", positive=True),
     j2=sp.Symbol("J_2", real=True),
     rotation_rate=sp.Symbol("omega_E", real=True),
+    flattening=sp.Symbol("f_E", nonnegative=True),
 )
 
 
@@ -107,6 +110,20 @@ class EntrySymbols:
     def energy(self) -> Any:
         """The Jacobi integral: specific mechanical energy in the rotating frame."""
         return jacobi_energy(self.state, SYMPY_OPS, planet=self.planet)
+
+    @cached_property
+    def surface_radius(self) -> Any:
+        r""":math:`R(\phi)`: the reference ellipsoid, at this geocentric latitude."""
+        return surface_radius(self.latitude, SYMPY_OPS, planet=self.planet)
+
+    @cached_property
+    def altitude(self) -> Any:
+        r""":math:`h = r - R(\phi)`: height above the reference ellipsoid, along the radius.
+
+        This is the argument of everything the atmosphere supplies. On a
+        planet of zero flattening it is :math:`r - R_e`.
+        """
+        return altitude(self.radius, self.latitude, SYMPY_OPS, planet=self.planet)
 
     @cached_property
     def potential(self) -> Any:

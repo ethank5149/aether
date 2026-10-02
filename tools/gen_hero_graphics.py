@@ -644,9 +644,7 @@ def gen_plasma():
 # 4. TRAJECTORY + FOOTPRINT
 # ═══════════════════════════════════════════════════════════════════════
 def gen_trajectory_footprint():
-    from examples.artemis1.entry import (
-        orion_aerodynamics, fly, footprints, FT, NMI, INTERFACE, TARGET,
-    )
+    from examples.artemis1.entry import orion_aerodynamics, fly, footprints
     from aether.guidance.skip import SkipPhase
     from aether.geodesy import GeodeticPosition, great_circle_range
     print("  [4/6] Trajectory + footprint...")

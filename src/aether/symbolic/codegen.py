@@ -11,7 +11,8 @@ extended precision rather than trusting that the rendering was faithful.
 What is generated and what is not is kept explicit in the emitted source. The
 field and its Jacobian are generated. The fixed-step Runge--Kutta driver that
 calls them is not -- it is twenty lines of scheme, the same for every field --
-and it is tested against an independent integrator instead.
+and it is tested against an independent integrator instead. Nor is the loop
+that evaluates a routine at many states in one call, which is three lines.
 
 A C compiler is an optional dependency. Without one, :func:`compile_field`
 returns the same interface backed by :func:`sympy.lambdify`, slower but
@@ -117,6 +118,16 @@ void {name}_rk4(const double *x0, const double *p, double h, long steps,
 }}
 """
 
+_BATCH = """
+/* ---- fixed driver: the routine above at each of `rows` states. NOT generated. ----
+ * `xs` holds the states row by row; `out` must hold rows * {outputs} doubles.
+ */
+void {name}_batch(const double *xs, const double *p, long rows, double *out) {{
+   for (long r = 0; r < rows; ++r)
+      {name}((double *)(xs + r * {n}), (double *)p, out + r * {outputs});
+}}
+"""
+
 
 @dataclass(frozen=True)
 class CSource:
@@ -142,6 +153,8 @@ class Field(Protocol):
     backend: str
 
     def __call__(self, state: ArrayLike, parameters: ArrayLike) -> _FloatArray: ...
+
+    def batch(self, states: ArrayLike, parameters: ArrayLike) -> _FloatArray: ...
 
     def jacobian(self, state: ArrayLike, parameters: ArrayLike) -> _FloatArray: ...
 
@@ -225,7 +238,9 @@ def generate_c(
         f" * parameters p[0..{max(m, 1) - 1}] = {', '.join(map(str, parameters)) or '(none)'}\n"
         f" * Do not edit: regenerate from the expressions instead. */\n"
     )
-    driver = _DRIVER.format(name=name, n=n, pad=" " * (len(name) + 10))
+    driver = _BATCH.format(name=name, n=n, outputs=len(outputs))
+    if len(outputs) == n:
+        driver += _DRIVER.format(name=name, n=n, pad=" " * (len(name) + 10))
     return CSource(
         name=name,
         code=banner + code + driver,
@@ -267,11 +282,16 @@ class CompiledField:
             self._jacobian = getattr(self._library, f"{source.name}_jacobian")
             self._jacobian.argtypes = [pointer, pointer, pointer]
             self._jacobian.restype = None
-        self._rk4 = getattr(self._library, f"{source.name}_rk4")
-        self._rk4.argtypes = [
-            pointer, pointer, ctypes.c_double, ctypes.c_long, ctypes.c_long, pointer,
-        ]
-        self._rk4.restype = None
+        self._batch = getattr(self._library, f"{source.name}_batch")
+        self._batch.argtypes = [pointer, pointer, ctypes.c_long, pointer]
+        self._batch.restype = None
+        self._rk4 = None
+        if self._outputs == self._n:
+            self._rk4 = getattr(self._library, f"{source.name}_rk4")
+            self._rk4.argtypes = [
+                pointer, pointer, ctypes.c_double, ctypes.c_long, ctypes.c_long, pointer,
+            ]
+            self._rk4.restype = None
 
     def _arguments(
         self, state: ArrayLike, parameters: ArrayLike
@@ -287,6 +307,17 @@ class CompiledField:
         x, p = self._arguments(state, parameters)
         out = np.empty(self._outputs, dtype=np.float64)
         self._field(_pointer(x), _pointer(p), _pointer(out))
+        return out
+
+    def batch(self, states: ArrayLike, parameters: ArrayLike = ()) -> _FloatArray:
+        """The field at each row of ``states``, evaluated in one call."""
+        rows = np.ascontiguousarray(states, dtype=np.float64)
+        if rows.ndim != 2 or rows.shape[1] != self._n:
+            raise ValueError(f"states must have shape (rows, {self._n}), got {rows.shape}")
+        _, p = self._arguments(rows[0] if rows.shape[0] else np.zeros(self._n), parameters)
+        out = np.empty((rows.shape[0], self._outputs), dtype=np.float64)
+        if rows.shape[0]:
+            self._batch(_pointer(rows), _pointer(p), rows.shape[0], _pointer(out))
         return out
 
     def jacobian(self, state: ArrayLike, parameters: ArrayLike = ()) -> _FloatArray:
@@ -306,7 +337,7 @@ class CompiledField:
         stride: int = 1,
     ) -> _FloatArray:
         """States after every ``stride`` fixed steps, integrated entirely in C."""
-        if self._outputs != self._n:
+        if self._rk4 is None:
             raise ValueError("only a vector field -- one rate per state -- can be integrated")
         if steps < 1 or stride < 1:
             raise ValueError(f"steps and stride must be positive, got {steps} and {stride}")
@@ -340,8 +371,10 @@ class LambdifiedField:
         arguments = [list(source.state), list(source.parameters)]
         outputs = sp.Matrix(list(source.expressions))
         self._field = sp.lambdify(arguments, list(outputs), modules="numpy", cse=True)
-        partials = outputs.jacobian(sp.Matrix(list(source.state)))
-        self._jacobian = sp.lambdify(arguments, partials, modules="numpy", cse=True)
+        self._jacobian = None
+        if source.has_jacobian:
+            partials = outputs.jacobian(sp.Matrix(list(source.state)))
+            self._jacobian = sp.lambdify(arguments, partials, modules="numpy", cse=True)
 
     def _arguments(
         self, state: ArrayLike, parameters: ArrayLike
@@ -353,11 +386,28 @@ class LambdifiedField:
 
     def __call__(self, state: ArrayLike, parameters: ArrayLike = ()) -> _FloatArray:
         x, p = self._arguments(state, parameters)
-        return np.asarray(self._field(x, p), dtype=np.float64)
+        # A piecewise expression is rendered as a selection among all of its
+        # branches, each evaluated everywhere; the ones not selected may be
+        # outside their domain, and say so.
+        with np.errstate(all="ignore"):
+            return np.asarray(self._field(x, p), dtype=np.float64)
+
+    def batch(self, states: ArrayLike, parameters: ArrayLike = ()) -> _FloatArray:
+        """The field at each row of ``states``."""
+        rows = np.asarray(states, dtype=np.float64)
+        if rows.ndim != 2 or rows.shape[1] != self._n:
+            raise ValueError(f"states must have shape (rows, {self._n}), got {rows.shape}")
+        out = np.empty((rows.shape[0], len(self.source.expressions)), dtype=np.float64)
+        for index, row in enumerate(rows):
+            out[index] = self(row, parameters)
+        return out
 
     def jacobian(self, state: ArrayLike, parameters: ArrayLike = ()) -> _FloatArray:
+        if self._jacobian is None:
+            raise ValueError("this field was generated without its Jacobian")
         x, p = self._arguments(state, parameters)
-        return np.asarray(self._jacobian(x, p), dtype=np.float64)
+        with np.errstate(all="ignore"):
+            return np.asarray(self._jacobian(x, p), dtype=np.float64)
 
     def rk4(
         self,

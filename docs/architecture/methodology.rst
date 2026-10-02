@@ -2,8 +2,8 @@ Methodology
 ===========
 
 This guide summarises the mathematical methods implemented in the numerics
-kernel. For the full derivation, see the manuscript appendices and the
-derivation PDF at the repository root.
+kernel. For the derivations, see the working notes in
+``manuscript/proposal/appendices/``.
 
 Spectral Methods
 ----------------
@@ -80,9 +80,8 @@ polynomial by adjoining auxiliary states. The core examples:
 No fit residual is smuggled in as a disturbance — the closure is *exact* by
 construction. This is the keystone every downstream result routes through.
 
-Reference: the manuscript appendix
-``manuscript/proposal/appendices/entry_dynamics_and_polynomial_embedding.tex``
-and the derivation PDF ``embedding_derivation.pdf`` at the repository root.
+Reference: the working notes
+``manuscript/proposal/appendices/entry_dynamics_and_embedding.tex``.
 
 Thermal Kernel
 --------------

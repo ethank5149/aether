@@ -6,20 +6,34 @@
 \section{Coupled entry dynamics}
 \label{apx:dyn}
 
-The identities displayed in this appendix---the gravity components, the
-equations of motion and their classical reductions, the quaternion
-kinematics, the glide balance---are checked by computer algebra. For the
-translational equations the check is made against the same definition of
-the field that the accompanying code evaluates in floating point and in
-interval arithmetic, and it derives them from Newton's law in the rotating
-frame rather than taking them on trust from the literature.
+The equations displayed in this appendix are stated once in computer
+algebra, and what the appendix claims of them is reduced to identities. The
+checks are of three standings. For the translational equations the check is
+made against the same definition of the field that is evaluated in
+floating point and in interval arithmetic, and it derives them
+from Newton's law in the rotating frame rather than taking them on trust
+from the literature. The attitude equations---the quaternion kinematics
+with the planet's rotation carried into the body rate, Euler's equations,
+the passage from the body force to the wind axes, and with it the glide
+balance in its six-degree-of-freedom form---are checked against the
+statement of them given here, and tied to the translational field by
+showing that an attitude at incidence and bank returns the point-mass
+field. The heating correlation and the modal oscillator are constitutive
+laws; there is nothing to derive them from, and what is checked is what
+follows from them. Two blocks are derived instead. The heat shield is
+conservation of mass and of energy in depth, taken in \cref{sec:thermal}
+from that form to the equation that is integrated, across the receding
+surface, and onto the cells of the state; what stays constitutive in it is
+the material and the chemistry of its surface, each named. And the force of
+the air on the structural modes is derived in \cref{sec:piston} from the
+equations of one-dimensional gas dynamics.
 
 %--------------------------------------------------------------------------
 \subsection{Coordinate rationale}\label{sec:coord-rationale}
 %--------------------------------------------------------------------------
 
 The coordinate choice is dictated by two competing requirements of the
-interval-arithmetic pipeline:
+interval-arithmetic evaluation:
 \begin{enumerate}
   \item \textbf{The corridor must contract tightly.} The entry
     corridor---bounded altitude, bounded speed, and limits on heating
@@ -74,7 +88,7 @@ other: in a tilted chart the eastward gravity component no longer vanishes
 and $\vvec{\omega}_E$ acquires components along all three axes.
 
 The Savageau--Voit polynomial recasting of the thermal subsystem is not
-used. Because the interval pipeline evaluates transcendentals natively,
+used. Because interval arithmetic evaluates transcendentals natively,
 the density-square-root embedding $y = \sqrt{\rho/\rho_0}$ and the
 polynomial surrogate for wall temperature are unnecessary, and the raw
 physical variables are retained. The recasting survives only inside the
@@ -163,13 +177,16 @@ The full coupled state is
 \begin{equation}\label{eq:state-full}
   x = \bigl(\underbrace{r,\lambda,\phi,V,\gamma,\psi}_{6},\;
        \underbrace{q_0,q_1,q_2,q_3,p,q_b,r_b}_{7},\;
-       \underbrace{Q_{\mathrm{tot}},T_w,s,m}_{4},\;
+       \underbrace{Q_{\mathrm{tot}},m,s,\,
+                   T_1,\dots,T_{N_T},\,\rho_1,\dots,\rho_{N_T}}_{3+2N_T},\;
        \underbrace{\eta_1,\dots,\eta_{N_m},
                    \dot\eta_1,\dots,\dot\eta_{N_m}}_{2N_m}\bigr),
 \end{equation}
 with the unit-quaternion constraint $\norm{\vvec{q}}=1$ making the
-translational-rotational block effectively 12-dimensional. Total dimension:
-$17 + 2N_m$.
+translational-rotational block effectively 12-dimensional. The third block
+is the heat load, the mass, and the heat shield resolved in depth on $N_T$
+cells~(\cref{sec:thermal}): its recession, and a temperature and a density
+in each cell. Total dimension: $16 + 2N_T + 2N_m$.
 
 
 %--------------------------------------------------------------------------
@@ -317,7 +334,7 @@ propagate into the bubble dynamics rather than cancel.
 The factor $1/\cos\gamma$ in~$\dot\psi$ is singular in vertical flight
 ($\gamma = \pm\pi/2$), which the corridor excludes: flight-path angles in
 lifting entry are a few degrees, and at the apex of a skip $\gamma = 0$.
-For the interval pipeline the factor is enclosed by interval evaluation of
+In interval arithmetic the factor is enclosed by evaluation of
 $1/\cos[\gamma]$ provided the interval $[\gamma]$ does not contain
 $\pm\pi/2$, and the same holds for $1/\cos[\phi]$ and $\tan[\phi]$ under
 the polar restriction of \cref{sec:coord-rationale}.
@@ -362,10 +379,33 @@ amplitudes:
 \begin{equation}\label{eq:euler}
   \mat{I}\,\dot{\vvec{\omega}}
   = \vvec{M} - \vvec{\omega}\times(\mat{I}\,\vvec{\omega})
-    - \dot{\mat{I}}\,\vvec{\omega},
+    - \dot{\mat{I}}_{\eta}\,\vvec{\omega},
+  \qquad
+  \dot{\mat{I}}_{\eta} = \sum_{i}\pd{\mat{I}}{\eta_i}\,\dot\eta_i ,
 \end{equation}
 where $\vvec{M} = \vvec{M}_a + \vvec{M}_{\mathrm{rcs}}$ is the total
-external moment in~$\mathcal{B}$.
+external moment in~$\mathcal{B}$, and $\dot{\mat{I}}_{\eta}$ is the rate at
+which the deformation changes the inertia at fixed mass.
+
+\begin{remark}\label{rem:euler-mass-loss}
+Only the deformation's share of $\dot{\mat{I}}$ appears in \cref{eq:euler},
+and the two ways the inertia changes differ in kind. For a closed body the
+angular momentum about the mass centre is $\mat{I}\,\vvec{\omega}$ when the
+body axes carry no angular momentum of the deformation---the mean axes
+of~\cite{canavin1977floating}---and its rate of change in inertial space is
+the moment: that is where $\dot{\mat{I}}_{\eta}\,\vvec{\omega}$ comes from.
+Recession is not of that kind. The mass it removes leaves from the surface
+with the velocity of the surface, and takes its angular momentum with it. In
+the equation of a body of variable mass the moment of the inertia variation
+and the jet-damping moment appear together~\cite[Eq.~(61)]{eke2002dynamics},
+and for mass that leaves from where it sat they cancel identically:
+$\mat{I}$ falls, and no term in $\partial\mat{I}/\partial s$ enters.
+Writing $\dot{\mat{I}}\,\vvec{\omega}$ with the total rate would count the
+angular momentum of the departed mass as if it had stayed, and would spin
+the vehicle up as it ablates. What the efflux can contribute is a moment of
+its own, when it leaves asymmetrically and with a velocity relative to the
+surface; that moment is part of $\vvec{M}$, and is enclosed with it.
+\end{remark}
 
 \begin{remark}\label{rem:omega-transport}
 \Cref{eq:omega-rel} is the one place where the choice of a rotating base
@@ -530,7 +570,7 @@ therefore constrains the quaternion directly:
 a single scalar constraint on the coupled translational and rotational state
 (dimension~$13$); it defines a codimension-1 set. The skeleton of
 \cref{sec:profile} is its intersection with the corresponding conditions
-for the two faster groups: aerodynamic trim, on which the moment
+for the two faster motions: aerodynamic trim, on which the moment
 of~\cref{eq:euler} vanishes, and quasi-static deflection, on which each
 modal amplitude of~\cref{eq:modal} follows its forcing.
 
@@ -576,8 +616,8 @@ correction to it acts through the $(1-3\sin^2\!\phi)$ factor of
 sign} partway, being ${+}\,0.16\%$ of the leading gravitational term at the
 equator, zero at $\phi = \arcsin(1/\sqrt{3}) \approx 35.3^\circ$, and
 ${-}\,0.32\%$ at the poles. A trajectory crossing $35.3^\circ$ has the
-correction act in both directions on a single pass. For the interval
-pipeline it is enclosed as it stands.
+correction act in both directions on a single pass. In interval
+arithmetic it is enclosed as it stands.
 \end{remark}
 
 \begin{remark}\label{rem:j2-skip}
@@ -616,28 +656,28 @@ and the two effects are evaluated at a different~$\phi$ at every
 re-entry; because their sign structures differ, no single worst-case
 latitude bounds both at once. The enclosure may not be tightened by
 assuming the corrections cancel, and need not be loosened by assuming they
-reinforce: both are carried term by term. For the interval pipeline this
+reinforce: both are carried term by term. In interval arithmetic this
 happens automatically: the interval evaluations of $g_D([r],[\phi])$ and
 $g_N([r],[\phi])$ widen with the latitude interval, which is itself widest
 during a skip, where the ground track sweeps the most latitude---and an
 interval $[\phi]$ straddling $35.3^\circ$ correctly returns a $g_D$
 correction of both signs rather than a spuriously signed one. Retaining
-$J_2$ costs the interval pipeline nothing and removes a systematic bias of
+$J_2$ costs the interval evaluation nothing and removes a systematic bias of
 a few tenths of a percent. It is the rotation terms, not $J_2$, that the
 leading-order balance cannot do without.
 \end{remark}
 
 
 %--------------------------------------------------------------------------
-\subsection{Thermal subsystem (native form)}\label{sec:thermal}
+\subsection{Heating, and the heat shield}\label{sec:thermal}
 %--------------------------------------------------------------------------
 
-The atmosphere density profile is $\rho(h)$ from the NRLMSIS~2.0
-model~\cite{emmert2021nrlmsis}, with $h = r - R_e$. Under interval arithmetic,
-$\rho(h)$ is enclosed by evaluating the model's analytic approximation (or
-a validated piecewise-exponential envelope) with interval
-argument~$[h]$.
+The density of the air is a function $\rho(h)$ of the altitude~$h$ above
+the reference ellipsoid; \cref{sec:density} states both. Under interval
+arithmetic $\rho$ is enclosed over an interval~$[h]$ by its values at the
+two ends, since it decreases with altitude.
 
+\paragraph{Heating.}
 Stagnation-point heat flux (Sutton--Graves~\cite{sutton1971general}, within
 its stated validity envelope: axisymmetric blunt bodies, chemical
 equilibrium, enthalpy 2.3--116.2\,MJ/kg, pressure 0.001--100\,atm), with
@@ -645,18 +685,28 @@ $Q_{\mathrm{tot}}$ the heat load it accumulates per unit area:
 \begin{equation}\label{eq:Qdot}
   \dot Q_{\mathrm{tot}} = \dot q_s = k_Q\sqrt{\rho/R_n}\,V^3.
 \end{equation}
-Wall temperature, for a lumped surface layer of areal heat capacity~$C_w$
-that re-radiates with emissivity~$\epsilon_w$ and conducts into a structure
-at temperature~$T_b$ on a timescale~$\tau_{\mathrm{cond}}$:
-\begin{equation}\label{eq:Twdot}
-  \dot T_w
-  = \frac{\dot q_s - \epsilon_w\,\sigma_{\mathrm{SB}}\,T_w^4}{C_w}
-    - \frac{T_w - T_b}{\tau_{\mathrm{cond}}} ,
+No embedding, no recasting: $\sqrt{\rho}$ and $V^3$ are evaluated directly
+as interval operations, and each is monotone in its argument. This is the
+flux the corridor limits, and it is a flux to a wall at one enthalpy,
+$h_{w,0}$. The wall of the model is at whatever enthalpy its own temperature
+gives it, so the correlation enters the heat shield through the film
+coefficient it implies,
+\begin{equation}\label{eq:film}
+  g_h = \frac{\dot q_s}{h_r - h_{w,0}},
+  \qquad
+  h_r = h_\infty + \half V^2 ,
 \end{equation}
-with $\sigma_{\mathrm{SB}}$ the Stefan--Boltzmann constant. No embedding, no
-recasting. The transcendentals $\sqrt{\rho}$, $V^3$ and $T_w^4$ are
-evaluated directly as interval operations, and each is monotone in its
-argument.
+and a wall of enthalpy~$h_w$ receives $g_h\,\Omega\,(h_r - h_w)$. The factor
+\begin{equation}\label{eq:blowing}
+  \Omega = \frac{\Phi}{e^{\Phi}-1},
+  \qquad
+  \Phi = \frac{2\lambda_b\,(\dot m_c + \dot m_g)}{g_h},
+\end{equation}
+is the reduction of the transfer by the mass the surface blows into the
+boundary layer~\cite[Eq.~(31)]{amar2008onedimensional}, with
+$\lambda_b = 0.5$ in laminar flow; written in the coefficient of the blown
+layer it is the $\ln(1+2\lambda_b B')/(2\lambda_b B')$
+of~\cite[Eq.~(11)]{chen1999ablation}.
 
 \begin{remark}\label{rem:sutton-graves-circularity}
 \Cref{eq:Qdot} is used for the corridor constraints and for the thermal
@@ -684,58 +734,485 @@ correlation is replaced, and the switch is enclosed as a hybrid guard.
 The density-square-root embedding
 $y = \sqrt{\rho/\rho_0}$ of the original formulation was introduced to
 render the heating correlation polynomial in the states (the
-Savageau--Voit recasting strategy~\cite{savageau1987recasting}). Since the interval
-pipeline evaluates $\sqrt{\cdot}$ natively, this auxiliary state is
+Savageau--Voit recasting strategy~\cite{savageau1987recasting}). Since interval
+arithmetic evaluates $\sqrt{\cdot}$ natively, this auxiliary state is
 eliminated, and with it the dependency loss of carrying an extra,
 constrained coordinate.
 \end{remark}
 
-
-%--------------------------------------------------------------------------
-\subsection{Ablation}\label{sec:ablation}
-%--------------------------------------------------------------------------
-
-Recession rate coupled to heat flux; mass loss from char-layer blowoff:
-\begin{equation}\label{eq:ablation}
-  \dot s = \alpha_s\,\dot Q_{\mathrm{tot}},\qquad
-  \dot m = -\dot m_{\mathrm{abl}}.
+\paragraph{The heat shield in depth.}
+Along the inward normal~$y$, with the surface at $y = s(t)$ and the back
+face at $y = L$, the heat shield is a solid of bulk density~$\rho$ that
+decomposes, from a virgin density~$\rho_v$ toward a char
+density~$\rho_c$, into a gas that flows through it with mass flux~$j$
+along~$+y$. Two things are assumed, as in the thermal-response codes this
+follows~\cite{chen1999ablation}: the gas is at the temperature of the solid
+it passes through, and it leaves as it is made, none being stored. The
+solid is taken opaque. Mass and energy are then conserved as
+\begin{equation}\label{eq:slab-conservation}
+  \pd{\rho}{t} + \pd{j}{y} = 0,
+  \qquad
+  \pd{(\rho h)}{t} + \pd{}{y}\Bigl(j\,h_g - k\,\pd{T}{y}\Bigr) = 0,
+  \qquad
+  \rho h = \epsilon_v\,\rho_v h_v(T) + (1-\epsilon_v)\,\rho_c h_c(T),
 \end{equation}
+with $\epsilon_v = (\rho-\rho_c)/(\rho_v-\rho_c)$ the fraction of the volume
+still virgin. Where the first holds, the second is the temperature equation
+of a charring ablator~\cite[Eq.~(1)]{chen1999ablation},
+\begin{equation}\label{eq:slab-temperature}
+  \rho c_p\,\pd{T}{t}
+  = \pd{}{y}\Bigl(k\,\pd{T}{y}\Bigr)
+    + (h_g - \bar h)\,\pd{\rho}{t}
+    - j\,c_{p,g}\,\pd{T}{y},
+  \qquad
+  \bar h = \frac{\rho_v h_v - \rho_c h_c}{\rho_v - \rho_c} ,
+\end{equation}
+and its two unobvious features are forced by the conservation form. The
+heat capacity and the decomposition enthalpy are the two partial
+derivatives of~$\rho h$, in~$T$ and in~$\rho$. And the gas, which leaves
+through the surface, $j<0$, cools the solid it passes through on its way to
+a hotter one. The density of a material point falls at a rate
+$R(\rho,T)\ge0$ given by the kinetics of the decomposition,
+$\partial_t\rho = -R$; in the three-component Arrhenius
+model~\cite[Eq.~(8)]{chen1999ablation} each component has its own.
+
+The surface is held still by Landau's
+coordinate~\cite{landau1950heat}, $\eta = (y-s)/(L-s)$, in which
+\begin{equation}\label{eq:landau}
+  \pd{}{t}\Big|_{y} = \pd{}{t}\Big|_{\eta}
+     - \frac{\dot s\,(1-\eta)}{L-s}\,\pd{}{\eta},
+  \qquad
+  \pd{}{y} = \frac{1}{L-s}\,\pd{}{\eta} .
+\end{equation}
+
+\paragraph{The surface.}
+Char leaves the surface at the rate $\dot m_c = \rho_s\dot s$, and gas at
+$\dot m_g = -j(s,t)$. Over a back face that is impermeable and adiabatic,
+Leibniz's rule applied to \cref{eq:slab-conservation} gives what the slab
+holds, per unit area:
+\begin{equation}\label{eq:slab-balance}
+  \D{}{t}\int_s^L\rho\dd y = -(\dot m_c + \dot m_g),
+  \qquad
+  \D{}{t}\int_s^L\rho h\dd y = q_c - \dot m_c\,h_s - \dot m_g\,h_{g,s},
+\end{equation}
+with $q_c = -k\,\partial_y T|_{s}$ the heat conducted into the solid, and
+$h_s$ and $h_{g,s}$ the enthalpies of the solid and of the gas at the
+surface. The surface itself stores nothing, so the heat conducted in is
+what arrives less what leaves:
+\begin{equation}\label{eq:surface-balance}
+  q_c = g_h\,\Omega\,(h_r - h_w) + \alpha_w\,q_{\mathrm{rad}}
+        - \epsilon_w\,\sigma_{\mathrm{SB}}\,T_w^4
+        + \dot m_c\,h_s + \dot m_g\,h_{g,s}
+        - (\dot m_c + \dot m_g)\,h_w .
+\end{equation}
+This is the surface energy balance of~\cite[Eq.~(10)]{chen1999ablation} for
+equal diffusion coefficients and equal coefficients of heat and of mass
+transfer; $h_w(T_w)$ is the enthalpy of the boundary-layer gas at the wall,
+and $q_{\mathrm{rad}}$ the radiation of the shock layer. Put into
+\cref{eq:slab-balance}, it says that the heat shield's enthalpy rises by the
+net heating and falls by $(\dot m_c + \dot m_g)\,h_w$: by the enthalpy of
+everything that departs, at the wall.
+
+What removes the char is the chemistry of the surface,
+\begin{equation}\label{eq:recession}
+  \dot s = \frac{\dot m_c}{\rho_s},
+  \qquad
+  \dot m_c = g_h\,B'_c\bigl(T_w,\ \dot m_g/g_h\bigr),
+\end{equation}
+with $B'_c$ the dimensionless rate at which char in equilibrium with the
+boundary-layer gas is consumed~\cite{kendall1967multicomponent}. It is a
+table of the material and of the atmosphere, and it is carried as an
+enclosure. And the vehicle loses what its heat shield loses,
+\begin{equation}\label{eq:mass-rate}
+  \dot m = -\sum_k A_k\,(\dot m_c + \dot m_g)_k ,
+\end{equation}
+summed over stations of the surface of areas~$A_k$, each with its own slab.
+\Cref{eq:state-full} carries one.
+
+\paragraph{Cells.}
+The finite-dimensional state resolves the slab on $N_T$ cells of~$\eta$,
+between faces $0 = \eta_0 < \dots < \eta_{N_T} = 1$ that move with the
+coordinate, at $v_i = \dot s\,(1-\eta_i)$. Write $\ell = L - s$,
+$\Delta_i = \eta_i - \eta_{i-1}$, and $\delta_i$ for the distance in~$\eta$
+between the centres of cells $i$ and $i+1$. Material crosses the faces
+toward the surface, so each face takes its values from the cell behind it:
+\begin{equation}\label{eq:cells}
+\begin{aligned}
+  \D{}{t}\bigl(\ell\,\Delta_i\,\rho_i\bigr)
+    &= -\ell\,\Delta_i\,R_i + v_i\,\rho_{i+1} - v_{i-1}\,\rho_i ,\\
+  \D{}{t}\bigl(\ell\,\Delta_i\,(\rho h)_i\bigr)
+    &= -(\Phi_i - \Phi_{i-1}) + v_i\,(\rho h)_{i+1} - v_{i-1}\,(\rho h)_i ,
+\end{aligned}
+\end{equation}
+where $\Phi_i = J_i\,h_g(T_{i+1}) - k\,(T_{i+1}-T_i)/(\ell\,\delta_i)$ is the
+flux of \cref{eq:slab-conservation} at an interior face, the gas flux is
+$J_{i-1} = J_i - \ell\,\Delta_i R_i$ from $J_{N_T} = 0$, nothing crosses the
+back face, and at the surface $\Phi_0 = J_0\,h_g(T_1) + q_c$ with the wall
+at the temperature of the first cell, $T_w = T_1$. Summed over the cells,
+\cref{eq:cells} telescopes to \cref{eq:slab-balance} exactly, for any
+$N_T$: the scheme conserves what the slab conserves. Its state is
+$(T_i,\rho_i)_{i\le N_T}$ and~$s$.
+
+\begin{remark}\label{rem:lumped-wall}
+An earlier form of this appendix carried the wall as one temperature,
+heated, re-radiating and conducting to a structure through a time constant,
+and the recession as a fixed multiple of the heat load. The first is
+\cref{eq:cells} on two cells that neither decompose nor recede, with areal
+heat capacity $C_w = \rho c_p\,\ell\,\Delta_1$ and time constant
+$\tau_{\mathrm{cond}} = C_w\,\ell\,\delta_1/k$: a reduction, which leaves
+out the gas, the decomposition and the motion of the surface. The second is
+not a reduction of anything. It makes $s$ a function of $Q_{\mathrm{tot}}$,
+so that a surface far below the temperature at which its chemistry starts
+recedes as fast as one above it. Recession is \cref{eq:recession}.
+\end{remark}
 
 
 %--------------------------------------------------------------------------
 \subsection{Modal / structural elasticity}\label{sec:modal}
 %--------------------------------------------------------------------------
 
-Per mode~$i$, with piston-theory forcing and temperature-dependent natural
-frequency:
+The body is carried as a free beam along its axis, of width~$b(\xi)$ and
+mass per unit length~$m(\xi)$ at the station~$\xi$ measured aft from the
+nose. Its deflection normal to itself is expanded in the modes of free
+vibration, $Z(\xi,t) = \sum_i \eta_i(t)\,W_i(\xi)$, normalized so that
+$\int m\,W_iW_j\dd\xi = \delta_{ij}$. The structure lies behind the heat
+shield, and what softens it is the temperature of the back face,
+$T_b = T_{N_T}$ of \cref{eq:cells}. Per mode~$i$, with
+temperature-dependent natural frequency:
 \begin{equation}\label{eq:modal}
-  \ddot\eta_i + 2\zeta_i\,\omega_i(T_w)\,\dot\eta_i
-  + \omega_i(T_w)^2\,\eta_i
-  = Q_i(x,\eta,\dot\eta).
+  \ddot\eta_i + 2\zeta_i\,\omega_i(T_b)\,\dot\eta_i
+  + \omega_i(T_b)^2\,\eta_i
+  = Q_i,
+  \qquad
+  Q_i = \int f\,W_i\dd\xi ,
 \end{equation}
-Piston theory is a double expansion in thickness ratio and inverse Mach
-number valid when the contributions of order $\delta/M^3$ and
-$\delta^2/M^2$ are negligible~\cite{ashley1956piston,lighthill1953oscillating}; its
-applicability conditions must be checked at each atmospheric pass. At the
-bottom of a pass, at high angle of attack and with strong shock
-interaction, piston theory may fail, and the modal forcing is then carried
-as uncertain (a widened interval).
+the generalized force of the aerodynamic load~$f$ per unit length. That load
+is the pressure of the air on a surface that moves, and \cref{sec:piston}
+derives it. To first order in the motion,
+\begin{equation}\label{eq:modal-forcing}
+  Q_i = Q_i^{(0)} - 2\rho\,a_\infty\sum_j
+        \bigl(\mathcal{C}_{ij}\,\dot\eta_j + V\,\mathcal{G}_{ij}\,\eta_j\bigr),
+\end{equation}
+with $\rho$ and $a_\infty$ the density and the speed of sound of the
+undisturbed air, $\mathcal{C}_{ij}$ and $\mathcal{G}_{ij}$ the integrals of
+the mode shapes given under \cref{eq:aero-matrices}, and $Q_i^{(0)}$ the
+generalized force of the pressure on the undeformed body, which belongs with
+the aerodynamic coefficients of \cref{eq:Fa-body} and is enclosed with them.
+The air thus adds $2\rho a_\infty\mathcal{C}$ to the damping of the
+structure and $2\rho a_\infty V\mathcal{G}$ to its stiffness, each in
+proportion to the density, so that both rise and fall through a pass.
+
+The conditions under which \cref{eq:modal-forcing} holds are those of
+\cref{eq:piston-validity}, and they are functions of the state, to be
+checked along each atmospheric pass. At the bottom of a pass, at high angle
+of attack and with strong shock interaction, they may fail, and the modal
+forcing is then carried as uncertain (a widened interval).
 
 
 %--------------------------------------------------------------------------
-\subsection{Density model and interval envelope}\label{sec:density}
+\subsection{Piston theory}\label{sec:piston}
 %--------------------------------------------------------------------------
 
-The functional form of the atmospheric density profile suitable for
-interval evaluation is not yet settled, and it is the first thing
-Objective~1 has to fix. The NRLMSIS~2.0 model provides the
-reference; the interval pipeline requires either a closed-form analytic
-approximation with certified error bounds, or a piecewise-exponential
-envelope
+This section derives the load of \cref{eq:modal-forcing} from the equations
+of gas dynamics, so that each approximation in it is in view. It follows
+Lighthill~\cite{lighthill1953oscillating} and Ashley and
+Zartarian~\cite{ashley1956piston}. The ratio of specific heats, their
+$\gamma$, is written~$\kappa$ here, because in this appendix $\gamma$ is the
+flight-path angle.
+
+\paragraph{The slab.}
+In a stream of high Mach number the shock and expansion waves lie close to
+the surface. Gradients along the stream are then small beside those across
+it, and the velocity disturbance is mainly across it. A plane slab of fluid
+normal to the stream therefore stays plane as it is carried past the body,
+and moves in its own plane as a one-dimensional unsteady flow; the relative
+error is of order $1/M^2$ while $M\delta$ is bounded, $\delta$ being the
+largest inclination of the surface to the
+stream~\cite{lighthill1953oscillating}. Let the wall stand at $Z(\xi,t)$,
+measured from the surface into the fluid. A slab carried at the speed~$U$ of
+the stream, which was at the station~$\xi_0$, finds the wall at
+$Z(\xi_0+Ut,\,t)$. The wall acts on it as a piston of velocity
+\begin{equation}\label{eq:downwash}
+  w = \pd{Z}{t} + U\,\pd{Z}{\xi} ,
+\end{equation}
+and the problem is reduced to the pressure on a piston that moves, with a
+prescribed velocity, into gas at rest.
+
+\paragraph{The piston.}
+Take one-dimensional isentropic flow of a perfect gas along the
+coordinate~$y$ across the stream, with velocity~$u$, speed of sound~$a$ and
+$p\propto\rho^\kappa$. Its equations of mass and momentum are equivalent to
+\begin{equation}\label{eq:riemann}
+  \Bigl(\pd{}{t} + (u\pm a)\,\pd{}{y}\Bigr)
+  \Bigl(u \pm \frac{2a}{\kappa-1}\Bigr) = 0 :
+\end{equation}
+each of the two quantities is carried unchanged along its own family of
+characteristics. Ahead of the piston the gas is at rest with speed of
+sound~$a_\infty$, and every characteristic of the family that runs toward
+the piston starts there. So long as no shock has formed,
+$u - 2a/(\kappa-1) = -2a_\infty/(\kappa-1)$ throughout. On the face of the
+piston $u = w$, hence $a = a_\infty + \half(\kappa-1)\,w$, and since
+$p\propto a^{2\kappa/(\kappa-1)}$ in an isentropic change,
+\begin{equation}\label{eq:piston-exact}
+  \frac{p}{p_\infty}
+  = \Bigl(1 + \frac{\kappa-1}{2}\,\frac{w}{a_\infty}\Bigr)^{2\kappa/(\kappa-1)} .
+\end{equation}
+The pressure on the piston depends on its instantaneous velocity alone. That
+is the property the theory is named for, and for a simple wave it holds
+exactly, with no restriction on amplitude. Differentiating,
+\begin{equation}\label{eq:piston-linear}
+  \D{p}{w} = \rho\,a ,
+\end{equation}
+with $\rho$ and~$a$ the density and the speed of sound \emph{on the face}:
+the acoustic impedance of the gas, in whatever state the gas there is. About
+the undisturbed state this is the small-disturbance relation
+$p - p_\infty = \rho_\infty a_\infty\,w$.
+
+\begin{remark}\label{rem:piston-local}
+\Cref{eq:piston-linear} is what first-order piston theory rests on, and it
+does not single out the undisturbed stream. Where the incidence of the body
+is too large for \cref{eq:piston-validity} to hold of the whole motion, the
+same relation applies to the perturbation that the deformation makes about
+the steady flow over the undeformed body, with $\rho a$ and the speed of the
+stream taken at the surface in that flow. \Cref{eq:piston-strip} and
+\cref{eq:aero-matrices} are written so as to allow it. The steady flow is
+then an input, and is enclosed with the aerodynamic coefficients.
+\end{remark}
+
+When the piston advances suddenly a shock runs ahead of it, and the flow is
+no longer isentropic. If the shock moves at $M_s a_\infty$, conservation of
+mass, momentum and energy across it give
+$w/a_\infty = \tfrac{2}{\kappa+1}(M_s - 1/M_s)$ and
+\begin{equation}\label{eq:piston-shock}
+  \frac{p}{p_\infty} = 1 + \kappa\,\frac{w}{a_\infty}\,M_s ,
+  \qquad
+  M_s = \frac{(\kappa+1)\,w}{4a_\infty}
+        + \sqrt{1 + \Bigl(\frac{(\kappa+1)\,w}{4a_\infty}\Bigr)^{2}} .
+\end{equation}
+
+\paragraph{The expansion.}
+In powers of $w/a_\infty$ the two pressures agree further than their
+derivations suggest:
+\begin{equation}\label{eq:piston-cubic}
+  \frac{p}{p_\infty}
+  = 1 + \kappa\,\frac{w}{a_\infty}
+    + \frac{\kappa(\kappa+1)}{4}\Bigl(\frac{w}{a_\infty}\Bigr)^{2}
+    + c_3\Bigl(\frac{w}{a_\infty}\Bigr)^{3} + \dots,
+\end{equation}
+with $c_3 = \kappa(\kappa+1)/12$ for the simple wave and
+$c_3 = \kappa(\kappa+1)^2/32$ behind the shock.
+They share their first three terms, a weak shock being isentropic to second
+order in its strength, and part at the third by
+$\kappa(\kappa+1)(5-3\kappa)/96$, a tenth of the coefficient for
+$\kappa = 1.4$. With the simple-wave coefficient \cref{eq:piston-cubic} is
+the cubic that Lighthill adopts for both cases, observing that for
+$\abs{w}\le a_\infty$ it lies within about $0.06\,p_\infty$ of
+each~\cite{lighthill1953oscillating}. For the simple wave the remainder is
+explicit. By Taylor's theorem, for some $a_\xi$ between $a_\infty$ and the
+speed of sound on the face,
+\begin{equation}\label{eq:piston-remainder}
+  \frac{p}{p_\infty} - \Bigl[\,1 + \dots + \frac{\kappa(\kappa+1)}{12}
+      \Bigl(\frac{w}{a_\infty}\Bigr)^{3}\Bigr]
+  = \frac{\kappa(\kappa+1)(3-\kappa)}{96}\,
+    \Bigl(\frac{w}{a_\infty}\Bigr)^{4}
+    \Bigl(\frac{a_\xi}{a_\infty}\Bigr)^{\frac{2\kappa}{\kappa-1}-4} ,
+\end{equation}
+which is positive for $1<\kappa<3$: the cubic lies below the simple wave in
+compression and in expansion alike. For $\kappa = 1.4$ and
+$\abs{w}\le a_\infty$ the right-hand side is at most $0.097$; the gap
+itself is largest at $w = a_\infty$, where it is $0.063$. Only the
+first-order term enters \cref{eq:modal-forcing}. The higher terms are what
+the enclosure of the forcing has to cover, and \cref{eq:piston-remainder} is
+the form in which it can.
+
+\paragraph{What the first-order relation leaves out.}
+The slab is an asymptotic picture, and there is one case in which it can be
+set against an exact solution. Let the wall be a wave of arbitrary profile
+travelling along the stream, $Z = G(k\xi - \omega t)$, and let the flow be
+the linearized potential flow about a uniform stream. Put
+$M_r = (U - \omega/k)/a_\infty$, the Mach number of the stream relative to
+the wave. For $M_r > 1$ the solution that radiates away from the wall gives,
+on the wall,
+\begin{equation}\label{eq:piston-wavy}
+  p - p_\infty = \rho_\infty a_\infty\,w\;\frac{M_r}{\sqrt{M_r^2-1}} ,
+  \qquad
+  0 \;<\; \frac{M_r}{\sqrt{M_r^2-1}} - 1 \;\le\; \frac{1}{2\,(M_r^2-1)} ,
+\end{equation}
+with $w$ the piston velocity of \cref{eq:downwash}. For a wall at rest
+$M_r = M$, and this is Ackeret's formula,
+$C_p = 2\,\partial_\xi Z/\sqrt{M^2-1}$. First-order piston theory is its
+limit as $M_r\to\infty$, and the relative error of the limit is the excess
+displayed: two percent at $M_r = 5$. For a wave that runs upstream at the
+speed~$c$, $M_r^2 = M^2 + 2(c/U)M^2 + (c/U)^2M^2$, whose three terms are the
+three quantities of which Ashley and Zartarian require one to be
+large~\cite{ashley1956piston}. For a wave carried downstream at nearly the
+speed of the stream $\abs{M_r} < 1$, the disturbance does not radiate, and
+the relation fails however large~$M$ is. The bending waves of a vehicle are
+slow beside the stream, and for them $M_r \approx M$.
+
+Beyond first order, the orders of what is left out are taken from the
+sources and are not derived here. With $\delta$ now the larger of the
+thickness ratio and the amplitude of the motion over the chord,
+\begin{equation}\label{eq:piston-validity}
+  M^2 \gg 1, \qquad \abs{w} < a_\infty, \qquad
+  C_p - C_p^{\mathrm{piston}}
+  = \mathcal{O}\bigl(\delta/M^{3}\bigr) + \mathcal{O}\bigl(\delta^{2}/M^{2}\bigr) .
+\end{equation}
+The second is Lighthill's condition on the speed of the surface, under which
+the pressure stays between $0.2$ and $3.5$ times
+$p_\infty$~\cite{lighthill1953oscillating}; the third is the error of the
+expansion carried to second order~\cite{ashley1956piston}, and for a wall at
+rest its first term is the excess of \cref{eq:piston-wavy}. The third-order
+term of \cref{eq:piston-cubic} lies outside that analysis, and Ashley and
+Zartarian call its justification excellent but empirical.
+
+\paragraph{The load on a strip.}
+A thin surface has two faces, and a motion that advances one of them into
+the stream withdraws the other. If the thickness gives both the piston
+velocity~$w_s$ and the motion gives them $\pm w_i$, the cubic of
+\cref{eq:piston-cubic} leaves, for the pressure on the lower face less that
+on the upper~\cite[Eq.~(8)]{lighthill1953oscillating},
+\begin{equation}\label{eq:piston-load}
+  \frac{\Delta p}{p_\infty}
+  = \Bigl[\,2\kappa + \kappa(\kappa+1)\frac{w_s}{a_\infty}
+      + \frac{\kappa(\kappa+1)}{2}\Bigl(\frac{w_s}{a_\infty}\Bigr)^{2}\Bigr]
+    \frac{w_i}{a_\infty}
+    + \frac{\kappa(\kappa+1)}{6}\Bigl(\frac{w_i}{a_\infty}\Bigr)^{3} ,
+\end{equation}
+with no term in~$w_i^2$: at second order the thickness changes the
+coefficient of the motion and does nothing else. To first order
+$\Delta p = 2\rho_\infty a_\infty\,w_i$. As a check on the sign and on the
+factor of two, a flat strip at incidence~$\alpha$ presents the normal
+velocity $V\sin\alpha$ to the stream, and
+\begin{equation}\label{eq:piston-flat}
+  C_N = \frac{2\rho_\infty a_\infty\,V\sin\alpha}{\half\rho_\infty V^2}
+      = \frac{4\sin\alpha}{M} ,
+\end{equation}
+the form at high Mach number of the linear result
+$4\alpha/\sqrt{M^2-1}$, which the factor of \cref{eq:piston-wavy} restores.
+No other use is made of it; the coefficients of the body are enclosed and
+are not computed from piston theory.
+
+For the beam of \cref{sec:modal}, with deflection
+$Z = \sum_j\eta_j(t)\,W_j(\xi)$, the force per unit length along the
+deflection is therefore
+\begin{equation}\label{eq:piston-strip}
+  f = -\,b\,z_a\Bigl(\pd{Z}{t} + U\,\pd{Z}{\xi}\Bigr) ,
+\end{equation}
+opposing the piston velocity, where $z_a$ is the sum of the acoustic
+impedances~$\rho a$ on the two faces and $U$ the speed of the stream along
+the strip. Projected on the modes,
+\begin{equation}\label{eq:aero-matrices}
+  \int f\,W_i\dd\xi
+  = -\sum_j\bigl(C_{ij}\,\dot\eta_j + G_{ij}\,\eta_j\bigr),
+  \qquad
+  C_{ij} = \int b\,z_a\,W_iW_j\dd\xi ,
+  \quad
+  G_{ij} = \int b\,z_a\,U\,W_i\,W_j'\dd\xi .
+\end{equation}
+Under a uniform stream $z_a = 2\rho_\infty a_\infty$ and $U = V$, so that
+$C = 2\rho_\infty a_\infty\,\mathcal{C}$ and
+$G = 2\rho_\infty a_\infty V\,\mathcal{G}$ with
+$\mathcal{C}_{ij} = \int b\,W_iW_j\dd\xi$ and
+$\mathcal{G}_{ij} = \int b\,W_iW_j'\dd\xi$: the integrals of
+\cref{eq:modal-forcing}.
+
+Two things follow from the form of these matrices. $C$ is a Gram matrix. The
+power of the damping term is
+$-\int b\,z_a\,(\partial_t Z)^2\dd\xi \le 0$, so it can only dissipate; it
+is the radiation of sound by a moving wall~\cite{lighthill1953oscillating}.
+$G$ is not symmetric. Integrating by parts,
 \[
-  \rho_{\mathrm{lower}}(h) \le \rho(h) \le \rho_{\mathrm{upper}}(h)
+  G_{ij} + G_{ji}
+  = \bigl[\,b\,z_a\,U\,W_iW_j\,\bigr]_{\mathrm{ends}}
+    - \int (b\,z_a\,U)'\,W_iW_j\dd\xi ,
 \]
-valid across the altitude range of the corridor. The width
+so that its symmetric part is a boundary term and a term in the gradient of
+the stream, and what remains is antisymmetric. An antisymmetric stiffness
+has no potential. It moves energy between modes, and it is through it that
+the air can feed an oscillation instead of damping it. The mechanism of
+flutter is therefore in the equations. No margin against it is claimed.
+
+
+%--------------------------------------------------------------------------
+\subsection{Altitude, and the density model}\label{sec:density}
+%--------------------------------------------------------------------------
+
+The atmosphere lies on the figure of the planet and not on a sphere, so the
+altitude the density is a function of is measured from the reference
+ellipsoid. With $a = R_e$ the equatorial radius and $f$ the flattening, the
+ellipsoid meets the radius at the geocentric latitude~$\phi$ at
+\begin{equation}\label{eq:ellipsoid}
+  R_\oplus(\phi) = \frac{a\,(1-f)}{\sqrt{1 - f(2-f)\cos^2\phi}} ,
+\end{equation}
+and the altitude is taken along the radius,
+\begin{equation}\label{eq:altitude}
+  h = r - R_\oplus(\phi) .
+\end{equation}
+For the Earth, $a = 6378137$\,m and $1/f = 298.257223563$~\cite{nima2000department}.
+This is not a refinement of $r - R_e$. At latitude $27^\circ$ the ellipsoid
+is $4.4$\,km inside the equatorial radius, most of a scale height, and the
+altitude enters the drag through an exponential. The oblateness of the
+figure matters to an entry far more than the oblateness of the field: the
+$J_2$ terms of \cref{eq:gD} are kept for a correction of a few tenths of a
+percent, and a spherical altitude would be wrong by a factor approaching
+two in the density.
+
+\begin{remark}\label{rem:geodetic-altitude}
+The altitude of \cref{eq:altitude} is not the geodetic altitude~$h_g$, which
+is measured along the normal to the ellipsoid, at the geodetic
+latitude~$\varphi$. The difference has no term of first order in the
+flattening,
+\[
+  h - h_g = \tfrac12\,f^2\,\frac{a\,h_g}{a+h_g}\,\sin^2 2\varphi
+            + \mathcal{O}(f^3) ,
+\]
+which is under $0.73$\,m below $130$\,km, a relative $10^{-4}$ of the
+density at most. It is carried as stated: a density given in geodetic
+altitude is evaluated at~$h$. What does not survive the confusion is
+direction. The normal and the radius differ by $f\sin 2\varphi$ to first
+order, up to $0.19^\circ$, so a flight-path angle referred to the geodetic
+horizon differs by as much from the $\gamma$ of \cref{eq:state-full}, which
+is referred to the geocentric one: for the entry of \cref{fig:skip}, by
+$0.15^\circ$ in an angle of $5.7^\circ$.
+\end{remark}
+
+The density itself is defined in two parts, of different standing. Below
+$86$\,km it is the US Standard Atmosphere~1976~\cite{noaa1976standard}, as
+defined: seven layers of the geopotential altitude $H = r_0h/(r_0+h)$, in
+each of which the molecular-scale temperature $T_M = T_b + L\,(H - H_b)$ is
+linear, so that hydrostatic equilibrium of a perfect gas gives the pressure
+in closed form,
+\begin{equation}\label{eq:standard-layer}
+  p = p_b\Bigl(\frac{T_b}{T_M}\Bigr)^{g_0M_0/(R^*L)}
+  \ \ (L\neq0),
+  \qquad
+  p = p_b\exp\Bigl(-\frac{g_0M_0\,(H-H_b)}{R^*\,T_b}\Bigr)
+  \ \ (L=0),
+  \qquad
+  \rho = \frac{p\,M_0}{R^*\,T_M} .
+\end{equation}
+Nothing in it is fitted, and the base values $(T_b,p_b)$ of each layer
+follow from the layer below. Above $86$\,km the standard has no closed
+form. There the density is a fit: a monotone piecewise cubic in $\ln\rho$
+through $69$ knots of the NRLMSISE-00 model~\cite{picone2002nrlmsise} at
+moderate solar activity, which stays within $0.08\%$ of that model. The two
+are blended over $80$--$86$\,km, and they do not meet there: at $86$\,km
+NRLMSISE-00 is $6\%$ denser than the standard, and its successor
+NRLMSIS~2.0~\cite{emmert2021nrlmsis} is $11\%$ thinner.
+
+That settles the functional form, and it is the one interval evaluation
+needs: the density is decreasing in~$h$, so its enclosure over an interval
+of altitudes is its values at the two ends. What is not settled is the
+envelope,
+\[
+  \rho_{\mathrm{lower}}(h) \le \rho(h) \le \rho_{\mathrm{upper}}(h) ,
+\]
+valid across the altitude range of the corridor. Its width is not a fitting
+error. It is the distance between a model atmosphere and the air a vehicle
+meets, which on the lunar return of Artemis~I was about ten percent thinner
+than the standard~\cite{rea2024orion}, and fixing it with a stated
+provenance is the first thing \cref{obj:embedding} has to do. The width
 $\rho_{\mathrm{upper}} - \rho_{\mathrm{lower}}$ at each altitude is the
 primary driver of the aerodynamic interval widths.
 
@@ -767,8 +1244,8 @@ Dependency loss &
   Trigonometric factors &
   Corridor and glide evaluation \\
 Density evaluation &
-  $\rho(r-R_e)$: direct &
-  $\rho(\norm{\vvec{r}}-R_e)$: extra $\sqrt{\cdot}$ \\
+  $\rho(r-R_\oplus(\phi))$: direct &
+  $\rho(h)$ of $\norm{\vvec{r}}$ and $z/\norm{\vvec{r}}$ \\
 \bottomrule
 \end{tabular}
 \end{center}

@@ -44,6 +44,21 @@ body's bank limit, converges in one to three predictions once the solution
 settles, matching what the flight data shows for PredGuid. When even full
 lift-up falls short the command saturates there, and likewise for lift-down.
 
+Two plants, one loop
+--------------------
+
+The loop does not integrate anything itself. It asks a *plant* to advance a
+state under a held bank and to report what an accelerometer senses, and it
+asks the guidance's *model* for predictions. Both may be an
+:class:`~aether.guidance.entry.EntryBody`, in which case the equations are
+the hand-written ones of :func:`~aether.guidance.entry.entry_dynamics` over
+a sphere that does not rotate, in an inertial frame the landing site moves
+through. Or both may be an :class:`aether.flight.entry.EntryModel`, in which
+case every rate comes from the routine compiled out of the symbolic field:
+a rotating, oblate planet, the atmosphere on its ellipsoid, and a frame in
+which the site stands still. The second is the model the manuscript states,
+and the first is kept for what was written against it.
+
 What is simplified
 ------------------
 
@@ -67,6 +82,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 import numpy as np
 import scipy.integrate
@@ -76,7 +92,6 @@ from aether.guidance.entry import (
     _MU,
     _R_EARTH,
     EntryBody,
-    EntryState,
     entry_dynamics,
 )
 
@@ -392,7 +407,11 @@ class SkipGuidance:
     states from one cycle to the next. Call :meth:`command` once per cycle.
     """
 
-    body: EntryBody
+    body: Any
+    """The guidance's model of the vehicle: an
+    :class:`~aether.guidance.entry.EntryBody`, or anything that offers
+    ``predict``, ``model_drag``, ``lift_to_drag`` and ``max_bank`` as
+    :class:`aether.flight.entry.EntryModel` does."""
     target: tuple[float, float]
     config: SkipGuidanceConfig
     phase: SkipPhase = SkipPhase.INITIAL_ROLL
@@ -410,11 +429,27 @@ class SkipGuidance:
             self.lift_to_drag_estimate = self.body.lift_to_drag
         self.vertical_lift_fraction = float(np.cos(self.config.initial_bank))
 
+    def _target_at(self, epoch: float) -> tuple[float, float]:
+        """Where the site is at ``epoch``, in the frame the model's state is in.
+
+        An inertial frame sees the site carried east by the planet's rotation;
+        a model whose state is relative to the planet says so, by a
+        ``target_rotation_rate`` of zero.
+        """
+        rate = getattr(self.body, "target_rotation_rate", EARTH_ROTATION_RATE)
+        return self.target[0] + rate * epoch, self.target[1]
+
+    def _model_drag(self, state: _FloatArray) -> float:
+        """Drag the guidance's model expects at this state."""
+        expected = getattr(self.body, "model_drag", None)
+        if expected is not None:
+            return float(expected(state))
+        return float(self.body.drag_acceleration(float(state[0]) - _R_EARTH, float(state[3])))
+
     def _estimate(self, state: _FloatArray, sensed_drag: float, sensed_lift: float) -> None:
         if sensed_drag < self.config.estimator_drag_threshold:
             return
-        altitude = float(state[0]) - _R_EARTH
-        model_drag = self.body.drag_acceleration(altitude, float(state[3]))
+        model_drag = self._model_drag(state)
         gain = min(self.config.guidance_period / self.config.estimator_time_constant, 1.0)
         self.density_factor += gain * (sensed_drag / model_drag - self.density_factor)
         self.lift_to_drag_estimate += gain * (
@@ -423,18 +458,22 @@ class SkipGuidance:
 
     def _predict(self, state: _FloatArray, epoch: float, u: float) -> Prediction:
         skipping = self.phase is not SkipPhase.FINAL and self.config.final_phase_drag > 0.0
-        return predict_constant_bank(
-            state, epoch, self.target, self.body, u,
-            terminal_speed=self.config.terminal_speed,
-            lift_to_drag=self.lift_to_drag_estimate,
-            density_factor=self.density_factor,
-            final_phase_drag=self.config.final_phase_drag,
-            final_vertical_lift_fraction=(
+        options: dict[str, Any] = {
+            "terminal_speed": self.config.terminal_speed,
+            "lift_to_drag": self.lift_to_drag_estimate,
+            "density_factor": self.density_factor,
+            "final_phase_drag": self.config.final_phase_drag,
+            "final_vertical_lift_fraction": (
                 self.config.final_vertical_lift_fraction if skipping else None
             ),
-            bank_now=self.flown_bank,
-            roll_rate=self.config.roll_rate,
-        )
+            "bank_now": self.flown_bank,
+            "roll_rate": self.config.roll_rate,
+        }
+        predictor = getattr(self.body, "predict", None)
+        if predictor is not None:
+            prediction: Prediction = predictor(state, epoch, self.target, u, **options)
+            return prediction
+        return predict_constant_bank(state, epoch, self.target, self.body, u, **options)
 
     def _correct(self, state: _FloatArray, epoch: float) -> None:
         """Solve for the vertical lift fraction that nulls the range error.
@@ -498,7 +537,7 @@ class SkipGuidance:
         # the Earth carries it several hundred kilometres east over a skip
         # entry, and a lateral channel aiming at where it is now chases it.
         arrival = epoch + (self.last_prediction.flight_time if self.last_prediction else 0.0)
-        t_lon, t_lat = _target_inertial(self.target, arrival)
+        t_lon, t_lat = self._target_at(arrival)
         distance = _central_angle(lon, lat, t_lon, t_lat)
         offset = _wrap(_bearing(lon, lat, t_lon, t_lat) - heading)
         crossrange_angle = float(np.arcsin(np.sin(distance) * np.sin(offset)))
@@ -550,7 +589,7 @@ class SkipGuidance:
             self._correct(state, epoch)
         self._lateral(state, epoch)
         magnitude = float(np.arccos(np.clip(self.vertical_lift_fraction, -1.0, 1.0)))
-        return self.bank_sign * min(magnitude, self.body.max_bank)
+        return self.bank_sign * min(magnitude, float(self.body.max_bank))
 
 
 # ---------------------------------------------------------------------------
@@ -578,15 +617,58 @@ class SkipEntryResult:
     skip_apogee_altitude: float
     """Highest altitude (m) between the first and second atmospheric passes."""
     peak_deceleration_g: float
+    altitude_history: _FloatArray | None = None
+    """Altitude (m) at each sample as the plant measures it. A plant over an
+    ellipsoid measures it from the ellipsoid; when absent, it is the radius
+    less the equatorial one."""
+    plant_states: _FloatArray | None = None
+    """The plant's full state at each sample, shape ``(n, k)``, when it carries
+    more than the six entry components."""
 
     @property
     def altitudes(self) -> _FloatArray:
+        if self.altitude_history is not None:
+            return self.altitude_history
         return np.asarray(self.states[0] - _R_EARTH)
 
 
+class _BodyPlant:
+    """An :class:`~aether.guidance.entry.EntryBody` as the loop's plant.
+
+    The hand-written equations over a sphere that does not rotate, integrated
+    by an adaptive Runge--Kutta pair; what the loop flew before a compiled
+    field existed, kept as it was.
+    """
+
+    def __init__(self, body: EntryBody) -> None:
+        self._body = body
+
+    @staticmethod
+    def initial_state(initial: Any) -> _FloatArray:
+        vector = initial.as_array() if hasattr(initial, "as_array") else initial
+        return np.asarray(vector, dtype=np.float64).copy()
+
+    def advance(self, state: _FloatArray, bank: float, duration: float) -> _FloatArray:
+        def rhs(_t: float, y: _FloatArray) -> _FloatArray:
+            return entry_dynamics(y, bank, self._body)
+
+        solution = scipy.integrate.solve_ivp(
+            rhs, (0.0, duration), state, rtol=1e-8, atol=1e-8,
+        )
+        return np.asarray(solution.y[:, -1])
+
+    def sensed(self, state: _FloatArray) -> tuple[float, float]:
+        drag = self._body.drag_acceleration(self.altitude(state), float(state[3]))
+        return drag, self._body.lift_to_drag * drag
+
+    @staticmethod
+    def altitude(state: _FloatArray) -> float:
+        return float(state[0] - _R_EARTH)
+
+
 def fly_skip_entry(
-    truth: EntryBody,
-    initial: EntryState,
+    truth: Any,
+    initial: Any,
     guidance: SkipGuidance,
     *,
     max_time: float = 3000.0,
@@ -595,28 +677,28 @@ def fly_skip_entry(
 
     ``truth`` is the plant: its lift-to-drag ratio and atmosphere are what the
     body actually flies, and may differ from the ``guidance.body`` model, which
-    is what the estimators are for. Epoch 0 is ``initial``; the inertial frame
-    is aligned with the Earth there.
+    is what the estimators are for. It is an
+    :class:`~aether.guidance.entry.EntryBody`, or anything offering
+    ``initial_state``, ``advance``, ``sensed`` and ``altitude`` as
+    :class:`aether.flight.entry.EntryModel` does. ``initial`` is the entry
+    state in the plant's own frame, at epoch 0.
     """
+    plant = _BodyPlant(truth) if isinstance(truth, EntryBody) else truth
     period = guidance.config.guidance_period
     rate = guidance.config.roll_rate
     flown_bank = 0.0
-    state = initial.as_array()
+    state = plant.initial_state(initial)
     clock = 0.0
     times, history, banks = [0.0], [state.copy()], []
+    heights = [float(plant.altitude(state))]
     phases: list[tuple[float, SkipPhase]] = [(0.0, guidance.phase)]
     peak_g = 0.0
 
-    def rhs(_t: float, y: _FloatArray, bank: float) -> _FloatArray:
-        return entry_dynamics(y, bank, truth)
-
-    while clock < max_time and state[0] > _R_EARTH:
-        altitude = float(state[0]) - _R_EARTH
-        drag = truth.drag_acceleration(altitude, float(state[3]))
-        lift = truth.lift_to_drag * drag
+    while clock < max_time and heights[-1] > 0.0:
+        drag, lift = plant.sensed(state)
         peak_g = max(peak_g, float(np.hypot(drag, lift)) / 9.80665)
         before = guidance.phase
-        bank = guidance.command(state, clock, drag, lift, flown_bank=flown_bank)
+        bank = guidance.command(state[:6], clock, drag, lift, flown_bank=flown_bank)
         if guidance.phase is not before:
             phases.append((clock, guidance.phase))
         if _finished(guidance):
@@ -631,20 +713,19 @@ def fly_skip_entry(
         else:
             flown_bank = bank
         banks.append(bank)
-        solution = scipy.integrate.solve_ivp(
-            rhs, (clock, clock + period), state, args=(bank,), rtol=1e-8, atol=1e-8,
-        )
-        state = np.asarray(solution.y[:, -1])
-        clock = float(solution.t[-1])
+        state = np.asarray(plant.advance(state, bank, period))
+        clock += period
         times.append(clock)
         history.append(state.copy())
+        heights.append(float(plant.altitude(state)))
 
-    trajectory = np.asarray(history).T
-    altitudes = trajectory[0] - _R_EARTH
+    samples = np.asarray(history)
+    trajectory = samples[:, :6].T
+    altitudes = np.asarray(heights)
     flown = np.asarray(banks)
     banked = flown[flown != 0.0]
     flown_reversals = int(np.count_nonzero(np.diff(np.sign(banked)))) if banked.size else 0
-    t_lon, t_lat = _target_inertial(guidance.target, clock)
+    t_lon, t_lat = guidance._target_at(clock)
     miss = _central_angle(float(state[1]), float(state[2]), t_lon, t_lat) * _R_EARTH
     return SkipEntryResult(
         times=np.asarray(times),
@@ -656,6 +737,8 @@ def fly_skip_entry(
         miss_distance=float(miss),
         skip_apogee_altitude=_skip_apogee(altitudes),
         peak_deceleration_g=peak_g,
+        altitude_history=altitudes,
+        plant_states=samples if samples.shape[1] > 6 else None,
     )
 
 

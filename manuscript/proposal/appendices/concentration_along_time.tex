@@ -7,12 +7,12 @@
 \label{apx:time}
 
 This appendix supports \cref{sec:profile}. It is a sketch, and it says
-where it stops. Two elementary bounds and the compactness they give are
-proved; the application of Lions' lemma is a statement about a sequence of
-densities and is exact; the identification of its alternatives with the
-flight regimes, and the passage from the dissipation back to the state,
-are stated as what remains to be shown, and gathered in
-\cref{sec:time-open}.
+where it stops. Two elementary bounds, the compactness they give and the
+equation the limit of one trajectory satisfies are proved; the application
+of Lions' lemma is a statement about a sequence of densities and is exact;
+the identification of its alternatives with the flight regimes, and the
+passage from the dissipation back to the state, are stated as what remains
+to be shown, and gathered in \cref{sec:time-open}.
 
 %--------------------------------------------------------------------------
 \subsection{Setting, and two elementary bounds}\label{sec:time-setting}
@@ -132,9 +132,12 @@ Under \cref{asm:dissipative} there is a subsequence along which:
 (i) The functions $\mathcal{E}_n$ are non-increasing by \cref{lem:energy}
 and uniformly bounded on the compact corridor, so Helly's selection theorem
 gives a subsequence converging at every point; the measures $\pi_n$ are
-their Stieltjes measures, and pointwise convergence of the distribution
-functions at the continuity points of the limit, with bounded total mass,
-is weak-$*$ convergence. (ii) is the Lebesgue decomposition of $\pi_0$, and
+their Stieltjes measures, and convergence of the distribution functions at
+the continuity points of the limit, together with convergence of the total
+mass $\pi_n([0,T]) = \mathcal{E}_n(0)-\mathcal{E}_n(T)$, is weak-$*$
+convergence on $[0,T]$. Boundedness of the mass would not be enough: it is
+the convergence at the two endpoints that keeps mass from being lost
+there. (ii) is the Lebesgue decomposition of $\pi_0$, and
 the count follows from $\sum_j a_j\le\pi_0([0,T])\le\Delta\mathcal{E}$.
 (iii) is P\'olya's theorem: monotone functions converging pointwise to a
 continuous limit on a compact interval converge uniformly. (iv) In
@@ -167,6 +170,99 @@ skeleton-and-impulses picture as a statement about
 limits, valid for every control and every selection, and it is as far as
 compactness alone goes. It does not exclude the part $\pi_c$, and it says
 nothing yet about what happens \emph{inside} an atom.
+
+%--------------------------------------------------------------------------
+\subsection{The Liouville equation in the limit}\label{sec:time-liouville}
+%--------------------------------------------------------------------------
+
+\Cref{prop:slow} can be restated on test functions, and in that form it
+says what becomes of the Liouville constraint. Write
+$x_n = (\vvec{y}_n,\vvec{v}_n)$, and let $\vvec{b}(x)$ stand for the
+gravitational, Coriolis and centrifugal accelerations, so that
+$\dot{\vvec{v}}_n = \vvec{b}(x_n) + \vvec{a}_n$. For a test function
+$w\in C^1([0,T]\times\R^6)$ the fundamental theorem of calculus along $x_n$
+is the Liouville equation of that one trajectory,
+\[
+  w(T,x_n(T)) - w(0,x_n(0))
+  \;=\; \int_0^T \bigl(\partial_t w + \nabla_{\vvec{y}}w\cdot\vvec{v}_n
+        + \nabla_{\vvec{v}}w\cdot\vvec{b}(x_n)\bigr)\dd t
+  \;+\; \int_0^T \nabla_{\vvec{v}}w(t,x_n)\cdot\vvec{a}_n\dd t .
+\]
+The first integral passes to the limit. The second does not pass to the
+limit term by term: where $\pi_0$ has an atom, the forcing concentrates
+exactly where the integrand ceases to converge uniformly.
+
+\begin{prop}[The limit equation has a jump term]\label{prop:liouville}
+In the setting of \cref{prop:slow}, the limit $\vvec{v}_0$ has one-sided
+limits $\vvec{v}_0(t^\pm)$ at every time and is continuous except at atoms
+of $\pi_0$. The measures $\vvec{a}_n\dd t$ converge weakly-$*$ to a vector
+measure $\vvec{\alpha}_0$ with $\abs{\vvec{\alpha}_0}\le C_a\,\pi_0$; write
+$\vvec{\alpha}_0^{\mathrm{d}}$ for its part without atoms. If neither $0$
+nor $T$ is an atom of $\pi_0$, then for every $w\in C^1([0,T]\times\R^6)$
+\begin{multline}\label{eq:liouville-limit}
+  w(T,x_0(T)) - w(0,x_0(0))
+  \;=\; \int_0^T \bigl(\partial_t w + \nabla_{\vvec{y}}w\cdot\vvec{v}_0
+        + \nabla_{\vvec{v}}w\cdot\vvec{b}(x_0)\bigr)\dd t
+  \;+\; \int_0^T \nabla_{\vvec{v}}w(t,x_0)\cdot
+        \mathrm{d}\vvec{\alpha}_0^{\mathrm{d}} \\
+  +\; \sum_j \Bigl[\,w\bigl(t_j,\vvec{y}_0(t_j),\vvec{v}_0(t_j^+)\bigr)
+             - w\bigl(t_j,\vvec{y}_0(t_j),\vvec{v}_0(t_j^-)\bigr)\Bigr] ,
+\end{multline}
+the sum being over the atoms $(t_j,a_j)$ of $\pi_0$, and its $j$-th term is
+at most $C_a\,a_j\,\sup\abs{\nabla_{\vvec{v}}w}$ in absolute value.
+\end{prop}
+
+\begin{proof}
+One-sided limits and continuity away from the atoms follow from
+\cref{eq:bv}, which also gives
+$\abs{\vvec{v}_0(t_j^+)-\vvec{v}_0(t_j^-)}\le C_a\,a_j$ and with it the
+bound on each term of the sum. Set
+$\vvec{A}_n(t) = \int_0^t\vvec{a}_n\dd s
+ = \vvec{v}_n(t)-\vvec{v}_n(0)-\int_0^t\vvec{b}(x_n)\dd s$. By
+\cref{prop:slow} and dominated convergence $\vvec{A}_n(t)$ converges for
+every~$t$, to
+$\vvec{A}_0(t) = \vvec{v}_0(t)-\vvec{v}_0(0)-\int_0^t\vvec{b}(x_0)\dd s$,
+and, by \cref{lem:impulse} and the argument that gave \cref{eq:bv},
+$\abs{\vvec{A}_0(t)-\vvec{A}_0(s)}\le C_a\,\pi_0([s,t])$. So $\vvec{A}_0$
+has bounded variation. The measures $\vvec{a}_n\dd t$ have total variation
+at most $C_a\,\Delta\mathcal{E}$ and distribution functions that converge
+at every point, so they converge weakly-$*$ to the Stieltjes measure
+$\vvec{\alpha}_0$ of $\vvec{A}_0$, and
+$\abs{\vvec{\alpha}_0}\le C_a\,\pi_0$. The curve
+$t\mapsto(t,\vvec{y}_0(t),\vvec{v}_0(t))$ is therefore of bounded
+variation, with derivative
+$(\mathrm{d}t,\;\vvec{v}_0\dd t,\;\vvec{b}(x_0)\dd t + \vvec{\alpha}_0)$,
+and it jumps only in its last component and only at atoms of $\pi_0$. The
+chain rule for functions of bounded
+variation~\cite[Theorem~3.96]{ambrosio2000functions} gives the derivative
+of $w$ along it: $\nabla w$ applied to the part of that derivative without
+atoms, plus the difference of $w$ across each jump. Integrating over
+$(0,T)$ is \cref{eq:liouville-limit}.
+\end{proof}
+
+The two integrals in \cref{eq:liouville-limit} are the Liouville equation
+of a flow: gravity, and whatever aerodynamic forcing survives the limit as
+the diffuse measure $\vvec{\alpha}_0^{\mathrm{d}}$, which is bounded by
+$C_a\,(p\dd t + \pi_c)$. The sum is the defect. It is carried by the atoms
+of $\pi_0$, and the mass of each atom bounds the term it contributes; this
+is the working sense in which the dissipation is a defect measure. Read as
+an equation for measures---integrated against an initial measure, with the
+limit trajectory chosen measurably, which is not done here---it has the
+form of the Liouville equation of a hybrid
+system~\cite{shia2014convex,zhao2020optimal}: a measure on the pairs
+(state before, state after) stands where the guard measure and its image
+under the reset stand there. Two things separate
+\cref{eq:liouville-limit} from that equation. The reset is not a map but a
+relation, and nothing above says which pairs it contains beyond the bound
+$C_a\,a_j$ on their distance; and the diffuse forcing is not yet a flow.
+The relation is the pass map of \cref{sec:profile} and the flow is the
+glide with the oscillation about it averaged, and both identifications are
+open (\cref{sec:time-open}). Without them the limit is that of an
+impulsive system whose impulses are free within a total-variation budget,
+which is sound and far too large to be of use: that is the setting of
+relaxations built for unbounded
+controls~\cite{claeys2017semidefinite}, where the impulse is an input and
+not, as here, the outcome of an inner problem.
 
 %--------------------------------------------------------------------------
 \subsection{The fast-time axis and Lions' lemma}\label{sec:time-fast}
@@ -230,12 +326,15 @@ altitude. The physical value $\eps\approx 1.1\times10^{-3}$, with entry
 angles of a few degrees, lies between the two: by \cref{eq:turning} a pass
 that turns the flight path through $8^\circ$ at a vertical lift-to-drag
 ratio of two dissipates about an eighth of the kinetic energy, and a
-computed pass lasts about a fifth of the slow time.
+computed pass, entered at twice $\sqrt{\eps}$, lasts about a fifth of the
+slow time. The two regimes are the two ends of one family, that of the
+oscillator of \cref{sec:residual-oscillator}, whose amplitude in scale
+heights is fixed by the ratio of the entry angle to $\sqrt{\eps}$.
 The threshold in \cref{eq:kmax} is what makes the decomposition well posed
 at fixed $\eps$ without deciding the regime. Passes that dissipate more
 than $\delta$ are bubbles, and there are at most $\Delta\mathcal{E}/\delta$
-of them whatever $\eps$ is; everything else is residual, and has to be
-bounded as oscillation.
+of them whatever $\eps$ is; everything else is oscillation about the
+glide, and has to be averaged.
 \end{remark}
 
 \begin{remark}[The scale has to be chosen for each piece]
@@ -272,10 +371,10 @@ Atoms at distinct times are orthogonal by the second alternative, with
 nothing to prove. For orthogonal profiles the dissipation is additive,
 \begin{equation}\label{eq:additivity}
   \pi_n([0,T])
-  \;=\; \sum_{j=1}^{J} a_j \;+\; r_n^J([0,T]) \;+\; o(1)
+  \;=\; \sum_{j=1}^{\ell} a_j \;+\; r_n^\ell([0,T]) \;+\; o(1)
   \qquad(n\to\infty),
 \end{equation}
-with $r_n^J$ the dissipation outside the $J$ windows. This is the analogue
+with $r_n^\ell$ the dissipation outside the $\ell$ windows. This is the analogue
 of the energy identity~\cite[(1.25)]{bahouri1999high}, and it is immediate,
 because the dissipation is a measure and the windows are eventually
 disjoint. The analogue of the nonlinear
@@ -286,29 +385,55 @@ differential equation composes: the state leaving pass~$j$ is the datum of
 the arc that leads to pass~$j+1$. What replaces (1.26) is a factorization
 of the map from entry data to exit data through the individual pass maps
 and the outer flow, with a remainder that is explicit and uniform over the
-selections. That is objective~4.
+selections. That is \cref{obj:composition}.
 
 %--------------------------------------------------------------------------
-\subsection{Joint profiles where scales meet}\label{sec:time-joint}
+\subsection{Oscillations, and where their frequencies meet}
+\label{sec:time-joint}
 %--------------------------------------------------------------------------
 
-Within a single pass the attitude and elastic motions are excited at their
-own scales, $h^{\mathrm{att}} = \eps_{\mathrm{att}}$ and
-$h^{\mathrm{ela}} = \eps_{\mathrm{ela}}$ in units of the slow time. They
-share the center of the pass, so the second alternative of (1.18) is not
-available and orthogonality has to come from the first: the ratio of the
-scales must diverge along the family. Where it does, the faster motion
-averages out over the slower. Where two periods remain comparable---where
-two bands cross inside the corridor---the corresponding profiles cannot be
-separated, and the decomposition carries one joint profile on the coupled
-subsystem. The check is pairwise and depends on the vehicle. For generic
-parametrizations the first structural period lies between
-$6\,\mathrm{ms}$ and $0.18\,\mathrm{s}$ and a pass lasts about
-$150\,\mathrm{s}$; with the attitude period taken between $0.1$ and
-$10\,\mathrm{s}$, the atmospheric scale is separated from the other two by
-more than a decade, and the attitude and elastic scales meet only for a
-very slender, flexible body with a fast attitude loop. These are orders of
-magnitude, to be redone for any vehicle to which the result is applied.
+The attitude and elastic motions are of a different kind from the passes.
+They are oscillations, at the periods $T_{\mathrm{att}}$ and
+$T_{\mathrm{ela}}$, which persist for as long as there is dynamic pressure,
+and nothing about them concentrates. In the wave-equation theory components
+of this kind are not profiles. They belong to the remainder, whose energy,
+its authors remark, ``is by no means small, since this term contains all
+the linear waves which cannot be represented by concentrating waves (for
+instance, WKB waves)''~\cite[p.~136]{bahouri1999high}. The oscillation
+about the glide is of the same kind whenever the loads are bounded
+(\cref{rem:regimes}).
+
+For such motions the statement that takes the place of a profile is an
+averaging statement: the amplitude of each oscillation is a slow variable,
+and the slower dynamics see the oscillation through its
+mean~\cite[Ch.~10]{khalil2002nonlinear}. With one fast phase the error is
+of the order of the ratio of the periods. With several the same holds only
+where no combination of the frequencies of low order vanishes, and here the
+frequencies move. That of the attitude scales with the square root of the
+dynamic pressure, so it rises from zero at the start of each pass and falls
+back to zero at the end; that of the oscillation about the glide falls to
+zero as the speed approaches circular (\cref{sec:residual-range}). Near a
+resonance, in a zone whose width is the square root of the small parameter,
+the averaged equations do not describe the motion. The standard treatment
+is an inner expansion in the zone, matched to the averaged solution outside
+it, and it is presented by its authors as an introduction to a theory that
+is not complete~\cite[Chs.~7--8]{sanders2007averaging}. Results that let a
+solution through a resonance without resolving it weaken the error
+estimate, and where a solution can be captured they hold outside a set of
+initial conditions of small
+measure~\cite[Sec.~7.4]{sanders2007averaging}. For an outer bound that is
+not enough: the exceptional trajectories are reachable.
+
+The orders of magnitude are these, and they depend on the vehicle. For
+generic parametrizations the first structural period lies between
+$6\,\mathrm{ms}$ and $0.18\,\mathrm{s}$; with the attitude period taken
+between $0.1$ and $10\,\mathrm{s}$ at the dynamic pressure of the glide,
+the two meet only for a very slender, flexible body with a fast attitude
+loop. A pass lasts about $150\,\mathrm{s}$ and the oscillation about the
+glide has a period of a few hundred seconds, more than a decade from both,
+except at the edges of a pass, where the attitude period is unbounded.
+These are orders of magnitude, to be redone for any vehicle to which the
+result is applied.
 
 %--------------------------------------------------------------------------
 \subsection{What is not proved}\label{sec:time-open}
@@ -326,14 +451,26 @@ magnitude, to be redone for any vehicle to which the result is applied.
   \item \emph{Vanishing is glide.} That the part of $\pi_0$ with a density
     corresponds to motion near the glide balance, and how near, is the
     estimate of \cref{apx:residual}. It is an averaging estimate for a
-    weakly damped oscillator, not a boundary-layer estimate, and it is not
-    yet uniform over the selections.
-  \item \emph{Compactness of the profiles over the family.} The profile
-    $p^j$ and the impulse set it generates depend on the selection.
-    \Cref{lem:impulse} bounds the diameter of the impulse set by $C_a a_j$;
-    a description of the set itself is the inner problem of the classical
-    theory, to be solved over the interval field.
+    weakly damped oscillator on which the control acts, not a
+    boundary-layer estimate, and it is not yet uniform over the selections
+    or over the bank histories. In \cref{eq:liouville-limit} it is the
+    identification of the diffuse forcing $\vvec{\alpha}_0^{\mathrm{d}}$.
+  \item \emph{The jump relation.} The profile $p^j$ and the set of
+    velocities a pass can leave with depend on the selection.
+    \Cref{lem:impulse} bounds the diameter of that set by $C_a a_j$; a
+    description of the set itself, the pass map, is the inner problem of
+    the classical theory, to be solved over the interval field. In
+    \cref{eq:liouville-limit} it is the identification of the pairs
+    $\bigl(\vvec{v}_0(t_j^-),\vvec{v}_0(t_j^+)\bigr)$ that can occur.
+  \item \emph{Families.} \Cref{prop:liouville} is a statement about the
+    limit of one trajectory for each~$\eps_n$. The statement for
+    occupation measures of families, with the jumps carried by a measure
+    on pairs, needs a measurable choice of the limit and is not written
+    out.
   \item \emph{Composition.} The factorization that replaces (1.26), with
-    its remainder, at each of the three scales and under interval
-    disturbances.
+    its remainder, for passes separated in time and under interval
+    disturbances: \cref{obj:composition}.
+  \item \emph{Averaging through resonance.} An averaging estimate for the
+    oscillations of \cref{sec:time-joint}, with a constant, valid for every
+    trajectory where their frequencies cross: \cref{obj:averaging}.
 \end{enumerate}

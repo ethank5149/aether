@@ -19,12 +19,12 @@ The Problem
 -----------
 
 The reachable set of a hypersonic entry vehicle — every state it can be driven
-to under admissible control — is what safety-critical and threat analysis
-actually need bounded. Computing it exactly means solving a Hamilton–Jacobi–Isaacs
-equation on a grid: exponential in state dimension, capped in practice around
-four or five states. A rigid-body entry vehicle has thirteen before any
-augmentation, and twenty-five once ablation, heat load and structural
-deformation are carried.
+to under admissible control — is what a safety analysis actually needs bounded.
+Computing it exactly means solving a Hamilton–Jacobi–Isaacs equation on a grid:
+exponential in state dimension, capped in practice around four or five states.
+A rigid-body entry vehicle has thirteen before any augmentation, and sixteen
+plus two per structural mode and two per cell of heat shield once the heat
+load, the mass and the heat shield in depth, with its recession, are carried.
 
 Worse, a grid gives a numerical approximation, not a certificate. And a
 polynomial barrier whose coefficients came out of an interior-point solver has
@@ -36,17 +36,21 @@ The Approach
 
 Embed the hybrid vehicle dynamics into a Banach space of occupation measures,
 where the problem becomes **linear** despite the nonlinearity of the flight
-mechanics. In the thin-atmosphere limit the resulting measure family is *not
-compact*: mass concentrates onto a low-dimensional set of trajectories. Turn
-that failure of compactness into a profile decomposition — a finite-dimensional
-skeleton, one boundary-layer profile per event, and a residual with a
-quantitative bound — and use its structure to **derive** a comparison
-certificate rather than search for one numerically.
+mechanics. In the thin-atmosphere limit the measure family still converges —
+the corridor is compact — but its limit *forgets every atmospheric pass*: a
+pass lasts a vanishing time and can still carry a finite share of the energy
+dissipated, and a reachable set is a support, not an integral. Read the loss
+where it occurs, on the dissipation along the rescaled time axis, and turn it
+into a profile decomposition — a limit system in a few slow coordinates, one
+boundary-layer profile per pass, entering as a jump, and a residual of explicit
+radius — and use its structure to **derive** the bound rather than search for
+one numerically.
 
-The bound is then analytical in the strong sense: derived by hand, discharged
-in exact rational arithmetic over the entry corridor. Sum-of-squares
-programming appears only as an independent numerical cross-check, never as the
-source of the guarantee.
+The bound is then analytical in the strong sense: constants in closed form,
+evaluated over the entry corridor in validated interval arithmetic, with the
+derivations behind them checked symbolically. Sum-of-squares programming
+appears only as an independent cross-check, never as the source of the
+guarantee.
 
 What the Framework Does and Does Not Own
 ----------------------------------------

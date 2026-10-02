@@ -231,14 +231,21 @@
 %  Each box still registers a line in \listoftodos (see the commented-out
 %  "\listoftodos[Open items]" call in the body), so enabling that list gives
 %  a one-page index of the open problems.
+%
+%  The counter is stepped with \refstepcounter, so a \label placed straight
+%  after \begin{openitem}{...} names the objective. Refer to objectives by
+%  label -- \cref{obj:...} mid-sentence, \Cref at the start of one -- and never
+%  by a typed number: the list has been reordered and split before, and a
+%  typed number does not follow it.
 \newtcolorbox{objective@box}[1][]{colback=blue!3,colframe=blue!45!black,
   fonttitle=\bfseries,coltitle=blue!55!black,
   boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=3pt,bottom=3pt,#1}
 
 \newcounter{objective}
+\crefname{objective}{objective}{objectives}
+\Crefname{objective}{Objective}{Objectives}
 \newenvironment{openitem}[1]{%
-  \stepcounter{objective}%
-  \phantomsection
+  \refstepcounter{objective}%
   \addcontentsline{tdo}{todo}{Objective~\theobjective: #1}%
   \begin{objective@box}[title={Objective~\theobjective.\ #1}]%
 }{\end{objective@box}}

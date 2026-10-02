@@ -5,6 +5,14 @@ it is used, or computed by this package from those numbers. Nothing is
 tuned to reproduce the flight, and the comparison at the end is against what
 the flight reports.
 
+Every rate of motion comes out of a routine compiled from the symbolic field
+(:mod:`aether.symbolic`): the equations the manuscript's notes on the
+dynamics state, over a rotating, oblate Earth, with the atmosphere on the WGS84
+ellipsoid. The flight, the guidance's predictions and the footprint sweeps
+all integrate that one field (:class:`aether.flight.entry.EntryModel`), and
+``main`` prints how far the compiled routine is from the expression it was
+printed from.
+
 The chain
 ---------
 
@@ -18,14 +26,28 @@ The chain
    the drag coefficient there sets the ballistic coefficient. The trim angle
    this implies is an independent check: the Orion aerodynamic database puts
    hypersonic trim between 157 and 162 degrees (NTRS 20110013644).
-3. **The flight.** Artemis I's entry interface state (AAS 24-174, Table 1),
-   flown by :mod:`aether.guidance.skip` to the splashdown point (Table 4)
-   through an atmosphere 10 % thinner and an L/D 5 % lower than the
-   guidance's model -- the differences the flight's own estimators reported.
-4. **The reachable set, used.** The landing footprint from entry interface,
+3. **The entry interface.** Artemis I's state as the flight reports it
+   (AAS 24-174, Table 1): a geodetic altitude and latitude, and an inertial
+   velocity in the topocentric frame. The field's state is geocentric and
+   relative to the rotating Earth, and :func:`interface` is the passage
+   between them. It is not a formality: the geodetic and geocentric
+   verticals differ by 0.15 degrees there, and the flight-path angle of an
+   entry is specified to a hundredth of one.
+4. **The flight.** Flown by :mod:`aether.guidance.skip` to the splashdown
+   point (Table 4) through an atmosphere 10 % thinner and an L/D 5 % lower
+   than the guidance's model -- the differences the flight's own estimators
+   reported.
+5. **The reachable set, used.** The landing footprint from entry interface,
    from skip apogee and from the start of the Final phase: the set of sites
    still reachable, shrinking as energy is spent, with the target inside it
    throughout.
+
+What the model leaves out, and says so: wind; the dependence of the
+aerodynamic coefficients on Mach number and on the trim attitude's own
+dynamics; the vehicle's mass change; radiative heating, whose published
+correlation is stated for nose radii up to 3 m and Orion's is 6; and the
+heat shield's thermal response, for which no public material model of the
+flown heat shield is used here.
 
 Run with ``python -m examples.artemis1.entry``.
 """
@@ -42,12 +64,17 @@ from aether.aerodynamics.panels import PanelModel, surface_of_revolution
 from aether.atmosphere.model import earth_atmosphere, tabulate
 from aether.certification.atmosphere import monotone_density
 from aether.certification.range_bound import Corridor, RangeBound, certified_downrange_bound
+from aether.flight.entry import (
+    EARTH_WGS84,
+    EntryModel,
+    EntryVehicle,
+    geocentric_site,
+    interface_state,
+)
 from aether.geodesy import GeodeticPosition
-from aether.guidance.entry import _R_EARTH, EntryBody, EntryState
 from aether.guidance.entry_ocp import EntryPathLimits
 from aether.guidance.footprint import EntryFootprint, entry_footprint
 from aether.guidance.skip import (
-    EARTH_ROTATION_RATE,
     SkipEntryResult,
     SkipGuidance,
     SkipGuidanceConfig,
@@ -78,18 +105,25 @@ LIFT_TO_DRAG = 0.30
 #: source -- a stated assumption that keeps a margin from full lift-down.
 MAX_BANK = np.deg2rad(165.0)
 
-#: Artemis I entry interface (AAS 24-174, Table 1).
-INTERFACE = EntryState(
-    radius=_R_EARTH + 400000.0 * FT,
-    longitude=np.deg2rad(-120.08071),
-    latitude=np.deg2rad(-25.82847),
-    speed=36062.6568 * FT,
-    flight_path_angle=np.deg2rad(-5.66367),
-    heading=np.deg2rad(4.65389),
-)
-#: Splashdown (AAS 24-174, Table 4). The target itself is not tabulated; the
-#: flight splashed down 2 nmi from it, so this stands in for it.
-TARGET = (np.deg2rad(-118.10181), np.deg2rad(27.34852))
+#: Heat-shield radius, 1.2 D (NTRS 20080008559): the radius the stagnation
+#: heating correlation is evaluated at.
+NOSE_RADIUS = 1.2 * DIAMETER
+
+#: Artemis I entry interface as published (AAS 24-174, Table 1): geodetic
+#: altitude and latitude, longitude, and the inertial velocity by magnitude,
+#: topocentric flight-path angle and topocentric azimuth.
+INTERFACE_PUBLISHED = {
+    "geodetic_altitude": 400000.0 * FT,
+    "longitude": np.deg2rad(-120.08071),
+    "geodetic_latitude": np.deg2rad(-25.82847),
+    "inertial_speed": 36062.6568 * FT,
+    "inertial_flight_path_angle": np.deg2rad(-5.66367),
+    "inertial_azimuth": np.deg2rad(4.65389),
+}
+#: Splashdown (AAS 24-174, Table 4), longitude and *geodetic* latitude. The
+#: target itself is not tabulated; the flight splashed down 2 nmi from it, so
+#: this stands in for it.
+TARGET_PUBLISHED = (np.deg2rad(-118.10181), np.deg2rad(27.34852))
 
 #: What the flight reports, for the comparison (AAS 24-174).
 FLOWN = {
@@ -99,6 +133,16 @@ FLOWN = {
     "bank reversals": 6,
     "reversal times (s)": (115.475, 390.450, 713.425, 793.425, 827.425, 864.400),
     "terminal-phase start from target (nmi)": 2.7,
+}
+#: What NASA's own best simulation predicted for the same flight (AAS 24-174,
+#: Tables 2 and 3 and the text): the yardstick for how close a simulation of
+#: this entry gets to the flight, since nothing here was fitted to it.
+PREDICTED = {
+    "final phase (s)": 560.00,
+    "terminal phase (s)": 877.00,
+    "skip apogee (kft)": 293.5,
+    "bank reversals": 6,
+    "reversal times (s)": (113.0, 248.0, 707.0, 782.0, 819.0, 854.0),
 }
 
 
@@ -192,7 +236,10 @@ def artemis1_guidance_config() -> SkipGuidanceConfig:
       are tuned per mission to set the number of bank reversals. The values
       here were chosen by a sweep against the flight's six reversal times
       (AAS 24-174, Table 3), which is the one input in this example fitted
-      to the flight rather than taken from a source or computed.
+      to the flight rather than taken from a source or computed. The sweep
+      was over a 16 by 16 grid, flown with the plant this example flies -- the
+      compiled field over a rotating, oblate Earth -- and kept the pair with
+      six reversals whose times lie closest to the flight's in the mean.
     * The Final-phase reserve, its tolerance, and the lift-down bank limit
       are assumptions.
 
@@ -212,37 +259,69 @@ def artemis1_guidance_config() -> SkipGuidanceConfig:
         estimator_drag_threshold=1.6 * FT,  # D Estimators
         final_phase_drag=6.0 * FT,  # D Upc End
         corridor_constant=5.0e-5,  # fitted to the flight's reversals
-        corridor_quadratic=1.2e-10,  # fitted to the flight's reversals
+        corridor_quadratic=1.8e-10,  # fitted to the flight's reversals
         roll_rate=np.deg2rad(15.0),  # the rate the lunar-return skip scenarios were flown at
         final_vertical_lift_fraction=0.5,  # assumed reserve
         final_range_tolerance=1.0 * NMI,  # assumed
     )
 
 
-def standard_density() -> tuple[object, ...]:
-    """US Standard 1976 below 86 km, NRLMSIS above, tabulated once."""
-    table = tabulate(earth_atmosphere())
+def interface(*, geodetic_horizon: bool = True) -> np.ndarray:
+    r"""The field's state at entry interface, from the published one.
 
-    def density(altitude: float) -> float:
-        return float(table.state(altitude).density)
+    :math:`(r, \lambda, \phi, V, \gamma, \psi)`: geocentric, and relative to
+    the rotating Earth. The published flight-path angle and azimuth are
+    "inertial topocentric", and a topocentric frame has the ellipsoid's normal
+    for its vertical; that is the reading taken. The paper does not define
+    the term, so the other reading is one argument away: with
+    ``geodetic_horizon=False`` the angles are referred to the geocentric
+    horizon, which steepens the entry by 0.15 degrees.
+    """
+    return interface_state(**INTERFACE_PUBLISHED, geodetic_horizon=geodetic_horizon)
 
-    return (density,)
+
+def target() -> tuple[float, float]:
+    """The landing site as the guidance needs it: longitude and geocentric latitude."""
+    return geocentric_site(*TARGET_PUBLISHED)
 
 
-def fly(aero: HypersonicAerodynamics) -> tuple[SkipEntryResult, SkipGuidance]:
+def guidance_model(aero: HypersonicAerodynamics) -> EntryModel:
+    """The vehicle and atmosphere the guidance believes in: design L/D, standard air."""
+    return EntryModel(
+        EntryVehicle(
+            ballistic_coefficient=aero.ballistic_coefficient,
+            lift_to_drag=aero.lift_to_drag,
+            nose_radius=NOSE_RADIUS,
+            max_bank=MAX_BANK,
+        )
+    )
+
+
+def flown_model(aero: HypersonicAerodynamics) -> EntryModel:
+    """The body the flight met: 5 % less lift and air 10 % thinner than the guidance's model.
+
+    Kept apart from :func:`fly` so that anything computed along the flown
+    trajectory -- the drag power in the proposal's figure, for one -- uses the
+    plant that produced it and not a second copy of these two factors.
+    """
+    return EntryModel(
+        EntryVehicle(
+            ballistic_coefficient=aero.ballistic_coefficient,
+            lift_to_drag=0.95 * aero.lift_to_drag,
+            nose_radius=NOSE_RADIUS,
+            max_bank=MAX_BANK,
+            density_scale=0.9,
+        )
+    )
+
+
+def fly(
+    aero: HypersonicAerodynamics, *, geodetic_horizon: bool = True
+) -> tuple[SkipEntryResult, SkipGuidance]:
     """Fly Artemis I: the guidance's model against the atmosphere and lift it met."""
-    (density,) = standard_density()
-    model = EntryBody(
-        aero.ballistic_coefficient, aero.lift_to_drag, max_bank=MAX_BANK, density=density
-    )
-    truth = EntryBody(
-        aero.ballistic_coefficient,
-        0.95 * aero.lift_to_drag,
-        max_bank=MAX_BANK,
-        density=lambda h: 0.9 * density(h),
-    )
-    guidance = SkipGuidance(model, TARGET, artemis1_guidance_config())
-    return fly_skip_entry(truth, INTERFACE, guidance), guidance
+    guidance = SkipGuidance(guidance_model(aero), target(), artemis1_guidance_config())
+    start = interface(geodetic_horizon=geodetic_horizon)
+    return fly_skip_entry(flown_model(aero), start, guidance), guidance
 
 
 def footprints(
@@ -250,19 +329,15 @@ def footprints(
 ) -> list[tuple[str, float, EntryFootprint, GeodeticPosition]]:
     """The reachable landing footprint at three points of the flight.
 
-    Each is computed from the flown state in the inertial frame, and the
-    target is placed where the Earth will have carried it by the time of
-    arrival, so the question asked is the one that matters: is the site still
-    reachable from here?
+    Each is computed from the flown state, in the frame that turns with the
+    Earth, where the site stands still; so the question asked is the one that
+    matters: is the site still reachable from here?
     """
-    (density,) = standard_density()
-    body = EntryBody(
-        aero.ballistic_coefficient, aero.lift_to_drag, max_bank=MAX_BANK, density=density
-    )
+    body = guidance_model(aero)
     # Assumed limits, not from a source: loose on heating, so the footprint is
     # shaped by the dynamics, and 10 g on load.
     limits = EntryPathLimits(
-        max_heat_flux_w_cm2=5000.0, max_g_load=10.0, nose_radius_m=1.2 * DIAMETER
+        max_heat_flux_w_cm2=5000.0, max_g_load=10.0, nose_radius_m=NOSE_RADIUS
     )
     at = {phase: t for t, phase in result.phases}
     apogee = int(np.argmax(np.where(result.times > 150.0, result.altitudes, -np.inf)))
@@ -271,63 +346,122 @@ def footprints(
         ("skip apogee", float(result.times[apogee])),
         ("final phase", at.get(SkipPhase.FINAL, float(result.times[-1]))),
     ]
-    arrival = float(result.times[-1])
-    target = GeodeticPosition(
-        latitude=TARGET[1], longitude=TARGET[0] + EARTH_ROTATION_RATE * arrival, altitude=0.0
+    site = GeodeticPosition(
+        latitude=TARGET_PUBLISHED[1], longitude=TARGET_PUBLISHED[0], altitude=0.0
     )
     out = []
     for label, epoch in moments:
         k = int(np.searchsorted(result.times, epoch))
+        # From entry interface the range is decided by a few degrees of bank:
+        # near 72 degrees a constant bank goes from a 4,000 km entry to a skip
+        # that does not come back inside the hour. Two and a half degrees
+        # between samples resolves that edge on both sides; later, with the
+        # energy spent, the coarse family does.
+        n_constant = 133 if epoch == 0.0 else 15
         footprint = entry_footprint(
             result.states[:, k], body, limits=limits, terminal_speed=1000.0 * FT,
             label=label, epoch=epoch, max_time=2000.0, step=10.0,
-            n_constant=15, n_reversals=4,
+            n_constant=n_constant, n_reversals=4,
         )
-        out.append((label, epoch, footprint, target))
+        out.append((label, epoch, footprint, site))
     return out
 
 
-def certified_outer_bound(
-    result: SkipEntryResult, aero: HypersonicAerodynamics
-) -> tuple[RangeBound, float, float]:
-    """The outer half of the sandwich, over the Final phase.
-
-    Returns the certified bound, the downrange the body actually flew over the
-    same phase, and the altitude ceiling the bound is conditional on. The
-    ceiling is read from the flown trajectory and rounded up: the hypothesis is
-    that the body stays under it, which over the Final phase it does, and the
-    bound says nothing about a trajectory that leaves.
-
-    The density enclosure carries a scale factor of 0.85 to 1.15, so the bound
-    holds over a *class* of atmospheres rather than the tabulated one alone --
-    Artemis I flew through air about 10 % thinner than standard.
-    """
+def final_phase(result: SkipEntryResult) -> int:
+    """Index of the sample at which the Final phase starts."""
     at = {phase: t for t, phase in result.phases}
-    start = at.get(SkipPhase.FINAL, 0.0)
-    k = int(np.searchsorted(result.times, start))
+    return int(np.searchsorted(result.times, at.get(SkipPhase.FINAL, 0.0)))
+
+
+def last_descent_through(result: SkipEntryResult, altitude: float) -> int:
+    """Index of the first sample after the body is above ``altitude`` for the last time.
+
+    From there on the flight stays under that altitude, which is the form of
+    hypothesis the certified bound needs.
+    """
+    above = np.nonzero(result.altitudes > altitude)[0]
+    return int(above[-1]) + 1 if above.size else 0
+
+
+def certified_corridor(
+    result: SkipEntryResult, start: int | None = None, ceiling: float | None = None
+) -> Corridor:
+    """The corridor the flight stays inside from sample ``start``, rounded outward to 5 km.
+
+    ``start`` defaults to the Final phase. The ceiling defaults to the highest
+    altitude flown from there, rounded up; the floor is the lowest, rounded
+    down; and the speeds run from the speed at ``start`` to the terminal one.
+    """
+    k = final_phase(result) if start is None else start
     altitudes = result.altitudes[k:]
-    ceiling = float(np.ceil(altitudes.max() / 5e3) * 5e3)
-    corridor = Corridor(
+    if ceiling is None:
+        ceiling = float(np.ceil(altitudes.max() / 5e3) * 5e3)
+    return Corridor(
         altitude_ceiling_m=ceiling,
         altitude_floor_m=float(max(np.floor(altitudes.min() / 5e3) * 5e3, 0.0)),
         speed_high_ms=float(result.states[3, k]),
         speed_low_ms=1000.0 * FT,
     )
+
+
+def certified_latitudes(result: SkipEntryResult, start: int | None = None) -> tuple[float, float]:
+    """The band of latitudes the bound is conditional on: those flown from ``start``,
+    padded 5 degrees.
+
+    Part of the hypothesis, like the corridor. The rotating frame's potential
+    depends on latitude, and the bound has to cover whatever of it the body
+    could gain.
+    """
+    k = final_phase(result) if start is None else start
+    latitudes = result.states[2, k:]
+    pad = np.deg2rad(5.0)
+    return float(latitudes.min() - pad), float(latitudes.max() + pad)
+
+
+def flown_path(result: SkipEntryResult, start: int | None = None) -> float:
+    r"""Length (m) of the path flown through the air from ``start``,
+    :math:`\int V\cos\gamma\,dt`.
+
+    Read from the plant's own arc, :math:`\dot s = V\cos\gamma/r`, as
+    :math:`\int r\,ds`: the quantity the certificate bounds.
+    """
+    if result.plant_states is None:
+        raise ValueError("the flight was not flown by a plant that carries its ground-track arc")
+    k = final_phase(result) if start is None else start
+    radius, arc = result.plant_states[k:, 0], result.plant_states[k:, 6]
+    return float(np.sum(0.5 * (radius[1:] + radius[:-1]) * np.diff(arc)))
+
+
+def certified_outer_bound(
+    result: SkipEntryResult,
+    aero: HypersonicAerodynamics,
+    *,
+    start: int | None = None,
+    ceiling: float | None = None,
+) -> tuple[RangeBound, float, float]:
+    """The outer half of the sandwich, from sample ``start`` (the Final phase by default).
+
+    Returns the certified bound, the path the body actually flew from there,
+    and the altitude ceiling the bound is conditional on. The ceiling is read
+    from the flown trajectory and rounded up: the hypothesis is that the body
+    stays under it, which from ``start`` it does, and the bound says nothing
+    about a trajectory that leaves.
+
+    The bound is for the field the flight was flown with: speeds relative to
+    the rotating Earth, altitudes above the ellipsoid, and the Jacobi energy,
+    which that field dissipates at the drag power.
+
+    The density enclosure carries a scale factor of 0.85 to 1.15, so the bound
+    holds over a *class* of atmospheres rather than the tabulated one alone --
+    Artemis I flew through air about 10 % thinner than standard.
+    """
+    corridor = certified_corridor(result, start, ceiling)
     density = monotone_density(tabulate(earth_atmosphere()), scale=(0.85, 1.15))
     bound = certified_downrange_bound(
-        corridor, aero.ballistic_coefficient, density, subdivisions=2048
+        corridor, aero.ballistic_coefficient, density, subdivisions=2048,
+        planet=EARTH_WGS84, latitude_band=certified_latitudes(result, start),
     )
-    flown = _great_circle_m(
-        float(result.states[1, k]), float(result.states[2, k]),
-        float(result.states[1, -1]), float(result.states[2, -1]),
-    )
-    return bound, flown, ceiling
-
-
-def _great_circle_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
-    dlon, dlat = lon2 - lon1, lat2 - lat1
-    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
-    return float(2.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0))) * _R_EARTH)
+    return bound, flown_path(result, start), corridor.altitude_ceiling_m
 
 
 def main() -> int:
@@ -340,6 +474,18 @@ def main() -> int:
         f"published trim 157-162), CD {aero.drag_coefficient:.3f}, "
         f"beta {aero.ballistic_coefficient:.0f} kg/m2"
     )
+    start = interface()
+    plant = flown_model(aero)
+    print(
+        f"Entry interface, in the field's state: altitude "
+        f"{plant.altitude(start) / FT / 1e3:.1f} kft above the ellipsoid, relative speed "
+        f"{start[3]:,.1f} m/s, flight-path angle {np.rad2deg(start[4]):.3f} deg, heading "
+        f"{np.rad2deg(start[5]):.3f} deg"
+    )
+    print(
+        f"Dynamics: compiled from the symbolic field (backend '{plant.backend}'); the "
+        f"routine is within {plant.audit(start, 0.3):.1e} of its expressions in 40 digits"
+    )
     result, guidance = fly(aero)
     at = {phase: t for t, phase in result.phases}
     rows = [
@@ -349,58 +495,62 @@ def main() -> int:
         ("bank reversals", float(result.reversals)),
         ("terminal-phase start from target (nmi)", result.miss_distance / NMI),
     ]
-    print(f"\n{'':42s}{'simulated':>12s}{'Artemis I':>12s}")
+    print(f"\n{'':42s}{'simulated':>12s}{'Artemis I':>12s}{'NASA sim.':>12s}")
     for name, value in rows:
-        print(f"{name:42s}{value:12.1f}{FLOWN[name]:12.1f}")
+        predicted = f"{PREDICTED[name]:12.1f}" if name in PREDICTED else f"{'':>12s}"
+        print(f"{name:42s}{value:12.1f}{FLOWN[name]:12.1f}{predicted}")
     print(f"{'peak deceleration (g)':42s}{result.peak_deceleration_g:12.2f}")
+    if result.plant_states is not None:
+        table = plant.output_table(result.plant_states)
+        print(
+            f"{'peak convective heat flux (W/cm2)':42s}{table['heat_flux'].max() / 1e4:12.0f}\n"
+            f"{'convective heat load (kJ/cm2)':42s}{result.plant_states[-1, 7] / 1e7:12.1f}"
+        )
     signs = np.sign(result.bank)
     flips = np.nonzero(np.diff(signs))[0] + 1
     simulated = ", ".join(f"{result.times[i]:.0f}" for i in flips)
     flown = ", ".join(f"{t:.0f}" for t in FLOWN["reversal times (s)"])
-    print(f"reversal times (s): simulated {simulated}\n{'':20s}Artemis I {flown}")
+    predicted = ", ".join(f"{t:.0f}" for t in PREDICTED["reversal times (s)"])
+    print(
+        f"reversal times (s): simulated {simulated}\n{'':20s}Artemis I {flown}\n"
+        f"{'':20s}NASA sim. {predicted}"
+    )
     print(
         f"estimators: density factor {guidance.density_factor:.3f} (flight ~0.90), "
         f"L/D {guidance.lift_to_drag_estimate:.3f} (truth {0.95 * aero.lift_to_drag:.3f})"
     )
     print("\nReachable landing footprint, target inside?")
     prints = footprints(result, aero)
-    for label, epoch, footprint, target in prints:
+    for label, epoch, footprint, site in prints:
         print(
             f"  {label:16s} t={epoch:6.0f}s  area {footprint.area_km2:12,.0f} km2  "
             f"downrange {footprint.min_downrange_m / 1e3:7,.0f}-"
             f"{footprint.max_downrange_m / 1e3:7,.0f} km  "
-            f"contains target: {footprint.contains(target)}  "
+            f"contains target: {footprint.contains(site)}  "
             f"(rejected {footprint.rejected}: {', '.join(footprint.binding_constraints) or '-'})"
         )
-    bound, flown, ceiling = certified_outer_bound(result, aero)
+    bound, flown_m, ceiling = certified_outer_bound(result, aero)
     inner = next(fp.max_downrange_m for label, _, fp, _ in prints if label == "final phase")
     print("\nThe sandwich, from the start of the Final phase")
-    print(f"  flown                {flown / 1e3:9,.0f} km")
+    print(f"  flown                {flown_m / 1e3:9,.0f} km")
     print(f"  inner sweep (Lu & Xue, bank schedules sampled)"
           f"{inner / 1e3:14,.0f} km")
     print(f"  certified outer      {bound.max_downrange_m / 1e3:9,.0f} km"
           f"   (every bank history, atmospheres 0.85-1.15x standard)")
     print(f"  hypothesis           {bound.corridor.describe()}")
-    print(f"  holds for the flight: {bool(flown <= bound.max_downrange_m)}"
+    print(f"  holds for the flight: {bool(flown_m <= bound.max_downrange_m)}"
           f"  (flown stays under the {ceiling / 1e3:.0f} km ceiling)")
-    # How much the hypothesis is worth. The bound is sound at every ceiling and
-    # useful at none of the high ones: thin air produces almost no drag, so the
-    # argument cannot rule out a body coasting there. Tightening it is what the
-    # occupation-measure route in the proposal is for.
-    at = {phase: t for t, phase in result.phases}
-    k = int(np.searchsorted(result.times, at.get(SkipPhase.FINAL, 0.0)))
-    density = monotone_density(tabulate(earth_atmosphere()), scale=(0.85, 1.15))
-    print("  sensitivity to the ceiling:")
-    for ceiling_km in (50.0, 60.0, 70.0, 80.0):
-        corridor = Corridor(
-            altitude_ceiling_m=ceiling_km * 1e3, altitude_floor_m=0.0,
-            speed_high_ms=float(result.states[3, k]), speed_low_ms=1000.0 * FT,
-        )
-        each = certified_downrange_bound(
-            corridor, aero.ballistic_coefficient, density, subdivisions=2048
-        )
-        print(f"    under {ceiling_km:4.0f} km: {each.max_downrange_m / 1e3:9,.0f} km"
-              f"  ({each.max_downrange_m / flown:6.1f}x the flown range)")
+    # How much the hypothesis is worth, along the descent that was flown. The
+    # bound is sound at every ceiling and useful at none of the high ones: thin
+    # air produces almost no drag, so the argument cannot rule out a body
+    # coasting there. Tightening it is what the proposal is for.
+    print("  the same bound from the last descent through each altitude:")
+    for ceiling_km in (70.0, 60.0, 50.0, 45.0):
+        k = last_descent_through(result, ceiling_km * 1e3)
+        each, path, _ = certified_outer_bound(result, aero, start=k, ceiling=ceiling_km * 1e3)
+        print(f"    under {ceiling_km:4.0f} km, from t = {result.times[k]:4.0f} s:"
+              f" flown {path / 1e3:6,.0f} km, certified {each.max_downrange_m / 1e3:8,.0f} km"
+              f"  ({each.max_downrange_m / path:6.1f}x)")
     print(f"\n{time.monotonic() - started:.0f} s")
     return 0
 

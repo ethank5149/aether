@@ -13,14 +13,28 @@ are Newton's law in the rotating frame with oblate gravity; that the Jacobi
 energy dissipates at the drag power; what the glide balance is once rotation
 is kept; what damps the phugoid, and at what rate.
 
+The registry spans the whole of the dynamics appendix, in three standings.
+The translational entries are checked against the field of record. The
+attitude entries -- the quaternion with the planet's rotation carried into
+the body rate, Euler's equations, the passage from the body force to the wind
+axes -- are checked against the appendix's own statement of them, because no
+field written for every arithmetic carries the attitude. The thermal and
+structural entries are constitutive, and what is checked is what follows from
+them; the force of the air on the structural modes is the exception, derived
+in the ``piston-*`` entries from one-dimensional gas dynamics. Every
+equation, lemma, proposition and remark the manuscript labels is
+named by an entry or listed, with the reason, in
+:data:`aether.symbolic.STATED_NOT_DERIVED`; the second table of the report is
+that list.
+
 **What is measured, and from what.** The numbers below are not computed by a
 second implementation. The field is printed to C from the same expressions by
 :mod:`aether.symbolic.codegen`, compiled, and compared against those
 expressions in forty digits before anything is integrated with it. So each
-table tests a closed form the proposal quotes against the model it was derived
+table tests a closed form the notes quote against the model it was derived
 from, and a disagreement cannot be a transcription error in the comparison.
 
-**The three results the proposal leans on.**
+**The three results the notes lean on.**
 
 1. *Rotation belongs in the glide balance.* Flying east at 7 km/s the Coriolis
    term is half of :math:`g - V^2/r`; the :math:`J_2` terms are a percent of
@@ -148,7 +162,7 @@ def run_s1(output_dir: Path) -> VerificationReport:
         criterion=(
             "any registered derivation fails to reduce to zero; or the generated field "
             f"differs from its own expressions by more than {_AUDIT_TOLERANCE:.0e} relative; "
-            "or a closed form the proposal quotes for the phugoid differs from direct "
+            "or a closed form the notes quote for the phugoid differs from direct "
             f"computation by more than {100 * _CLOSED_FORM_TOLERANCE:.0f}% at the physical "
             "scale height"
         ),
@@ -156,7 +170,7 @@ def run_s1(output_dir: Path) -> VerificationReport:
         source="task definition",
     )
     try:
-        from aether.symbolic import check_all, compile_field
+        from aether.symbolic import STATED_NOT_DERIVED, check_all, compile_field
         from aether.symbolic.__main__ import point_mass_source
     except ImportError as error:
         report.passed = False
@@ -193,10 +207,31 @@ def run_s1(output_dir: Path) -> VerificationReport:
             "velocity rates are obtained by differentiating the planet-relative velocity "
             "in planet-fixed Cartesian components and are not assumed from the classical "
             "literature, so the Coriolis, centrifugal and oblateness terms are checked "
-            "sign by sign."
+            "sign by sign.\n\n"
+            "The entries differ in what they are checked against. Those on the "
+            "translational problem use the field the enclosures and simulations evaluate. "
+            "Those on the attitude -- `local-frame` to `trim-reduction` -- use the "
+            "appendix's own statement of the quaternion, the body rate and the force on "
+            "the wind axes, and are tied to the translational field by `trim-reduction`: "
+            "an attitude at incidence and bank returns the point-mass field. "
+            "`euler-equations` settles which part of the inertia's rate of change belongs "
+            "in the rotational equation: the deformation's, and not the part that "
+            "recession removes."
         ),
     )
     report.passed = all(r.passed for r in results)
+    report.add_table(
+        "What no derivation backs, and why",
+        ["label", "reason"],
+        [[f"`{label}`", reason] for label, reason in STATED_NOT_DERIVED.items()],
+        notes=(
+            "Every equation, lemma, proposition, remark and assumption the manuscript labels is "
+            "named by a derivation above or appears here. The test suite holds both lists "
+            "against the manuscript's sources, in both directions, so a displayed equation "
+            "cannot be added without a check or a reason. What is listed is analysis or "
+            "argument; no model equation is among them."
+        ),
+    )
 
     # --- 2. what lift has to balance ---------------------------------------
     rows, csv_rows = [], []
@@ -249,7 +284,7 @@ def run_s1(output_dir: Path) -> VerificationReport:
     field = compile_field(source.expressions, source.state, source.parameters, name=source.name)
     rng = np.random.default_rng(0)
     full = np.array([0.4, 4000.0, 2.5, 1.225, 8500.0, EARTH.mu, EARTH.radius, EARTH.j2,
-                     EARTH.rotation_rate])
+                     EARTH.rotation_rate, EARTH.flattening])
     worst_audit = 0.0
     for _ in range(25):
         sample = np.array(

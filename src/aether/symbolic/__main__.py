@@ -29,9 +29,9 @@ def point_mass_source(name: str = "entry_point_mass") -> CSource:
     State :math:`(r, \lambda, \phi, V, \gamma, \psi)`; parameters, in order,
     the bank angle, ballistic coefficient, lift-to-drag ratio, reference
     density, scale height, and the planet's :math:`\mu`, :math:`R_e`,
-    :math:`J_2` and :math:`\omega_E`. Everything a certificate would range
-    over is a parameter, so one compiled routine serves a whole class of
-    vehicles and atmospheres.
+    :math:`J_2`, :math:`\omega_E` and flattening. Everything a certificate
+    would range over is a parameter, so one compiled routine serves a whole
+    class of vehicles and atmospheres.
     """
     s = EntrySymbols()
     bank = sp.Symbol("sigma", real=True)
@@ -42,7 +42,7 @@ def point_mass_source(name: str = "entry_point_mass") -> CSource:
     planet = s.planet
     parameters = (
         bank, beta, lift_to_drag, density, height,
-        planet.mu, planet.radius, planet.j2, planet.rotation_rate,
+        planet.mu, planet.radius, planet.j2, planet.rotation_rate, planet.flattening,
     )
     return generate_c(name, field(s.state, bank, SYMPY_OPS), s.state, parameters)
 

@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install test lint typecheck verify derivations boundary check example proposal proposal-summary proposal-all proposal-dist clean-proposal docs docs-serve docs-clean
+.PHONY: install test lint typecheck verify derivations boundary check example proposal proposal-precis proposal-figures proposal-all proposal-dist clean-proposal docs docs-serve docs-clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
@@ -46,33 +46,36 @@ docs-clean:
 	rm -rf docs/_build
 
 # ---------------------------------------------------------------- proposal
-# Two deliverables, both LuaLaTeX + Biber via latexmk:
-#   proposal          -> main.pdf          full copy, with the three appendices
-#   proposal-summary  -> main-summary.pdf  body-only teaser for cold emails
-# The summary predefines \summarymode, which main.tex uses to drop the
-# appendices and blank the parenthetical pointers into them, so no reference
-# dangles. References are kept in both (the body's inline citations need them).
+# Two documents, both LuaLaTeX + Biber via latexmk:
+#   proposal          -> main.pdf          the proposal
+#   proposal-precis   -> precis.pdf        two pages, for a first email
+# The precis is its own source, precis.tex, and links to the proposal.
 #
-#   proposal-dist     -> dist/<name>.pdf   the two PDFs under names fit to attach
-# `main-summary.pdf` is a build name. An attachment is read by its filename
-# before it is opened, so the copies that are sent are named for what they are.
+#   proposal-figures  -> figures/*.pdf     regenerated from the example
+# The figures are tracked beside the sources, so the targets above need no
+# Python. Both are illustrations. Run this one when the example changes.
+#
+#   proposal-dist     -> dist/<name>.pdf   the PDFs under names fit to attach
+# An attachment is read by its filename before it is opened, so the copies
+# that are sent are named for what they are.
 PROPOSAL_DIR := manuscript/proposal
 PROPOSAL_NAME ?= Knox-PhD-proposal
 
 proposal:
 	cd $(PROPOSAL_DIR) && latexmk -pdf -lualatex main.tex
 
-proposal-summary:
-	cd $(PROPOSAL_DIR) && latexmk -pdf -lualatex -jobname=main-summary \
-	  -usepretex="\def\summarymode{}" main.tex
+proposal-precis:
+	cd $(PROPOSAL_DIR) && latexmk -pdf -lualatex precis.tex
 
-proposal-all: proposal proposal-summary
+proposal-figures:
+	$(PYTHON) tools/gen_proposal_figures.py
+
+proposal-all: proposal proposal-precis
 
 proposal-dist: proposal-all
 	mkdir -p $(PROPOSAL_DIR)/dist
 	cp $(PROPOSAL_DIR)/main.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME).pdf
-	cp $(PROPOSAL_DIR)/main-summary.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME)-summary.pdf
+	cp $(PROPOSAL_DIR)/precis.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME)-precis.pdf
 
 clean-proposal:
-	cd $(PROPOSAL_DIR) && latexmk -c main.tex && \
-	  latexmk -c -jobname=main-summary main.tex
+	cd $(PROPOSAL_DIR) && latexmk -c main.tex && latexmk -c precis.tex

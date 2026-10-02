@@ -323,8 +323,15 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
     net_gravity = MU / radius_low**2 - speed_low**2 / radius_low
     period = float(2.0 * np.pi * np.sqrt(_H_S / net_gravity))
     arc, apogee = arc_after_pass(sol)
+    # What the one-oscillator picture predicts for that arc: a ballistic hop
+    # under the net gravity, from the state the pass left.
+    radius_out, speed_out, gamma_out = (float(sol.y[i][-1]) for i in (0, 3, 4))
+    hop = 2.0 * speed_out * gamma_out / (MU / radius_out**2 - speed_out**2 / radius_out)
     root_eps = float(np.sqrt(_H_S / R_E))
     shed = 1.0 - float(sol.y[3][-1] / _V_ENTRY) ** 2
+    # The same period with gravity alone restoring it, which is what an
+    # earlier version of this task compared the pass with.
+    period_without_relief = float(2.0 * np.pi * np.sqrt(_H_S / (MU / radius_low**2)))
     report.add_section(
         "The nominal pass, and what it has to be compared with",
         f"Entry at {_H_ENTRY / 1e3:.0f} km, {_V_ENTRY:.0f} m/s, "
@@ -338,7 +345,9 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
         f"- the pass: **{duration:.0f} s**, {duration / _T_SLOW:.2f} of `T_slow` = "
         f"{_T_SLOW:g} s;\n"
         f"- the arc that follows it, up to {apogee / 1e3:.0f} km and back down to the entry "
-        f"altitude: **{arc:.0f} s**, {arc / duration:.1f} times the pass;\n"
+        f"altitude: **{arc:.0f} s**, {arc / duration:.1f} times the pass. A ballistic hop "
+        "under the net gravity from the state the pass left, `2*V*gamma/(g - V^2/r)`, "
+        f"lasts {hop:.0f} s;\n"
         "- the oscillation about the glide at the speed of the pass, whose period is "
         f"`2*pi*sqrt(H_s/(g - V^2/r))` = **{period:.0f} s** at the lowest point: the pass "
         f"is {duration / period:.2f} of a period.\n\n"
@@ -348,15 +357,14 @@ def run_r1v3(output_dir: Path) -> VerificationReport:
         "`O(sqrt(eps))` under bounded loads, the troughs of an oscillation; sent to "
         "infinity (a fixed entry angle) it gives passes that last `O(eps)` under loads "
         "that grow like `1/eps`, and concentrate. Here it is about two, and the pass is "
-        "neither: it is the lower half of one large oscillation about the glide, which "
-        "is why its duration is half a period.\n\n"
+        "neither: it is the trough of one large oscillation about the glide, and it lasts "
+        "about half of the small-oscillation period.\n\n"
         f"`sqrt(eps_atm) * T_slow` = {root_eps * _T_SLOW:.0f} s, so an estimate that "
         "substitutes `sqrt(eps)` for the width of a pass understates it by a factor of "
         f"{duration / (root_eps * _T_SLOW):.1f}. An earlier version of this task compared "
         "the pass with `2*pi*sqrt(H_s/g)`. That period leaves out the centrifugal relief: "
         "the oscillation is restored by `g - V^2/r`, not by `g`, and at this speed the "
-        f"difference is a factor of {period / (2.0 * np.pi * np.sqrt(_H_S / (MU / radius_low**2))):.1f}"
-        " in the period.",
+        f"difference is a factor of {period / period_without_relief:.1f} in the period.",
     )
 
     # --- rank, and its saturation in control freedom -------------------

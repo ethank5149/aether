@@ -1,8 +1,8 @@
 r"""The translational entry field over a rotating, oblate planet, for every arithmetic.
 
 :mod:`aether.certification.entry_field` is the classical field: spherical
-gravity and no planetary rotation. This is the field the proposal's dynamics
-appendix states -- geocentric spherical position :math:`(r, \lambda, \phi)`,
+gravity and no planetary rotation. This is the field the manuscript's notes
+on the dynamics state -- geocentric spherical position :math:`(r, \lambda, \phi)`,
 planet-relative velocity in wind-frame components :math:`(V, \gamma, \psi)`,
 :math:`J_2` gravity, and the Coriolis and centrifugal terms of the rotating
 frame -- and it is written, like that one, against
@@ -44,12 +44,15 @@ from aether.orbital.gravity import EARTH as _EARTH_GRAVITY
 
 __all__ = [
     "EARTH",
+    "WGS84_FLATTENING",
     "Planet",
+    "altitude",
     "exponential_density",
     "j2_gravity",
     "jacobi_energy",
     "point_mass_field",
     "rotating_entry_field",
+    "surface_radius",
     "vertical_balance_terms",
 ]
 
@@ -76,10 +79,17 @@ class Planet:
     """Second zonal harmonic coefficient."""
     rotation_rate: Any
     """Sidereal rotation rate (rad/s)."""
+    flattening: Any = 0
+    """Flattening :math:`f = (a - b)/a` of the reference ellipsoid the altitude
+    is measured from. Zero is a sphere of the equatorial radius."""
 
     def spherical(self) -> Planet:
-        """The same body with the oblateness removed."""
-        return replace(self, j2=0)
+        """The same body with the oblateness removed, of the field and of the figure."""
+        return replace(self, j2=0, flattening=0)
+
+    def on_ellipsoid(self, flattening: Any) -> Planet:
+        """The same body with its altitude measured from an ellipsoid of this flattening."""
+        return replace(self, flattening=flattening)
 
     def non_rotating(self) -> Planet:
         """The same body with the rotation removed."""
@@ -87,13 +97,58 @@ class Planet:
 
 
 #: Earth: the gravity constants of :data:`aether.orbital.gravity.EARTH`, and the
-#: sidereal rotation rate (IERS conventions) :mod:`aether.geodesy` uses.
+#: sidereal rotation rate (IERS conventions) :mod:`aether.geodesy` uses. Its
+#: altitude is measured from a sphere; ``EARTH.on_ellipsoid(WGS84_FLATTENING)``
+#: measures it from the reference ellipsoid instead.
 EARTH = Planet(
     mu=_EARTH_GRAVITY.mu,
     radius=_EARTH_GRAVITY.radius,
     j2=_EARTH_GRAVITY.j2,
     rotation_rate=7.292115e-5,
 )
+
+#: Flattening of the WGS84 reference ellipsoid, :math:`1/298.257223563`.
+WGS84_FLATTENING = 1.0 / 298.257223563
+
+
+def surface_radius(latitude: Any, ops: MathOps = NUMPY_OPS, *, planet: Planet = EARTH) -> Any:
+    r"""Distance from the centre to the reference ellipsoid at a *geocentric* latitude.
+
+    .. math::
+
+        R(\phi) = \frac{a\,(1 - f)}{\sqrt{1 - e^2\cos^2\phi}},
+        \qquad e^2 = f\,(2 - f),
+
+    the ellipse :math:`x^2/a^2 + z^2/b^2 = 1` in polar form about its centre.
+    The atmosphere lies on this surface and not on a sphere: at
+    :math:`27^\circ` it is 4.4 km inside the equatorial radius, which is
+    most of a scale height of density.
+
+    A planet whose flattening is the number zero returns its radius
+    untouched, so that the spherical field stays the field it was to the bit.
+    """
+    flattening = planet.flattening
+    if isinstance(flattening, (int, float)) and flattening == 0:
+        return planet.radius
+    cos_lat = ops.cos(latitude)
+    eccentricity_squared = flattening * (2 - flattening)
+    return planet.radius * (1 - flattening) / ops.sqrt(
+        1 - eccentricity_squared * cos_lat * cos_lat
+    )
+
+
+def altitude(
+    radius: Any, latitude: Any, ops: MathOps = NUMPY_OPS, *, planet: Planet = EARTH
+) -> Any:
+    r"""Height above the reference ellipsoid, measured along the radius.
+
+    :math:`h = r - R(\phi)`. It is not the geodetic altitude, which is
+    measured along the ellipsoid's normal; the two differ by
+    :math:`\tfrac12 h f^2\sin^2 2\phi` to leading order, under a metre
+    below 130 km, and the symbolic layer derives that figure
+    (:mod:`aether.symbolic.figure`).
+    """
+    return radius - surface_radius(latitude, ops, planet=planet)
 
 
 def j2_gravity(
@@ -316,10 +371,10 @@ def point_mass_field(
     atmosphere = exponential_density() if density is None else density
 
     def field(state: Sequence[Any], bank: Any, ops: MathOps) -> list[Any]:
-        radius, speed = state[0], state[3]
-        altitude = radius - planet.radius
-        _refuse_below_surface(altitude)
-        drag = atmosphere(altitude, ops) * speed * speed / (2 * ballistic_coefficient)
+        radius, latitude, speed = state[0], state[2], state[3]
+        height = altitude(radius, latitude, ops, planet=planet)
+        _refuse_below_surface(height)
+        drag = atmosphere(height, ops) * speed * speed / (2 * ballistic_coefficient)
         lift = lift_to_drag * drag
         return rotating_entry_field(
             state,

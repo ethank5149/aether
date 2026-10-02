@@ -1,6 +1,6 @@
 # AETHER: Aero-thermo-Elastic Trajectory & Hypersonic Estimation Research
 
-*The motivating idea*: Solve the coupled, highly nonlinear dynamics of a manuevering hypersonic body **weakly**, and extract a finite-dimensional skeleton in the form of a trajectory outer-bound via Galerkin projection.
+*The motivating idea*: Solve the coupled, highly nonlinear dynamics of a maneuvering hypersonic body **weakly**, and extract a finite-dimensional skeleton in the form of a trajectory outer-bound via Galerkin projection.
 
 This then evolved into a tentative thesis proposal on *certified* reachable sets for hypersonic entry vehicles, and the
 Python package that implements, demonstrates and stress-tests the model.
@@ -43,25 +43,26 @@ flowchart TD
 
     subgraph phase3_decomposition ["<b>Phase 3: Decomposition</b>"]
     direction LR
-    skeleton["<b>Skeleton (Intersection of 3 Slow Manifolds):</b>
-    • Quasi-Equilibrium Glide
-    • Aerodynamic Trim
-    • Quasi-Static Deflection"]
+    skeleton["<b>Skeleton (the flows of the limit system):</b>
+    • Exo-atmospheric arcs, under gravity alone
+    • Equilibrium glide, at trim and quasi-static deflection
+    • Amplitude of the oscillation about the glide, as a coordinate"]
     style skeleton text-align:left
-    bubbles["<b>Bubbles (Rescaled transients at multiple scales):</b>
-    • Atmospheric skips
-    • Mode switches
-    • Guard crossings"]
+    bubbles["<b>Bubbles (the jumps of the limit system):</b>
+    • One per atmospheric pass above an energy threshold
+    • A set-valued pass map, entry state to exit states
+    • At most K_delta of them"]
     style bubbles text-align:left
-    residual["<b>Residual (Explicit bound on):</b>
-    • High-mode tail energy
-    • Non-orthogonal scale collisions"]
+    residual["<b>Residual (a ball of explicit radius):</b>
+    • Lag behind the descending glide
+    • Matching error at each pass
+    • Averaging error, through resonance"]
     style residual text-align:left
     end
 
     subgraph phase4_certification ["<b>Phase 4: Certification</b>"]
     direction LR
-    closed_form_bound["<b>Closed-Form Bound:</b> Skeleton + Bubble Impulse Sets + Residual Ball"]
+    closed_form_bound["<b>Closed-Form Bound:</b> Reachable Set of the Limit Hybrid System + Residual Ball"]
     validated_verification["<b>Validated Verification:</b> Constants evaluated over the corridor in interval arithmetic with outward rounding; derivations checked symbolically"]
     closed_form_bound-- "Constants C_R and K_delta in closed form" -->validated_verification
     end
@@ -69,7 +70,7 @@ flowchart TD
    phase1_embedding-- "Interval Enclosure of the Aerodynamics: a Differential Inclusion" -->phase2_relaxation
    phase2_relaxation-- "Singular Limit: eps_atm, eps_att, eps_ela -> 0" -->phase3_decomposition
    phase3_decomposition-- "Supplies the shape of the bound" -->phase4_certification
-   phase4_certification-->A@{ shape: lean-r, label: "Certified Footprint & Certified Flutter Margin" }
+   phase4_certification-->A@{ shape: lean-r, label: "Certified Reachable Set & Footprint" }
 ```
 
 
@@ -78,11 +79,12 @@ flowchart TD
 ## The problem
 
 The reachable set of a hypersonic entry vehicle — every state it can be driven to under
-admissible control — is what safety-critical and threat analysis actually need bounded.
+admissible control — is what a safety analysis actually needs bounded.
 Computing it exactly means solving a Hamilton–Jacobi–Isaacs equation on a grid: exponential
 in state dimension, capped in practice around four or five states. A rigid-body entry
-vehicle has thirteen before any augmentation, and seventeen plus two per structural mode
-once heat load, wall temperature, ablation and mass loss are carried.
+vehicle has thirteen before any augmentation, and sixteen plus two per structural mode and
+two per cell of heat shield once the heat load, the mass and the heat shield in depth, with
+its recession, are carried.
 
 Worse, a grid gives a numerical approximation, not a certificate. And a polynomial barrier
 whose coefficients came out of an interior-point solver has analytical *form* but inherits
@@ -96,9 +98,16 @@ thin-atmosphere limit the measure family still converges — the corridor is com
 its limit *forgets every atmospheric pass*: a pass lasts a vanishing time and can still
 carry a finite share of the energy dissipated, and a reachable set is a support, not an
 integral. Read the loss where it occurs, on the dissipation along the rescaled time axis,
-and turn it into a profile decomposition — a finite-dimensional skeleton, one boundary-layer
-profile per pass, and a residual with a quantitative bound — and use its structure to
-**derive** the bound rather than search for one numerically.
+and turn it into a profile decomposition — a limit system in a few slow coordinates, one
+boundary-layer profile per pass, entering as a jump, and a residual of explicit radius — and
+use its structure to **derive** the bound rather than search for one numerically.
+
+How much the limit forgets depends on which limit is taken. With the corridor's load limits
+held fixed nothing concentrates, and the passes are the troughs of an oscillation about the
+glide; concentration needs an entry angle that stays large against the square root of the
+small parameter. Glide, phugoid and skip are the equilibrium, the small oscillation and the
+large oscillation of one equation, and at the terrestrial scale height the three time scales
+are not separated. The statement aimed at is therefore one at fixed scale height.
 
 The bound is then analytical in the strong sense: constants in closed form, evaluated over
 the entry corridor in validated interval arithmetic, with the derivations behind them
@@ -167,12 +176,12 @@ own rate laws**.
 | Integrated heat load | **resolved** — state with its own rate equation |
 | **Aerothermoelastic deformation** | **resolved** — modal state, temperature-dependent banded stiffness, first-order piston forcing |
 
-Aerothermoelasticity was the last effect whose bound was *assumed* rather than certified.
-Resolving it means the program is no longer "occupation measures, plus a special argument
-for skips, plus a separate story for elasticity" — it is one method with one standing
-hypothesis, a uniform spectral gap, whose certification is itself the point. The flutter
-margin is not a separate theorem; it *is* the certificate that the modal bound is
-forward-invariant under the true dynamics rather than posited.
+Carrying aerothermoelastic deformation as states does not by itself bound it. In the
+proposal the structural oscillation, like that of the attitude and like the oscillation about
+the glide, is a motion that does not concentrate and has to be averaged, with an error that
+is explicit and that holds where frequencies cross; that averaging theorem is the proposal's
+critical path, and it is open. Where it cannot be had for the structure, the modal forcing
+is enclosed as a widened interval instead. No flutter margin is claimed.
 
 ### No polynomial closure on the main line
 
@@ -202,10 +211,13 @@ silently exceeded.*
 
 **Early, and deliberately explicit about it.**
 
-The proposal is a draft: a body that states the program and its six objectives, and three
-appendices — the coupled 6-DOF entry dynamics, a sketch of the limit argument, and the
-constants of the bound in the form in which they presently exist. It says what is proved,
-what is computed and what is open, and nothing in it should be read as claiming more.
+The proposal is a draft, and it is a proposal: it states the problem, the statement aimed
+at and seven objectives, and it claims no result. A two-page summary,
+[`precis.pdf`](manuscript/proposal/precis.pdf), is the place to start.
+
+[`manuscript/proposal/appendices/`](manuscript/proposal/appendices/) holds working notes — the
+coupled 6-DOF entry dynamics, a sketch of the limit argument, and a first form of the
+constants. They are reference material for the analysis and are not part of the proposal.
 
 The bibliography, [`manuscript/thesis.bib`](manuscript/thesis.bib), is assembled by
 hand: entries are added as sources are read and their details checked against the published
@@ -214,8 +226,9 @@ record, rather than generated and hoped over.
 ### Building the proposal
 
 ```bash
-make proposal          # latexmk -> manuscript/proposal/main.pdf, with appendices
-make proposal-summary  # body only -> manuscript/proposal/main-summary.pdf
+make proposal          # latexmk -> manuscript/proposal/main.pdf
+make proposal-precis   # two pages -> manuscript/proposal/precis.pdf
+make proposal-figures  # regenerate manuscript/proposal/figures/ (both are illustrations)
 make proposal-dist     # both, copied to manuscript/proposal/dist/ under sendable names
 make clean-proposal    # remove build artifacts
 ```
@@ -225,22 +238,36 @@ make clean-proposal    # remove build artifacts
 ## The code
 
 An implementation of the model the proposal reasons about, used to show that the physics
-closes, to generate the numbers the manuscript is permitted to quote, and as a sandbox for
-testing whether a modeling decision survives being computed.
+closes and as a sandbox for testing whether a modeling decision survives being computed.
 
-It is **not** the contribution, and no result in the proposal depends on a float it produces.
-The exceptions run the other way. The certificate's validated-arithmetic verification is a
-script that checks the derived bound and exits nonzero on failure, and *that* script is the
-artifact carrying the guarantee. And the derivations the manuscript relies on are reduced to
-identities by computer algebra, against the same definition of the dynamics the code
-integrates: `python -m aether.symbolic` exits nonzero if one of them fails.
+It is **not** the contribution, it is not a deliverable of the thesis, and the proposal reports
+nothing it computes. What it carries beside the model is a symbolic layer: the derivations of
+the working notes are reduced to identities by computer algebra, against the same definition
+of the dynamics the code integrates, and `python -m aether.symbolic` exits nonzero if one of
+them fails.
+
+The checks span every equation the working notes display, and they are of three
+standings. The translational problem — the equations of motion over a rotating, oblate planet,
+the energy balance, the glide balance and the oscillation about the glide — is checked against
+the field the code evaluates. The attitude — quaternion kinematics, Euler's equations, the
+passage from the body force to the wind axes, the six-degree-of-freedom glide balance — is
+checked against the notes' own statement of it, and tied to the translational field by
+showing that an attitude at incidence and bank returns the point-mass field. The heating,
+recession and structural laws are constitutive, and what is checked is what follows from them.
+The exception among them is the force of the air on the structural modes: piston theory is
+derived, from the Riemann invariants of one-dimensional gas dynamics to the generalized forces
+on the modes, and the tests reproduce the table Lighthill printed in 1953. A test fails when the
+notes gain an equation that has neither a check nor a stated reason for having none.
 
 ### The demonstration: Artemis I
 
 [`examples/artemis1/`](examples/artemis1/) flies Orion's Artemis I lunar-return
 skip entry from its published entry interface to terminal speed, and every input is
 either taken from a NASA source cited where it is used or computed by this package
-from those numbers:
+from those numbers. Every rate of motion comes out of a routine compiled from the
+symbolic field, over a rotating, oblate Earth with the atmosphere on the WGS 84
+ellipsoid; the flight, the guidance's predictions and the footprint sweeps integrate
+that one field:
 
 - the Orion shape from the CEV wind-tunnel proportions, and its hypersonic drag from
   the Newtonian panel method at the design L/D -- which lands the trim angle inside
@@ -258,9 +285,12 @@ from those numbers:
   in rigorous ball arithmetic and conditional on a stated corridor. Inner sweep and outer
   certificate bracket the flown trajectory between them.
 
-Against the flight: Final phase at 538 s (flown 551 s), Terminal at 880 s (882 s),
-skip apogee 284 kft (287 kft), and the Terminal phase starting 2.0 nmi from the
-target (2.7 nmi).
+Against the flight: Final phase at 498 s (flown 551 s), Terminal at 866 s (882 s),
+skip apogee 273 kft (287 kft), six bank reversals (six), and the Terminal phase
+starting 0.3 nmi from the target (2.7 nmi). It is an example and a check of the
+package against published data, nothing more: it leaves out wind, the dependence of
+the aerodynamics on Mach number, the attitude dynamics, mass change, radiative
+heating and the heat shield's thermal response, and says so where it runs.
 
 ### Package layout
 
@@ -286,7 +316,7 @@ target (2.7 nmi).
 | `optimal_control/` | Legendre–Gauss–Lobatto direct transcription and Pontryagin refinement over an arbitrary problem |
 | `estimation/` | Adaptive state estimation (χ² anomaly gating and IAE), navigation through plasma blackout, and heterogeneous measurement models with their covariance |
 | `certification/` | Machinery answering "is this inequality *provably* true", as distinct from "did a float suggest so": rigorous enclosures and verified reachable tubes in Arb ball arithmetic, the entry field written for every arithmetic at once — classical, and over a rotating, oblate planet — monotone density enclosures, and a certified downrange bound that carries the corridor hypothesis it rests on |
-| `symbolic/` | The third arithmetic. The same fields evaluated on SymPy symbols, so that each derivation the manuscript relies on is a residual reduced to zero rather than a calculation read once; and C generated from those expressions, compiled, and audited against them in extended precision, so the fast numerics are a rendering of what was checked |
+| `symbolic/` | The third arithmetic. The same fields evaluated on SymPy symbols, and the rest of the dynamics appendix — attitude, Euler's equations, the passage from attitude to force, heating and structure — stated once on symbols, with piston theory derived from one-dimensional gas dynamics, so that each derivation the manuscript relies on is a residual reduced to zero rather than a calculation read once; a test that holds the registry against the manuscript's labels in both directions; and C generated from those expressions, compiled, and audited against them in extended precision, so the fast numerics are a rendering of what was checked |
 | `batch/` | NumPy/CuPy backend abstraction; batched common-outer-grid integrator — a Monte Carlo batch as a rank-3 tensor operation; terminal dispersion from measured ERA5 winds, with exact elliptical containment radii checked against Siouris Table 5.2 |
 | `viz/` | Textured WGS84 ellipsoid, terrain and Blue Marble Next Generation imagery tiles, vehicle glyphs, flow-field rendering, and `scene` — a chase-camera rig with polyline, mesh and glyph projection over the globe |
 | `verification/` | Executable verification tasks with failure criteria stated in advance |
