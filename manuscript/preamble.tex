@@ -237,8 +237,10 @@
 %  label -- \cref{obj:...} mid-sentence, \Cref at the start of one -- and never
 %  by a typed number: the list has been reordered and split before, and a
 %  typed number does not follow it.
+% The title bar takes the frame's colour unless it is given one of its own,
+% and a dark title on the dark frame cannot be read.
 \newtcolorbox{objective@box}[1][]{colback=blue!3,colframe=blue!45!black,
-  fonttitle=\bfseries,coltitle=blue!55!black,
+  colbacktitle=blue!10,fonttitle=\bfseries,coltitle=blue!55!black,
   boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=3pt,bottom=3pt,#1}
 
 \newcounter{objective}

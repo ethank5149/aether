@@ -18,8 +18,8 @@ output of the field.
 landing footprint is drawn. The same flight over the globe, in perspective
 from above the Americas, with its altitude exaggerated so that the skip can
 be seen; and on the ground ahead of it three nested sets: what the vehicle
-can reach, what the limit system can reach, and the latter thickened by a
-margin, which is the bound. **The three sets are drawn for the eye. They are
+can reach, what the limit system can reach, and the latter thickened by the
+residual, which is the bound. **The three sets are drawn for the eye. They are
 shapes typed in below, not the output of any computation**, and the figure
 says so on its face.
 
@@ -94,7 +94,7 @@ _POST_EVERY = 60.0
 # The three sets of the globe, as fractions of the range flown. THESE ARE
 # NOT DATA. They are chosen so that the picture says what the target
 # statement says: the vehicle's set sticks out of the limit system's, here
-# at its far end, by less than the margin.
+# at its far end, by less than the residual.
 _LIMIT_SET = (0.40, 1.30)         # where the limit system's set starts and ends
 _LIMIT_HALF_WIDTH = 0.16
 _VEHICLE_SET = (0.47, 1.35)
@@ -567,7 +567,7 @@ def draw_target(profile: SkipProfile, path: Path) -> None:
         (Line2D([0.0, 0.26], [0.0, 0.0], color=_BLUE, linewidth=1.1, dashes=(4.0, 2.2)),
          r"$\Pi(\mathcal{R}_{\mathcal{H}_\delta})$: what the limit" "\nsystem can reach"),
         (Line2D([0.0, 0.26], [0.0, 0.0], color=_BLUE, linewidth=1.6),
-         r"the same, thickened by" "\n" r"the margin $\varrho$: the bound"),
+         r"the same, thickened by" "\n" r"the residual $\varrho$: the bound"),
     )
     for row, (mark, text) in enumerate(keys):
         y = top - row * pitch                         # the first line of the row's text

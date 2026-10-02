@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install test lint typecheck verify derivations boundary check example proposal proposal-precis proposal-figures proposal-all proposal-dist clean-proposal docs docs-serve docs-clean
+.PHONY: install test lint typecheck verify derivations boundary check example proposal proposal-precis proposal-figures proposal-all proposal-dist proposal-site clean-proposal docs docs-serve docs-clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
@@ -58,8 +58,14 @@ docs-clean:
 #   proposal-dist     -> dist/<name>.pdf   the PDFs under names fit to attach
 # An attachment is read by its filename before it is opened, so the copies
 # that are sent are named for what they are.
+#
+#   proposal-site     -> $(SITE_DIR)/{proposal,precis}.pdf
+# The two documents are served from research.ekdynamics.science, which is a
+# separate repository. This only copies them into its working tree;
+# committing and pushing there is what publishes them.
 PROPOSAL_DIR := manuscript/proposal
 PROPOSAL_NAME ?= Knox-PhD-proposal
+SITE_DIR ?= ../hypersonic-reachability
 
 proposal:
 	cd $(PROPOSAL_DIR) && latexmk -pdf -lualatex main.tex
@@ -76,6 +82,10 @@ proposal-dist: proposal-all
 	mkdir -p $(PROPOSAL_DIR)/dist
 	cp $(PROPOSAL_DIR)/main.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME).pdf
 	cp $(PROPOSAL_DIR)/precis.pdf $(PROPOSAL_DIR)/dist/$(PROPOSAL_NAME)-precis.pdf
+
+proposal-site: proposal-all
+	cp $(PROPOSAL_DIR)/main.pdf $(SITE_DIR)/proposal.pdf
+	cp $(PROPOSAL_DIR)/precis.pdf $(SITE_DIR)/precis.pdf
 
 clean-proposal:
 	cd $(PROPOSAL_DIR) && latexmk -c main.tex && latexmk -c precis.tex

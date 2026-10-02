@@ -1,18 +1,18 @@
 %% Two-page precis of the PhD thesis proposal
 %% Knox, 2026.
 %%
-%% The copy that is attached to a first email. It has to stand alone on two
-%% pages, and it is ordered as an argument a reader can follow without the
-%% proposal: the question in plain words, and the idea in one sentence; the
-%% figure, which is the statement aimed at, drawn where a landing footprint
-%% is drawn; why the bound that is free is useless; what it ignores; the
-%% theorem aimed at; the obstacle; what is open. Build with
-%% `make proposal-precis`; `make proposal-dist` names the copy to attach.
+%% The copy that is attached to a first email. It follows the plan of the
+%% original research summary (September 2026): the problem, with its two
+%% difficulties; the approach, from the embedding in occupation measures to
+%% the profile decomposition and the target statement; and the problems
+%% that remain. Its vocabulary is that summary's too: skeleton, bubbles,
+%% residual. Build with `make proposal-precis`; `make proposal-dist` names
+%% the copy to attach.
 %%
 %% Three rules hold here, as in main.tex.
 %%   The subject is hypersonic entry: any vehicle, any corridor. One flight
 %%   appears, as the example the figure's trajectory is taken from, and it
-%%   is named only there.
+%%   is named only in the reference list.
 %%   Nothing is claimed as done. This is a proposal: no preliminary
 %%   derivation, computation or check is reported, and the sets in the
 %%   figure are an illustration, which the figure and its caption both say.
@@ -23,9 +23,9 @@
 %% cannot fall out of step by a renumbering. What CAN fall out of step is
 %% the wording of the target statement. Reread it when main.tex changes.
 %%
-%% The header carries no link. The proposal goes with the email, as an
-%% attachment or on request; a link, when there is a place to host it,
-%% belongs on the line under the date.
+%% The header gives an address to write to and where the full proposal is
+%% hosted: both documents are served from research.ekdynamics.science, and
+%% nothing here points anywhere else.
 
 \documentclass[english,10pt]{extarticle}
 \input{../preamble}
@@ -37,6 +37,8 @@
   pdfsubject={Summary of a preliminary PhD research proposal},
 }
 \ExecuteBibliographyOptions{maxbibnames=3,doi=false,isbn=false,url=false}
+% Two pages leave no room for a report's page count or its reissue.
+\AtEveryBibitem{\clearfield{pagetotal}\clearfield{addendum}\clearfield{month}}
 \renewcommand*{\bibfont}{\footnotesize}
 \setlength{\bibitemsep}{1pt}
 \setlength{\parskip}{0pt}
@@ -50,6 +52,7 @@
 \setlength{\intextsep}{7pt plus 2pt minus 1pt}
 
 \newcommand{\head}[1]{\par\smallskip\noindent\textbf{#1}\enspace}
+\newcommand{\proposalurl}{https://research.ekdynamics.science/proposal.pdf}
 
 \begin{document}
 
@@ -58,140 +61,142 @@
   sets}\\[0.3em]
   {\itshape A two-page summary of a preliminary PhD research proposal}\\[0.5em]
   Ethan Knox\quad\textperiodcentered\quad Champaign, IL\quad
-  \textperiodcentered\quad \today
+  \textperiodcentered\quad
+  \href{mailto:ethank5149@gmail.com}{\texttt{ethank5149@gmail.com}}\quad
+  \textperiodcentered\quad \today\\[0.2em]
+  {\small Full proposal:
+  \href{\proposalurl}{\texttt{research.ekdynamics.science/proposal.pdf}}}
 \end{center}
 
-\head{The question.}
-A vehicle entering an atmosphere at hypersonic speed can be steered, within
-limits, and neither the air nor its own aerodynamics is known better than
-within tolerances. What can it be driven to? The states it can reach under
-\emph{every} admissible control and every admissible model form its
-reachable set, which a safety analysis has to enclose; a landing
-footprint is its shadow on the ground. This proposal is about an
-\emph{outer} bound on it that is proved and not
-sampled, and that is a formula: explicit in the vehicle and the flight
-corridor, to be evaluated again, not solved for again, when either changes.
-The idea is that the thin atmosphere supplies one: in the limit a flight is
-a slow motion punctuated by brief passes through dense air, and the bound
-sought is the reachable set of that much smaller limit system, thickened by
-an explicit margin. The vehicle is a parameter of the bound, not its
-subject.
+\head{The problem.}
+The reachable set of an atmospheric entry vehicle, that is, every state it
+can be driven to under admissible control, is what a safety analysis needs
+bounded. Computing it exactly means solving a Hamilton--Jacobi--Isaacs
+equation on a grid, which is exponential in the state dimension and capped
+in practice near four or five states~\cite{bansal2017hamilton}. A
+rigid-body entry vehicle carries thirteen states, and more once the heat
+load, ablation and aerothermoelastic deformation are coupled, so the grid
+method stops before the real problem starts. A polynomial barrier whose
+coefficients come from an interior-point solver has analytical \emph{form},
+but it inherits the solver's accuracy and is not by itself a certificate.
+There are therefore two problems to solve, not one: the dimension of the
+state, and the provenance of the guarantee. The vehicle and its flight
+corridor enter only as data, so the bound sought is for hypersonic entry in
+general and not for a particular vehicle.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=6.5in]{figures/reachable-set.pdf}
-  \caption{The statement aimed at, drawn on the ground. The trajectory is an
-    example, a lunar-return skip entry simulated from a published entry
-    state~\cite{rea2024orion}, with altitude drawn twelve times too large
-    and a post each minute. The three sets are an illustration and are not
-    computed: what the vehicle can reach, what the limit system can reach,
-    and the second thickened by a margin, which is the bound. The first may
-    leave the second, but by no more than the margin.}
+  \caption{Illustration of the target statement, drawn on the ground. The
+    trajectory is an example, a lunar-return skip entry simulated from a
+    published entry state~\cite{rea2024orion}, with altitude drawn twelve
+    times too large and a post marking each minute. The three sets are an
+    illustration and are not computed: the set that the vehicle can reach,
+    the set that the limit system can reach, and the latter thickened by
+    the residual, which is the bound.}
 \end{figure}
 
-\head{The gap.}
-One outer bound is free, and it shows what is missing. Drag dissipates
-energy at the rate $P = DV$ per unit mass, so a path of length~$R$ costs at
-least $R\,D_{\min}$, and with $\Delta\mathcal{E}$ the energy there is to
-lose, $R\le\Delta\mathcal{E}/D_{\min}$. It holds for every control because
-it uses nothing about the control, and it is useless for the same reason:
-it charges the whole flight at the thinnest air the corridor allows, so that
-across a skip it says nothing. The tools that use more do not reach the
-question. A Hamilton--Jacobi equation on a grid stops near five
-states~\cite{bansal2017hamilton}, and a rigid body has thirteen; a
-flowpipe~\cite{chen2013flowstar} encloses one vehicle, one initial set and
-one horizon, and tends to widen along weakly damped motion; and guidance is
-validated by sampling~\cite{lu2014entry}.
+\head{The approach.}
+We embed the flight dynamics in a space of occupation measures. The
+nonlinear flight mechanics $\dot x = f(x,c,t)$ become \emph{linear}: the
+Liouville equation is a linear constraint on a measure $\mu$ over
+$[0,T]\times\calX\times\calU$, and an outer bound on the reachable set is
+certified by a dual pair of functions. So far this is the occupation-measure
+program of Lasserre, Henrion and
+collaborators~\cite{lasserre2008nonlinear,henrion2014convex}. Because the
+aerodynamics are transcendental and known only to within tolerances, we
+enclose them in intervals. The dynamics become a differential inclusion,
+evaluated in validated interval arithmetic, with no polynomial recasting of
+the model and no numerical optimization as the source of the guarantee.
 
-\head{What the free bound ignores.}
-It ignores \emph{when} the energy is lost. The ratio of the atmosphere's
-scale height to the planet's radius, $\eps = H_s/R_e\approx 10^{-3}$, is a
-small parameter, and as it vanishes a trajectory comes apart into three
-motions. Above the atmosphere it follows an arc under
-gravity and loses nothing. On the equilibrium glide, where lift balances
-weight less centrifugal relief, it loses energy slowly. And in a
-\emph{pass} it dips into dense air, turns, and sheds a fixed share of its
-energy in a vanishing time. A pass is also where a control decides where
-the vehicle goes, and it is what the standard relaxation loses. In the space
-of occupation measures the dynamics are a linear constraint and an outer
-bound is certified by a dual pair of functions~\cite{henrion2014convex}; but
-an occupation measure weighs each interval of time by its length, and in the
-limit a pass has none.
+The new content is what happens in the thin-atmosphere limit
+$\eps = H_s/R_e\to 0$, where $H_s$ is the scale height of the atmosphere
+and $R_e$ the radius of the planet. In this limit a trajectory separates
+into three motions: arcs above the atmosphere, governed by gravity alone;
+the equilibrium glide, on which lift balances weight less centrifugal
+relief; and atmospheric \emph{passes}, in which the vehicle dips into dense
+air, turns, and sheds a fixed share of its energy in a vanishing time. On
+the flight corridor the occupation measures remain bounded and converge
+along subsequences, but their limit forgets the passes: a measure weighs
+each interval of time
+by its length, and in the limit a pass has none. Since a reachable set is a
+support and not an integral, what has no mass still counts.
 
-The proposal is to keep the account in energy instead. Along every
-trajectory, for every control and every selection of an interval-enclosed
-vector field, the energy in the rotating frame satisfies
-$\dot{\mathcal{E}} = -P\le 0$, so the dissipation has total mass at most
-$\Delta\mathcal{E}$, uniformly in~$\eps$. On the rescaled time
-$\tau = t/\sqrt{\eps}$ its normalized density is a sequence of probability
-densities on the line, and Lions' concentration-compactness
-lemma~\cite{lions1984concentration1} applies as stated; the reading to be
-argued is that vanishing is the glide, compactness a pass, and dichotomy
-passes that separate. Along a subsequence the dissipation converges to a
-measure $p\dd t + \sum_j a_j\delta_{t_j} + \pi_c$, with at most
-$\Delta\mathcal{E}/\delta$ atoms above~$\delta$. What has to be proved first
-is what the atoms carry: that the velocity converges to a function of
-bounded variation that jumps only at them, and that the limit of a
-trajectory satisfies a Liouville equation with a jump term they carry.
+We therefore read the loss where it occurs, on the energy dissipation.
+Along every trajectory, for every control and every admissible model of
+the aerodynamics, the mechanical energy in the rotating frame decreases at
+the rate of the drag power, $\dot{\mathcal{E}} = -P\le 0$, so the total
+dissipation is bounded uniformly in~$\eps$. We rescale time by
+$\sqrt{\eps}$, as in the classical variables of
+Chapman~\cite{chapman1959approximate}. Since the rescaled time axis is
+unbounded, compactness is lost, and the concentration-compactness principle
+of Lions~\cite{lions1984concentration1} classifies the normalized
+dissipation densities into vanishing, compactness, or dichotomy. We expect
+these to be the glide, a single pass, and passes that separate.
 
-\head{The theorem aimed at.}
-The atoms are to be the passes, and the limit a hybrid system
-$\mathcal{H}_\delta$ in a few slow coordinates. It \emph{flows} along
-gravity arcs and along the glide, and it \emph{jumps}, at most
-$K_\delta\le\Delta\mathcal{E}/\delta$ times, through a set-valued
-\emph{pass map}: skeleton and bubbles, in the language of profile
-decompositions~\cite{bahouri1999high}. The statement aimed at is one at
-fixed~$\eps$, uniform over the admissible family:
+Rather than restore compactness, we extract the profile decomposition that
+iterating the dichotomy provides, as in the theory of nonlinear dispersive
+equations~\cite{bahouri1999high}:
+\begin{itemize}[leftmargin=1.6em,itemsep=0pt,topsep=2pt]
+  \item a low-dimensional \emph{skeleton}, which is what survives the limit:
+    the arcs above the atmosphere and the equilibrium glide;
+  \item one \emph{boundary-layer bubble} per atmospheric pass, the analogue
+    of a concentrating profile: the pass rescaled to its own width, whose
+    net effect on the slow coordinates is a jump;
+  \item a \emph{residual}, which is what the finitely many profiles do not
+    capture, to be bounded explicitly in the corridor metric.
+\end{itemize}
+The number of bubbles is bounded \emph{a priori} by the energy budget
+$\Delta\mathcal{E}$: a pass that dissipates at least $\delta$ can occur at
+most $K_\delta\le\Delta\mathcal{E}/\delta$ times. Skeleton and bubbles together
+form a limit system $\mathcal{H}_\delta$ in a few slow coordinates, which
+flows along the arcs and the glide and jumps at each pass. The target
+statement is
 \[
-  \calR_\eps(T) \;\subseteq\; \Pi\bigl(\calR_{\mathcal{H}_\delta}(T)\bigr)
-  \;\oplus\; \B\bigl(\varrho(\eps,\delta)\bigr),
+  \calR_\eps(T) \;\subseteq\;
+  \underbrace{\Pi\bigl(\calR_{\mathcal{H}_\delta}(T)\bigr)}_{\text{skeleton and bubbles}}
+  \;\oplus\;
+  \underbrace{\B\bigl(\varrho(\eps,\delta)\bigr)}_{\text{residual}},
 \]
-the reachable set of the full system inside that of the limit system, read
-back in the full coordinates and thickened by a ball of explicit radius, as
-the figure draws it. Compactness gives structure and no constants; in
-the wave-equation theory the analogous uniform bound is obtained by
-contradiction, with a constant its authors say they cannot
-describe~\cite{bahouri1999high}. Here the constants are to come from direct
-estimates, in closed form in the corridor bounds and the interval widths.
+uniformly over the admissible family generated by the uncertainty set, not
+along a nominal trajectory. Here $\calR_\eps(T)$ is the reachable set of
+the full system, $\Pi$ reads a state of the limit system back in the full
+coordinates, and $\B(\varrho)$ is a ball in the corridor metric; Figure~1
+illustrates the statement. The count $K_\delta$ and the radius $\varrho$
+are to be computable in closed form from the corridor bounds and the
+aerodynamic interval widths alone. The decomposition thus reduces a
+reachability problem in thirteen or more states to one for a limit system
+in a few slow coordinates. Compactness provides this structure but no
+constants; those are to come from direct estimates: the energy identity, a
+matching estimate at each pass, and averaging over the oscillations that do
+not concentrate.
 
-\head{The obstacle.}
-With $z$ the altitude above the glide in scale heights and $G = g - V^2/r$
-the acceleration that lift balances, the vertical motion is, to leading
-order,
-\[
-  \ddot z \;=\; \frac{G}{H_s}\,\bigl(c(t)\,e^{-z} - 1\bigr),
-  \qquad
-  \frac{\mathrm{d}}{\mathrm{d}t}\Bigl[\tfrac12\dot z^2
-     + \tfrac{G}{H_s}\bigl(e^{-z}+z\bigr)\Bigr]
-  \;=\; \tfrac{G}{H_s}\,(c-1)\,e^{-z}\,\dot z ,
-\]
-where $c(t)$ is the control, the vertical lift against a reference. The
-glide is the equilibrium, the phugoid its small oscillation, and a skip its
-large one. The frequency grows like $\eps^{-1/2}$ and the damping rate does
-not depend on $\eps$, so the damping ratio is $O(\sqrt{\eps})$: the glide
-is not a normally hyperbolic slow manifold~\cite{fenichel1979geometric},
-and no boundary-layer estimate brings a trajectory onto it. And the control
-pumps or damps the oscillation at will, by the identity on the right. The
-amplitude is therefore a slow, controlled coordinate of the limit system,
-and what is needed is an averaging theorem \emph{with constants}, uniform
-over a set-valued field, and valid for \emph{every} trajectory, including
-those that pass through resonance: the attitude frequency grows with the
-square root of the dynamic pressure and sweeps through the others on every
-pass. The available results give orders, not bounds, and through a
-resonance they hold outside a set of small
-measure~\cite{sanders2007averaging}, which an outer bound cannot discard.
-This is the critical path, and it is the part of the program for which I
-am looking for an advisor.
-
-\head{What is open.}
-All of it: this is a proposal, and it claims no result. Three statements
-carry it. The limit: that the jump term is carried on the graph of the pass
-map, and that no singular continuous part survives. Composition: a
-factorization through pass maps and flows with an explicit matching
-remainder, uniform over the interval field, where the classical matched
-expansions treat one trajectory~\cite{shi1971skip}. And averaging through
-resonance, with constants, which is the critical path and is to be attacked
-first.
+\head{Open problems.}
+The central theorem is open, and this summary claims no result. The
+following problems remain.
+\begin{enumerate}[leftmargin=1.6em,itemsep=0pt,topsep=2pt]
+  \item \textbf{The limit.} To show that the limit of the occupation
+    measures satisfies the Liouville equation of the limit system, with a
+    jump term carried by the passes, uniformly over the admissible family.
+  \item \textbf{Composition of passes.} To show that a trajectory with
+    several passes factors through the individual passes and the flows
+    between them, with an explicit matching remainder. The classical
+    matched expansions give its form for one
+    trajectory~\cite{shi1971skip}; the statement needed is uniform over the
+    family.
+  \item \textbf{Separation of scales.} The attitude and elastic motions do
+    not concentrate. They are persistent oscillations, as is the
+    oscillation about the glide, and in a profile decomposition such
+    motions belong to the remainder~\cite{bahouri1999high}. The tool for
+    them is averaging~\cite{sanders2007averaging}, but their frequencies
+    cross during every pass, and the available results give orders and not
+    bounds, and hold through a resonance only outside a set of small
+    measure, which an outer bound cannot discard. What is needed is an
+    averaging theorem with explicit constants, uniform over the admissible
+    family and valid through resonance.
+\end{enumerate}
+The third problem is the critical path, and it is the part of the program
+for which I am looking for an advisor.
 
 \printbibliography[heading=none]
 

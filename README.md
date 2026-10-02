@@ -213,7 +213,8 @@ silently exceeded.*
 
 The proposal is a draft, and it is a proposal: it states the problem, the statement aimed
 at and seven objectives, and it claims no result. A two-page summary,
-[`precis.pdf`](manuscript/proposal/precis.pdf), is the place to start.
+[`precis.pdf`](manuscript/proposal/precis.pdf), is the place to start. Both documents are
+published at <https://research.ekdynamics.science>.
 
 [`manuscript/proposal/appendices/`](manuscript/proposal/appendices/) holds working notes — the
 coupled 6-DOF entry dynamics, a sketch of the limit argument, and a first form of the
@@ -230,6 +231,7 @@ make proposal          # latexmk -> manuscript/proposal/main.pdf
 make proposal-precis   # two pages -> manuscript/proposal/precis.pdf
 make proposal-figures  # regenerate manuscript/proposal/figures/ (both are illustrations)
 make proposal-dist     # both, copied to manuscript/proposal/dist/ under sendable names
+make proposal-site     # both, copied into the working tree of the site repository
 make clean-proposal    # remove build artifacts
 ```
 
