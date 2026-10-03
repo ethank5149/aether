@@ -71,9 +71,9 @@ _PASS_THRESHOLD = 0.10
 #: The energy identity is exact for the model; this is the quadrature's error.
 _ENERGY_TOLERANCE = 1.0e-3
 
-# Two hues. On the time history they are altitude and dissipation; on the
-# globe, a bound and what it bounds. Text and chrome stay in ink and grey, so
-# the only colour on the page is what the figure is about.
+# Two hues on the time history, altitude and dissipation. Text and chrome
+# stay in ink and grey, so the only colour on the page is what the figure is
+# about. The globe has its own, below.
 _BLUE, _ORANGE = "#2a78d6", "#eb6834"
 _INK, _INK_SECONDARY = "#0b0b0b", "#52514e"
 _GRID, _AXIS, _BAND = "#e1e0d9", "#c3c2b7", "#f0efec"
@@ -93,12 +93,18 @@ _POST_EVERY = 60.0
 
 # The three sets of the globe, as fractions of the range flown. THESE ARE
 # NOT DATA. They are chosen so that the picture says what the target
-# statement says: the vehicle's set sticks out of the limit system's, here
-# at its far end, by less than the residual.
-_LIMIT_SET = (0.40, 1.30)         # where the limit system's set starts and ends
-_LIMIT_HALF_WIDTH = 0.16
-_VEHICLE_SET = (0.47, 1.35)
-_MARGIN = 0.09
+# statement says: a broad fan ahead of the vehicle, the vehicle's set
+# sticking out of the limit system's on one flank, by less than the residual.
+_LIMIT_SET = (0.60, 1.34)         # where the limit system's set starts and ends
+_LIMIT_HALF_WIDTH = 0.30
+_LIMIT_DRIFT = 0.05               # how far its centre line leaves the track
+_RESIDUAL = 0.07
+
+# The sets are nested, so they share one hue and differ by its step, light
+# for what is reached to dark for the bound (an ordinal ramp; the validator
+# of the palette passes it). A warm fill inside cool outlines read as
+# something else from across a room.
+_REACHED, _LIMIT, _BOUND, _BAND = "#86b6ef", "#256abf", "#104281", "#cde2fb"
 
 
 @dataclass(frozen=True)
@@ -422,29 +428,32 @@ def _illustrative_sets(track: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.nd
         return np.cos(arc) * start + np.sin(arc) * heading
 
     along = np.linspace(0.0, 1.0, 241)
-    teardrop = np.sin(np.pi * along) ** 0.7 * (0.55 + 0.45 * along)
-    teardrop /= teardrop.max()
+    # A fan: blunt where it begins, widest toward its far end, round there.
+    fan = (0.22 + 0.78 * along**0.85) * np.sqrt(1.0 - along**6)
+    fan *= _LIMIT_HALF_WIDTH / fan.max()
+    drift = _LIMIT_DRIFT * along
 
-    def outline(downrange: np.ndarray, centre: np.ndarray, half: np.ndarray) -> np.ndarray:
+    def outline(downrange: np.ndarray, one_side: np.ndarray, other: np.ndarray) -> np.ndarray:
         return np.column_stack([
-            np.r_[downrange, downrange[::-1]], np.r_[centre + half, (centre - half)[::-1]],
+            np.r_[downrange, downrange[::-1]], np.r_[one_side, other[::-1]],
         ])
 
     first, last = _LIMIT_SET
-    limit = outline(first + (last - first) * along, np.zeros_like(along),
-                    _LIMIT_HALF_WIDTH * teardrop)
-    first, last = _VEHICLE_SET
+    limit = outline(first + (last - first) * along, drift + fan, drift - fan)
+    # The vehicle's set: inside on one flank, and out past the limit system's
+    # on the other by half the residual, which is what the residual is for.
+    bulge = 0.80 + 0.30 * np.exp(-(((along - 0.72) / 0.16) ** 2))
     vehicle = outline(
-        first + (last - first) * along,
-        0.012 * np.sin(2.0 * np.pi * along + 0.8),
-        _LIMIT_HALF_WIDTH * teardrop * (0.74 + 0.08 * np.sin(3.0 * np.pi * along)),
+        first + 0.07 + (last - first - 0.12) * along,
+        drift + fan * bulge,
+        drift - fan * (0.68 + 0.05 * np.sin(5.0 * along)),
     )
-    # The limit system's set plus a disc of the margin's radius. The set is
+    # The limit system's set plus a disc of the residual's radius. The set is
     # convex, so in each direction the sum's edge is the set's farthest point
-    # that way, moved out by the margin: round at the ends, as a sum is.
+    # that way, moved out by the residual: round at the corners, as a sum is.
     around = np.linspace(0.0, 2.0 * np.pi, 721)[:-1]
     outward = np.column_stack([np.cos(around), np.sin(around)])
-    thickened = limit[np.argmax(outward @ limit.T, axis=1)] + _MARGIN * outward
+    thickened = limit[np.argmax(outward @ limit.T, axis=1)] + _RESIDUAL * outward
     return tuple(  # type: ignore[return-value]
         on_the_ground(*(flown * curve).T) for curve in (vehicle, limit, thickened)
     )
@@ -453,8 +462,8 @@ def _illustrative_sets(track: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.nd
 def draw_target(profile: SkipProfile, path: Path) -> None:
     """The statement aimed at, on the ground under a skip entry.
 
-    One hue for what is to be bounded and one for the bound; everything else
-    is ink and grey. The flight is the example's. The three sets are an
+    One hue in three steps for the three nested sets; everything else is ink
+    and grey. The flight is the example's. The three sets are an
     illustration, and the figure says so.
     """
     width, height = 6.5, 3.3
@@ -517,17 +526,16 @@ def draw_target(profile: SkipProfile, path: Path) -> None:
         for curve in _illustrative_sets(profile.track)
     )
     for curve, style in (
-        (thickened, {"color": _BLUE, "alpha": 0.10, "zorder": 3}),
-        (vehicle, {"color": _ORANGE, "alpha": 0.34, "zorder": 4}),
+        (thickened, {"color": _BAND, "alpha": 0.55, "zorder": 3}),
+        (vehicle, {"color": _REACHED, "alpha": 0.70, "zorder": 4}),
     ):
         filled = camera.region(curve)
         if filled is not None:
             filled = inches(filled)
             axes.fill(filled[:, 0], filled[:, 1], linewidth=0.0, clip_path=disc, **style)
     for curve, style in (
-        (vehicle, {"color": _ORANGE, "linewidth": 0.9, "zorder": 5}),
-        (limit, {"color": _BLUE, "linewidth": 1.1, "zorder": 6, "dashes": (4.0, 2.2)}),
-        (thickened, {"color": _BLUE, "linewidth": 1.6, "zorder": 6}),
+        (limit, {"color": _LIMIT, "linewidth": 1.1, "zorder": 6, "dashes": (4.0, 2.2)}),
+        (thickened, {"color": _BOUND, "linewidth": 1.6, "zorder": 6}),
     ):
         for run in camera.runs(curve):
             run = inches(run)
@@ -562,11 +570,11 @@ def draw_target(profile: SkipProfile, path: Path) -> None:
     )
     left, top, pitch = 4.62, 2.72, 0.50
     keys = (
-        (Rectangle((0.0, 0.0), 0.26, 0.11, facecolor=_ORANGE, alpha=0.34, edgecolor="none"),
+        (Rectangle((0.0, 0.0), 0.26, 0.11, facecolor=_REACHED, alpha=0.70, edgecolor="none"),
          r"$\mathcal{R}_\varepsilon$: what the vehicle" "\ncan reach"),
-        (Line2D([0.0, 0.26], [0.0, 0.0], color=_BLUE, linewidth=1.1, dashes=(4.0, 2.2)),
+        (Line2D([0.0, 0.26], [0.0, 0.0], color=_LIMIT, linewidth=1.1, dashes=(4.0, 2.2)),
          r"$\Pi(\mathcal{R}_{\mathcal{H}_\delta})$: what the limit" "\nsystem can reach"),
-        (Line2D([0.0, 0.26], [0.0, 0.0], color=_BLUE, linewidth=1.6),
+        (Line2D([0.0, 0.26], [0.0, 0.0], color=_BOUND, linewidth=1.6),
          r"the same, thickened by" "\n" r"the residual $\varrho$: the bound"),
     )
     for row, (mark, text) in enumerate(keys):
@@ -574,8 +582,6 @@ def draw_target(profile: SkipProfile, path: Path) -> None:
         if isinstance(mark, Rectangle):
             mark.set_xy((left, y - 0.055))
             axes.add_patch(mark)
-            axes.add_patch(Rectangle((left, y - 0.055), 0.26, 0.11, facecolor="none",
-                                     edgecolor=_ORANGE, linewidth=0.9))
         else:
             mark.set_data([left, left + 0.26], [y, y])
             axes.add_line(mark)
