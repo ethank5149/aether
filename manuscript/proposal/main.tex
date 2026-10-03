@@ -93,7 +93,7 @@ that matter, and we recover them through a profile decomposition into a
 skeleton, bubbles and a residual (\cref{sec:profile}). The fourth is the
 \emph{certification}: the constants of the resulting bound are derived in
 closed form and evaluated in validated interval arithmetic
-(\cref{sec:provenance,sec:bound}). Seven objectives carry the program. They
+(\cref{sec:provenance,sec:bound}). Six objectives carry the program. They
 are stated where each arises and gathered in \cref{sec:plan}.
 
 \subsection{Reachable sets as occupation measures}\label{sec:embedding}
@@ -196,14 +196,10 @@ variables~\cite{kaltofen2012exact,magron2021exact}. For the thirteen-state
 field of \cref{sec:application} we do not pursue this route as the main
 line.
 
-Instead, we fix an order of evidence. The certificate itself is a
-closed-form bound: the constants of \cref{sec:profile}, derived from the
-decomposition and evaluated over the corridor in validated interval
-arithmetic. Behind it stand symbolic checks of the derivations on which
-those constants rest. A moment-sum-of-squares computation on a reduced model
-is the third tier. It serves as an independent cross-check, to which the
-exact-certification machinery above belongs, and it is never the source of
-the guarantee.
+Instead, the certificate is to be a closed-form bound: the constants of
+\cref{sec:profile}, derived from the decomposition and evaluated over the
+corridor in validated interval arithmetic. No numerical optimization is the
+source of the guarantee.
 
 Interval arithmetic is the setting in which a guarantee has meant, for sixty
 years, an enclosure rather than an approximation. It is rigorous in floating
@@ -744,7 +740,10 @@ interval field, and its range of validity, bounded away from circular speed,
 is part of the statement. The objective is met by formulas whose evaluation
 over the corridor in validated interval arithmetic bounds the distance from
 sampled trajectories of the full model to the reachable set of the limit
-system, with no fitted number.
+system, with no fitted number. The comparison is to be made on a benchmark,
+a capsule skip entry reconstructed from published data, with the tightness
+of the bound stated against the set-propagation baseline of
+\cref{sec:application}.
 \end{openitem}
 
 
@@ -815,8 +814,7 @@ pole needs a second chart or a Cartesian formulation.
 
 Because interval arithmetic evaluates transcendentals natively, the
 algebraic adjunctions that recast the system in polynomial
-form~\cite{savageau1987recasting} are not needed on the main line; they
-survive only inside the moment-sum-of-squares cross-check. The state space
+form~\cite{savageau1987recasting} are not needed. The state space
 therefore carries only the physical dimensions (spherical position,
 wind-frame velocity, attitude quaternion, body rates, thermal, ablation, and
 modal states), with no artificial embeddings. In particular, the two
@@ -827,27 +825,11 @@ the following: transcendental dynamics in coordinates native to the corridor
 and the glide, against polynomial dynamics in which the corridor is a
 nonlinear function of the state.
 
-\begin{openitem}{Independent verification}
-\label{obj:verification}
-The certificate must be shown to be correct by evidence that does not share
-its derivation. We must carry out three checks, in the order of
-\cref{sec:provenance}: symbolic verification of every derivation behind the
-constants; a moment-sum-of-squares outer approximation on a reduced
-polynomial model, as a cross-check that shares neither the decomposition nor
-the interval arithmetic; and a comparison on a common benchmark, a capsule
-skip entry reconstructed from published data, against Taylor-model flowpipes
-and against sampled trajectories of the full model, reported for each
-coordinate group rather than as a single number. The objective is met by the
-containment of every sample in the certified set, agreement with the
-cross-check where both apply, and a stated tightness against the baseline,
-coordinate by coordinate.
-\end{openitem}
-
 
 %==========================================================================
 \section{Plan of work}\label{sec:plan}
 %==========================================================================
-Seven concrete obligations carry the program. They are stated where each
+Six concrete obligations carry the program. They are stated where each
 arises above, and we gather them here, in order, as the plan of work.
 \begin{enumerate}[leftmargin=*,itemsep=2pt]
   \item \emph{Liouville equation for the interval inclusion}: what the
@@ -870,19 +852,16 @@ arises above, and we gather them here, in order, as the plan of work.
   \item \emph{Analytical derivation of the corridor constants}: the count
     $K_\delta$ and the residual $\varrho(\eps,\delta)$ from the physical
     corridor and the interval widths, free of any numerical solver.
-  \item \emph{Independent verification}: symbolic checks of the derivations,
-    a moment-sum-of-squares cross-check, and a benchmark against
-    set-propagation tools and sampled trajectories.
 \end{enumerate}
 \Cref{obj:embedding} states the limit;
 \cref{obj:passmaps,obj:composition,obj:averaging} establish the
 decomposition; \cref{obj:constants} reduces it to closed form; and
-\cref{obj:pipeline,obj:verification} compute with it and check it.
+\cref{obj:pipeline} evaluates it.
 \Cref{obj:averaging} gates the rest. The central theorem is open, and no
 part of this program is claimed as done.
 
 \subsection{Sequencing}
-The dependency structure suggests three phases rather than seven parallel
+The dependency structure suggests three phases rather than six parallel
 tracks. The first phase establishes the embedding, that is,
 \cref{obj:embedding} together with the certified envelope of the atmospheric
 density that it needs in order to be stated on a concrete inclusion. The
@@ -893,11 +872,10 @@ self-contained: the planar oscillator of \cref{eq:oscillator-body}, with its
 damping, its drift, and a bank history acting on it.
 \Cref{obj:passmaps,obj:composition} run alongside, since the matching
 argument and the enclosure geometry constrain each other. The third phase
-reduces the decomposition to closed form (\cref{obj:constants}), completes
-the validated evaluation of \cref{obj:pipeline}, and carries out the
-symbolic and moment-sum-of-squares checks of \cref{obj:verification}. The
-validated evaluation is the one part of the program that a weaker theorem
-does not shorten.
+reduces the decomposition to closed form (\cref{obj:constants}) and
+completes the validated evaluation of \cref{obj:pipeline}. The validated
+evaluation is the one part of the program that a weaker theorem does not
+shorten.
 
 We identify two retreat positions now. If \cref{obj:averaging} resists a
 proof where frequencies cross, the fallback is a corridor on which the
