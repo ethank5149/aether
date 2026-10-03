@@ -53,7 +53,7 @@ from typing import Any
 import sympy as sp
 
 from aether.certification.rotating_field import jacobi_energy, rotating_entry_field
-from aether.symbolic.atmosphere import StandardAtmosphere, standard_atmosphere
+from aether.symbolic.atmosphere import Atmosphere, standard_atmosphere
 from aether.symbolic.entry import EntrySymbols
 from aether.symbolic.ops import SYMPY_OPS
 from aether.symbolic.system import SymbolicSystem
@@ -83,7 +83,7 @@ def _planet_parameters(symbols: EntrySymbols) -> tuple[Any, ...]:
     return (planet.mu, planet.radius, planet.j2, planet.rotation_rate, planet.flattening)
 
 
-def _aerodynamics(symbols: EntrySymbols, atmosphere: StandardAtmosphere) -> dict[str, Any]:
+def _aerodynamics(symbols: EntrySymbols, atmosphere: Atmosphere) -> dict[str, Any]:
     """Density and the two aerodynamic accelerations, from the bound closures."""
     density = _DENSITY_SCALE * atmosphere.density(symbols.altitude)
     drag = density * symbols.speed**2 / (2 * _BALLISTIC)
@@ -107,7 +107,7 @@ def _outputs(symbols: EntrySymbols, aero: dict[str, Any]) -> dict[str, Any]:
 
 
 def entry_system(
-    atmosphere: StandardAtmosphere | None = None, *, name: str = "entry_at_trim"
+    atmosphere: Atmosphere | None = None, *, name: str = "entry_at_trim"
 ) -> SymbolicSystem:
     r"""The plant: :math:`(r, \lambda, \phi, V, \gamma, \psi, s, Q_{\mathrm{tot}})` at a held bank.
 
@@ -139,7 +139,7 @@ def entry_system(
 
 
 def prediction_system(
-    atmosphere: StandardAtmosphere | None = None, *, name: str = "entry_prediction"
+    atmosphere: Atmosphere | None = None, *, name: str = "entry_prediction"
 ) -> SymbolicSystem:
     r"""The same field as a predictor flies it: planar lift, slewed at the roll rate.
 

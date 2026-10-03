@@ -50,7 +50,11 @@ compiler an optional one beyond that; without a compiler the generated code
 runs through NumPy instead.
 """
 
-from aether.symbolic.atmosphere import StandardAtmosphere, standard_atmosphere
+from aether.symbolic.atmosphere import (
+    ExponentialAtmosphere,
+    StandardAtmosphere,
+    standard_atmosphere,
+)
 from aether.symbolic.attitude import AttitudeSymbols
 from aether.symbolic.codegen import (
     CompiledField,
@@ -98,6 +102,7 @@ __all__ = [
     "Derivation",
     "DerivationResult",
     "EntrySymbols",
+    "ExponentialAtmosphere",
     "FigureSymbols",
     "GlideSymbols",
     "IsentropicFlow",

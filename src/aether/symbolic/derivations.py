@@ -1628,6 +1628,40 @@ def _a_bank_history_pumps_or_damps_the_oscillation() -> Any:
 # -- the corridor, and wrapping ---------------------------------------------------
 
 
+def _the_range_is_bounded_by_the_energy_to_be_lost() -> Any:
+    r"""Under a density floor, :math:`s \le (2\beta/\rho_c)[\ln(V_0/V_f) + \Delta\Phi/V_f^2]`.
+
+    The ground track advances no faster than the vehicle and the energy
+    :math:`E = V^2/2 + \Phi` falls at the drag power (``energy-dissipation``),
+    so :math:`\mathrm ds \le -\mathrm dE/(D/m)`. What is checked here is the
+    algebra between that inequality and the bound. With the drag at its
+    floor, :math:`D/m = \rho_c V^2/(2\beta) = (\rho_c/\beta)(E - \Phi)`, which
+    exceeds :math:`(\rho_c/\beta)(E - \Phi_{\max})` by a term that is not
+    negative. Integrated in the energy, the reciprocal of that floor gives
+    the logarithm above :math:`E^* = \Phi_{\max} + V_f^2/2`; below it the
+    floor :math:`\rho_c V_f^2/(2\beta)` gives the term in :math:`\Delta\Phi`.
+    The last entry says the logarithm is not slack: the path flown level at
+    the floor density, :math:`\mathrm dV/\mathrm ds = -\rho_c V/(2\beta)`, is that long.
+    """
+    energy, low, high = sp.symbols("E Phi_min Phi_max", real=True)
+    potential = sp.Symbol("Phi", real=True)
+    density, beta, first, last, speed = sp.symbols("rho_c beta V_0 V_f V", positive=True)
+    kinetic = sp.Symbol("u", positive=True)
+    drag = density * (2 * (energy - potential)) / (2 * beta)
+    bound = (2 * beta / density) * (sp.log(first / last) + (high - low) / last**2)
+    above = sp.integrate(beta / (density * kinetic), (kinetic, last**2 / 2, first**2 / 2))
+    below = sp.integrate(
+        2 * beta / (density * last**2), (energy, low + last**2 / 2, high + last**2 / 2)
+    )
+    level = (2 * beta / density) * sp.log(first / speed)
+    return [
+        drag - (density / beta) * (energy - high) - (density / beta) * (high - potential),
+        sp.expand_log(above - (2 * beta / density) * sp.log(first / last), force=True),
+        sp.expand_log(above + below - bound, force=True),
+        sp.diff(level, speed) + 2 * beta / (density * speed),
+    ]
+
+
 def _corridor_limits_are_monotone_in_altitude_and_speed() -> Any:
     r"""Dynamic pressure and stagnation heating fall with altitude and rise with speed.
 
@@ -2037,6 +2071,14 @@ DERIVATIONS: tuple[Derivation, ...] = (
         "each layer of the 1976 standard satisfies dp/dH = -rho g_0, and dH/dZ = g(Z)/g_0",
         "apx:dyn, sec:density, eq:standard-layer",
         _each_layer_of_the_standard_atmosphere_is_hydrostatic,
+    ),
+    Derivation(
+        "range-bound",
+        "with the density at least rho_c the ground track is at most "
+        "(2 beta/rho_c)[ln(V_0/V_f) + (Phi_max - Phi_min)/V_f^2], and the path of level "
+        "flight at that density is the logarithm",
+        "sec:first-bound, prop:range-bound, eq:range-bound",
+        _the_range_is_bounded_by_the_energy_to_be_lost,
     ),
     Derivation(
         "corridor-monotone",

@@ -34,6 +34,7 @@ from aether.ellipsoid import WGS84, ecef_to_geodetic, geodetic_to_ecef  # noqa: 
 from aether.guidance.entry import EntryBody, entry_dynamics  # noqa: E402
 from aether.symbolic import SYMPY_OPS, EntrySymbols, find_c_compiler  # noqa: E402
 from aether.symbolic.atmosphere import (  # noqa: E402
+    ExponentialAtmosphere,
     geopotential,
     gravity,
     standard_atmosphere,
@@ -150,6 +151,47 @@ class TestTheAtmosphereOnSymbols:
         assert np.all(np.diff(density) < 0.0)
         # No step at any seam: over 5 m the logarithm moves by 5 m over a scale height.
         assert np.max(np.abs(np.diff(np.log(density)))) < 5.0 / 4000.0
+
+
+class TestTheModelAtmosphere:
+    """One scale height, anchored at an altitude: the family a thin-atmosphere limit runs along."""
+
+    def test_the_density_falls_by_e_for_each_scale_height_above_the_anchor(self):
+        air = ExponentialAtmosphere(
+            reference_density=3.0e-4, reference_altitude=60.0e3, scale_height=7200.0
+        )
+        h = sp.Symbol("h", real=True)
+        assert float(air.density(60.0e3)) == pytest.approx(3.0e-4, rel=1e-15)
+        assert float(air.density(67.2e3) / air.density(60.0e3)) == pytest.approx(np.exp(-1.0))
+        assert float(sp.diff(sp.log(air.density(h)), h)) == pytest.approx(-1.0 / 7200.0)
+
+    def test_halving_the_scale_height_leaves_the_anchor_where_it_is(self):
+        thick, thin = (
+            ExponentialAtmosphere(3.0e-4, 60.0e3, scale) for scale in (7200.0, 3600.0)
+        )
+        assert float(thin.density(60.0e3)) == float(thick.density(60.0e3))
+        assert float(thin.density(70.0e3)) < float(thick.density(70.0e3))
+        assert float(thin.density(50.0e3)) > float(thick.density(50.0e3))
+
+    def test_a_flight_through_it_loses_what_its_drag_dissipates(self):
+        """The plant takes any atmosphere that gives a density, and the energy
+        identity holds along it: the drag power integrates to the energy lost."""
+        air = ExponentialAtmosphere(3.0e-4, 60.0e3, 3600.0)
+        plant = entry_system(air, name="entry_in_a_model_atmosphere").compile(jacobian=False)
+        parameters = plant.parameter_vector(
+            sigma=0.0, beta=300.0, E=1.0, k_rho=1.0, mu=EARTH.mu, R_e=EARTH.radius,
+            J_2=0.0, omega_E=0.0, f_E=0.0, R_n=1.0, k_Q=0.0,
+        )
+        start = np.array(
+            [EARTH.radius + 120.0e3, 0.0, 0.0, 7600.0, np.deg2rad(-4.0), np.pi / 2, 0.0, 0.0]
+        )
+        times, rows = plant.trajectory(start, parameters, 300.0, step=0.01, stride=5)
+        along = plant.output_table(np.vstack([start, rows]), parameters)
+        times = np.concatenate([[0.0], times])
+        dissipated = float(np.trapezoid(along["drag_power"], times))
+        lost = float(along["energy"][0] - along["energy"][-1])
+        assert lost > 1.0e6
+        assert dissipated == pytest.approx(lost, rel=1e-6)
 
 
 class TestTheFigureOfThePlanet:

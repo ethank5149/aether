@@ -18,10 +18,14 @@
 %    vocabulary is that of the original research summary: skeleton, bubbles,
 %    residual.
 %    Scope. The subject is hypersonic entry: any vehicle, any corridor. One
-%    flight appears, as the example the figures are drawn from.
-%    Nothing is claimed as done. No preliminary derivation, computation or
-%    check is reported, there are no appendices, and the sets in the second
-%    figure are an illustration, which the figure and its caption both say.
+%    flight appears, as the example the second and third figures' trajectory
+%    is taken from; the first figure is of a model vehicle.
+%    One result is claimed, and it is elementary: the range bound of
+%    sec:first-bound, with its proof on the page. Nothing else is claimed as
+%    done and there are no appendices. The first two figures are
+%    illustrations and say so: the first is a computation with a model
+%    atmosphere, and the sets in the second are drawn, not computed. The
+%    third evaluates the range bound.
 %    No software is referred to or promised.
 %  `make proposal`         -> main.pdf
 %  `make proposal-precis`  -> precis.pdf, the two-page copy for a first email.
@@ -64,8 +68,10 @@ constants that size the bound are to be derived in closed form from the
 physical corridor and the aerodynamic interval widths. The bound then holds
 uniformly over the entire admissible family, in the minimal physical state
 space, and it is re-evaluated rather than re-solved when the vehicle or the
-corridor changes. The central theorem is open, and this document claims no
-result: it states the problem, the target statement, and the plan of work.
+corridor changes. The central theorem is open. This document states the
+problem, the target statement, and the plan of work, and it claims one
+result, which is elementary: a first bound on the range, obtained from the
+energy identity alone.
 \end{abstract}
 \pagebreak
 
@@ -94,7 +100,9 @@ skeleton, bubbles and a residual (\cref{sec:profile}). The fourth is the
 \emph{certification}: the constants of the resulting bound are derived in
 closed form and evaluated in validated interval arithmetic
 (\cref{sec:provenance,sec:bound}). Six objectives carry the program. They
-are stated where each arises and gathered in \cref{sec:plan}.
+are stated where each arises and gathered in \cref{sec:plan}. One estimate
+is elementary enough to be carried out here, and we do so in
+\cref{sec:first-bound}.
 
 \subsection{Reachable sets as occupation measures}\label{sec:embedding}
 We embed the flight dynamics in a space of occupation measures. Consider
@@ -257,22 +265,26 @@ $[0,T]\times\calX\times\calU$ is compact, so the occupation measures, which
 are nonnegative Radon measures in $\Mplus([0,T]\times\calX\times\calU)$ with
 the weak-$*$ topology, form a tight family and converge along subsequences.
 The limit is nevertheless the wrong object, because it forgets the
-atmospheric passes (\cref{fig:skip}).
+atmospheric passes (\cref{fig:concentration}).
 
 \begin{figure}[tb]
   \centering
-  \includegraphics[width=0.94\linewidth]{figures/skip-entry.pdf}
-  \caption{A skip entry at the physical scale height. The example is the
-    lunar return of Artemis~I, simulated from the published entry
-    state~\cite{rea2024orion}. \textbf{Top:} altitude. \textbf{Bottom:} the
-    drag power per unit mass~$P$, which is the rate at which mechanical
-    energy is dissipated. The shaded intervals are the two atmospheric
-    passes, on which $P$ exceeds one tenth of its peak; between them the
-    vehicle lofts and dissipates little. An occupation measure weighs every
-    interval by its length, whereas what distinguishes one trajectory from
-    another is decided in the shaded intervals, which have no length in the
-    limit.}
-  \label{fig:skip}
+  \includegraphics[width=\linewidth]{figures/concentration.pdf}
+  \caption{Concentration of the dissipation as the atmosphere thins,
+    computed for illustration. A model vehicle with lift-to-drag ratio one
+    enters at $7.6$\,km/s and a flight-path angle of four degrees, in an
+    exponential atmosphere whose scale height is halved three times about a
+    fixed altitude, so that $\eps$ is divided by two, four and eight.
+    \textbf{Left:} the dissipation density, that is, the drag power
+    normalized to unit mass, with each row on its own vertical scale. The
+    passes sharpen into well-separated peaks at times that converge.
+    \textbf{Right:} the share of the energy dissipated up to each time, from
+    light to dark as $\eps$ decreases. The curves approach a staircase with
+    a jump at each pass, followed by a ramp on the glide. An occupation
+    measure weighs every interval by its length, whereas what distinguishes
+    one trajectory from another is decided in the jumps, which have no
+    length in the limit.}
+  \label{fig:concentration}
 \end{figure}
 
 How much the limit forgets depends on which limit is taken, and we address
@@ -300,7 +312,8 @@ distinguished.
     $\eps_{\mathrm{atm}}$ and sheds a fixed share of the energy, under loads
     that grow like $1/\eps_{\mathrm{atm}}$. It carries occupation mass of
     that order, and none in the limit, while its share of the energy
-    dissipated and of the turn of the velocity vector does not vanish.
+    dissipated and of the turn of the velocity vector does not vanish. This
+    is the limit drawn in \cref{fig:concentration}.
 \end{itemize}
 The physical case lies between the two. Since
 $\sqrt{\eps_{\mathrm{atm}}}\approx 0.034$ is about two degrees and entry
@@ -459,7 +472,8 @@ from direct estimates: the energy identity, the bound that it gives on the
 aerodynamic impulse, a matching estimate at each pass, and averaging over
 the oscillations that do not concentrate. Each of these is an inequality
 with a constant that can be written down, and writing them down is
-\cref{obj:constants}.
+\cref{obj:constants}. The simplest of them is carried out in
+\cref{sec:first-bound}.
 
 The number of bubbles is bounded \emph{a~priori}, and the bound comes from
 the same monotone quantity. A pass that dissipates at least $\delta$ of
@@ -642,7 +656,8 @@ arc that meets the atmosphere has no continuation without the pass.
   \centering
   \includegraphics[width=\linewidth]{figures/reachable-set.pdf}
   \caption{Illustration of the target statement~\cref{eq:target}, drawn on
-    the ground. The trajectory is the example of \cref{fig:skip}, with
+    the ground. The trajectory is an example, a lunar-return skip entry
+    simulated from a published entry state~\cite{rea2024orion}, with
     altitude drawn twelve times too large and a post marking each minute.
     The three sets are an illustration and are not computed: the set that
     the vehicle can reach, the set that the limit system can reach, and the
@@ -745,6 +760,120 @@ a capsule skip entry reconstructed from published data, with the tightness
 of the bound stated against the set-propagation baseline of
 \cref{sec:application}.
 \end{openitem}
+
+\subsection{A first bound from the energy identity}\label{sec:first-bound}
+One of the direct estimates can be carried out at once, and we record it
+for two reasons. First, it is a bound of the kind that the program asks for:
+a closed formula in the corridor data that holds for every admissible
+control and every selection of the interval field. Second, the way in which
+it fails shows what the decomposition has to supply.
+
+We write $\Phi = \Phi_g - \tfrac12\omega_E^2 r^2\cos^2\phi$ for the
+potential in the rotating frame, so that the energy of \cref{sec:loss} is
+$\mathcal{E} = \tfrac12 V^2 + \Phi$, and we write $s(t)$ for the length of
+the ground track up to time~$t$. Let $\mathcal{C}$ be a part of the
+corridor on which the potential takes its values in
+$[\Phi_{\min},\Phi_{\max}]$ and on which the drag satisfies
+$D/m \ge \rho_c V^2/(2\beta)$ for every selection of the interval field.
+Here $\rho_c > 0$ is a lower bound for the density on $\mathcal{C}$, and
+$\beta$ is an upper bound for the ballistic coefficient $m/(C_D S)$, where
+$C_D$ is the drag coefficient and $S$ the reference area. We set
+$\Delta\Phi = \Phi_{\max}-\Phi_{\min}$.
+
+\begin{prop}[Range bound]\label{prop:range-bound}
+Suppose that a trajectory of the inclusion stays in $\mathcal{C}$ on
+$[0,T]$, with speed $V_0$ at time zero and speed at least $V_f > 0$
+throughout. Then the length of its ground track satisfies
+\begin{equation}\label{eq:range-bound}
+  s(T) \;\le\; \frac{2\beta}{\rho_c}
+  \left[\,\ln\frac{V_0}{V_f} + \frac{\Delta\Phi}{V_f^{2}}\,\right].
+\end{equation}
+\end{prop}
+
+\begin{proof}
+The ground track advances no faster than the vehicle, so $\dot s \le V$.
+Since $\dot{\mathcal{E}} = -(D/m)\,V$ and the drag is positive, we have
+$\dot s \le -\dot{\mathcal{E}}\,/(D/m)$. We now bound the drag from below in
+terms of the energy alone. On $\mathcal{C}$ we have
+$V^2 = 2(\mathcal{E}-\Phi) \ge 2(\mathcal{E}-\Phi_{\max})$, and
+$V^2 \ge V_f^2$ by hypothesis. Consequently,
+\[
+  \frac{D}{m} \;\ge\; \frac{\rho_c}{2\beta}\,
+  \max\bigl\{\,2(\mathcal{E}-\Phi_{\max}),\; V_f^2\,\bigr\} .
+\]
+Since $\mathcal{E}$ decreases along the trajectory, we may take it as the
+variable of integration, and we obtain
+\[
+  s(T) \;\le\; \frac{2\beta}{\rho_c}
+  \int_{\mathcal{E}(T)}^{\mathcal{E}(0)}
+  \frac{\dd\mathcal{E}}{\max\bigl\{2(\mathcal{E}-\Phi_{\max}),\,V_f^2\bigr\}} .
+\]
+The integrand is positive, and
+$\mathcal{E}(0) \le \tfrac12 V_0^2 + \Phi_{\max}$ while
+$\mathcal{E}(T) \ge \tfrac12 V_f^2 + \Phi_{\min}$, so the integral only
+increases if it is taken between these two values instead. We split it at
+$\mathcal{E}^* = \Phi_{\max} + \tfrac12 V_f^2$. Below $\mathcal{E}^*$ the
+integrand equals $1/V_f^2$, on an interval of length $\Delta\Phi$. Above
+$\mathcal{E}^*$ it equals $1/[2(\mathcal{E}-\Phi_{\max})]$, and its integral
+up to $\Phi_{\max} + \tfrac12 V_0^2$ is $\ln(V_0/V_f)$. Adding the two
+contributions gives \cref{eq:range-bound}.
+\end{proof}
+
+The two terms have a simple meaning. The first is the distance in which
+drag alone slows the vehicle from $V_0$ to $V_f$ in level flight through
+air of density $\rho_c$. The second accounts for the potential energy,
+which the vehicle can spend against the drag at its lowest speed. No property of the control enters, because the lift does
+no work, so the bound holds for every bank history. Similarly, the interval
+field enters only through $\rho_c$ and $\beta$.
+
+We evaluate \cref{eq:range-bound} on the example of \cref{fig:target}. In
+that simulation the vehicle descends through $50$\,km for the last time at
+$V_0 = 4.47$\,km/s, and we take $\mathcal{C}$ to be the states below that
+altitude, down to $V_f = 305$\,m/s. The model vehicle has
+$\beta = 281$\,kg/m$^2$. Since the density increases toward the ground, we
+take for $\rho_c$ the density of the standard
+atmosphere~\cite{noaa1976standard} at $50$\,km, reduced by fifteen percent
+to allow for a thinner atmosphere, that is,
+$\rho_c = 8.7\times 10^{-4}$\,kg/m$^3$. The potential is constant on the
+surface from which altitude is measured, so $\Delta\Phi \le g\,h_c$ with
+$h_c = 50$\,km and $g = 9.9$\,m/s$^2$. Then $2\beta/\rho_c = 643$\,km, and
+\[
+  s(T) \;\le\; 643\,\text{km}\times\bigl[\,2.68 + 5.33\,\bigr]
+  \;\approx\; 5{,}150\,\text{km}.
+\]
+Every bank history that keeps the vehicle below $50$\,km therefore lands
+within this distance of the point over which it started
+(\cref{fig:range-bound}). For comparison, a sweep of bank histories
+simulated from the same state lands within $405$\,km.
+
+\begin{figure}[!b]
+  \centering
+  \includegraphics[width=\linewidth]{figures/range-bound.pdf}
+  \caption{The bound of \cref{prop:range-bound}, evaluated on the example.
+    The trajectory is the simulated skip entry of \cref{fig:target}, with
+    altitude drawn twelve times too large and a post marking each minute.
+    From the point at which the vehicle last descends through $50$\,km,
+    every bank history that keeps it below that altitude lands inside the
+    circle. The landing points of a sweep of simulated bank histories from
+    the same state are shown enlarged on the right; the simulated flight
+    ends at the open circle. The circle is proved, and the sweep is a
+    sample.}
+  \label{fig:range-bound}
+\end{figure}
+
+The bound is certified and uniform over the family, and it is too large by
+a factor of about thirteen. The reason is instructive.
+\Cref{eq:range-bound} charges the whole descent at the density of the
+thinnest air in $\mathcal{C}$, whereas the vehicle loses most of its energy
+lower down, where the air is ten to a hundred times denser. More
+importantly, the bound is proportional to $1/\rho_c$. It therefore
+degenerates as the ceiling of $\mathcal{C}$ is raised, and it says nothing
+about a trajectory that leaves the atmosphere between two passes, for which
+there is no positive $\rho_c$. This is the difficulty of the thin-atmosphere
+limit in its simplest form: an estimate that treats the trajectory as a
+whole cannot be uniform. The remedy is to estimate each piece on its own
+scale, the arcs by gravity alone, each pass through its own map, and the
+glide through its balance, which is the decomposition of \cref{sec:profile}.
 
 
 %==========================================================================
@@ -857,8 +986,9 @@ arises above, and we gather them here, in order, as the plan of work.
 \cref{obj:passmaps,obj:composition,obj:averaging} establish the
 decomposition; \cref{obj:constants} reduces it to closed form; and
 \cref{obj:pipeline} evaluates it.
-\Cref{obj:averaging} gates the rest. The central theorem is open, and no
-part of this program is claimed as done.
+\Cref{obj:averaging} gates the rest. The central theorem is open, and
+apart from the elementary bound of \cref{sec:first-bound} no part of this
+program is claimed as done.
 
 \subsection{Sequencing}
 The dependency structure suggests three phases rather than six parallel

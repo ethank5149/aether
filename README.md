@@ -212,7 +212,8 @@ silently exceeded.*
 **Early, and deliberately explicit about it.**
 
 The proposal is a draft, and it is a proposal: it states the problem, the statement aimed
-at and seven objectives, and it claims no result. A two-page summary,
+at and six objectives. The central theorem is open; the one result it claims is an
+elementary bound on the range, proved from the energy identity. A two-page summary,
 [`precis.pdf`](manuscript/proposal/precis.pdf), is the place to start. Both documents are
 published at <https://research.ekdynamics.science>.
 

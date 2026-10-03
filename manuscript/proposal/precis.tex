@@ -13,15 +13,17 @@
 %%   The subject is hypersonic entry: any vehicle, any corridor. One flight
 %%   appears, as the example the figure's trajectory is taken from, and it
 %%   is named only in the reference list.
-%%   Nothing is claimed as done. This is a proposal: no preliminary
-%%   derivation, computation or check is reported, and the sets in the
-%%   figure are an illustration, which the figure and its caption both say.
+%%   One result is claimed, and it is elementary: the range bound stated
+%%   under "A first bound", whose proof is in main.tex (sec:first-bound).
+%%   The figure evaluates it on the example and sets a simulated sweep
+%%   beside it. Nothing else is claimed as done.
 %%   No software is referred to or promised.
 %%
 %% It shares the preamble and the bibliography with main.tex, and nothing
 %% else: no cross-reference reaches from here into the proposal, so the two
 %% cannot fall out of step by a renumbering. What CAN fall out of step is
-%% the wording of the target statement. Reread it when main.tex changes.
+%% the wording of the target statement and of the range bound, and the
+%% numbers evaluated from it. Reread them when main.tex changes.
 %%
 %% The header gives an address to write to and where the full proposal is
 %% hosted: both documents are served from research.ekdynamics.science, and
@@ -29,7 +31,7 @@
 
 \documentclass[english,10pt]{extarticle}
 \input{../preamble}
-\geometry{margin=0.8in}
+\geometry{margin=0.75in}
 \pagestyle{plain}
 \hypersetup{
   pdftitle={Certified analytical bounds for hypersonic reachable sets: a two-page summary},
@@ -37,8 +39,11 @@
   pdfsubject={Summary of a preliminary PhD research proposal},
 }
 \ExecuteBibliographyOptions{maxbibnames=3,doi=false,isbn=false,url=false}
-% Two pages leave no room for a report's page count or its reissue.
-\AtEveryBibitem{\clearfield{pagetotal}\clearfield{addendum}\clearfield{month}}
+% Two pages leave no room for a report's page count or its reissue, for
+% where a publisher or a meeting was, or for the series a book appeared in.
+\AtEveryBibitem{\clearfield{pagetotal}\clearfield{addendum}\clearfield{month}%
+  \clearlist{location}%
+  \ifentrytype{book}{\clearfield{series}\clearfield{volume}\clearfield{number}}{}}
 \renewcommand*{\bibfont}{\footnotesize}
 \setlength{\bibitemsep}{1pt}
 \setlength{\parskip}{0pt}
@@ -50,6 +55,10 @@
 \long\def\@makecaption#1#2{\vskip 4pt{\small #1: #2\par}}
 \makeatother
 \setlength{\intextsep}{7pt plus 2pt minus 1pt}
+% Two displays, with the air of a line above and below each and no more.
+\AtBeginDocument{%
+  \setlength{\abovedisplayskip}{5pt plus 2pt minus 2pt}%
+  \setlength{\belowdisplayskip}{5pt plus 2pt minus 2pt}}
 
 \newcommand{\head}[1]{\par\smallskip\noindent\textbf{#1}\enspace}
 \newcommand{\proposalurl}{https://research.ekdynamics.science/proposal.pdf}
@@ -80,20 +89,18 @@ method stops before the real problem starts. A polynomial barrier whose
 coefficients come from an interior-point solver has analytical \emph{form},
 but it inherits the solver's accuracy and is not by itself a certificate.
 There are therefore two problems to solve, not one: the dimension of the
-state, and the provenance of the guarantee. The vehicle and its flight
-corridor enter only as data, so the bound sought is for hypersonic entry in
-general and not for a particular vehicle.
+state, and the provenance of the guarantee. The vehicle and its corridor
+enter only as data, so the bound sought is for hypersonic entry in general.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=6.5in]{figures/reachable-set.pdf}
-  \caption{Illustration of the target statement, drawn on the ground. The
-    trajectory is an example, a lunar-return skip entry simulated from a
-    published entry state~\cite{rea2024orion}, with altitude drawn twelve
-    times too large and a post marking each minute. The three sets are an
-    illustration and are not computed: the set that the vehicle can reach,
-    the set that the limit system can reach, and the latter thickened by
-    the residual, which is the bound.}
+  \includegraphics[width=6.0in]{figures/range-bound.pdf}
+  \caption{A first bound, on an example: a lunar-return skip entry
+    simulated from a published entry state~\cite{rea2024orion}, with
+    altitude drawn twelve times too large and a post marking each minute.
+    The circle is proved, by the bound stated under \emph{A first bound};
+    the sweep is a sample of simulated bank histories from the same state.
+    The program is to close the gap between the two.}
 \end{figure}
 
 \head{The approach.}
@@ -103,11 +110,11 @@ Liouville equation is a linear constraint on a measure $\mu$ over
 $[0,T]\times\calX\times\calU$, and an outer bound on the reachable set is
 certified by a dual pair of functions. So far this is the occupation-measure
 program of Lasserre, Henrion and
-collaborators~\cite{lasserre2008nonlinear,henrion2014convex}. Because the
+collaborators~\cite{lasserre2008nonlinear}. Because the
 aerodynamics are transcendental and known only to within tolerances, we
 enclose them in intervals. The dynamics become a differential inclusion,
-evaluated in validated interval arithmetic, with no polynomial recasting of
-the model and no numerical optimization as the source of the guarantee.
+evaluated in validated interval arithmetic, with no numerical optimization
+as the source of the guarantee.
 
 The new content is what happens in the thin-atmosphere limit
 $\eps = H_s/R_e\to 0$, where $H_s$ is the scale height of the atmosphere
@@ -161,19 +168,35 @@ statement is
 uniformly over the admissible family generated by the uncertainty set, not
 along a nominal trajectory. Here $\calR_\eps(T)$ is the reachable set of
 the full system, $\Pi$ reads a state of the limit system back in the full
-coordinates, and $\B(\varrho)$ is a ball in the corridor metric; Figure~1
-illustrates the statement. The count $K_\delta$ and the radius $\varrho$
+coordinates, and $\B(\varrho)$ is a ball in the corridor metric. The
+count $K_\delta$ and the radius $\varrho$
 are to be computable in closed form from the corridor bounds and the
-aerodynamic interval widths alone. The decomposition thus reduces a
-reachability problem in thirteen or more states to one for a limit system
-in a few slow coordinates. Compactness provides this structure but no
-constants; those are to come from direct estimates: the energy identity, a
+aerodynamic interval widths alone. Compactness provides this structure but
+no constants; those are to come from direct estimates: the energy identity, a
 matching estimate at each pass, and averaging over the oscillations that do
 not concentrate.
 
+\head{A first bound.}
+The first of these estimates can be carried out at once. Suppose that the
+vehicle stays in a part of the corridor where the density is at least
+$\rho_c$, the ballistic coefficient at most $\beta$, and the potential
+varies by at most $\Delta\Phi$. The ground track advances no faster than
+the vehicle, so integrating the energy identity while the speed falls from
+$V_0$ to $V_f$ bounds its length~$s$:
+\[
+  s \;\le\; \frac{2\beta}{\rho_c}
+  \Bigl[\,\ln\frac{V_0}{V_f} + \frac{\Delta\Phi}{V_f^{2}}\,\Bigr]
+\]
+for every control and every admissible model of the aerodynamics; the proof
+is in the full proposal. In the example of Figure~1 this is $5{,}150$\,km, where simulated bank histories
+reach $405$\,km. The bound is elementary and far from sharp, and the way it
+fails is the point: it is proportional to $1/\rho_c$, so it says nothing
+about a trajectory that leaves the atmosphere between two passes. This is
+why each piece must be estimated on its own scale.
+
 \head{Open problems.}
-The central theorem is open, and this summary claims no result. The
-following problems remain.
+The central theorem is open; only the bound above is claimed. The following
+problems remain.
 \begin{enumerate}[leftmargin=1.6em,itemsep=0pt,topsep=2pt]
   \item \textbf{The limit.} To show that the limit of the occupation
     measures satisfies the Liouville equation of the limit system, with a

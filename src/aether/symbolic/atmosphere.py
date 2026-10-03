@@ -31,23 +31,59 @@ and the tests can hold one against the other.
 
 The altitude is geometric height above the surface the planet model
 supplies; :mod:`aether.symbolic.figure` says what that surface is.
+
+Beside these stands :class:`ExponentialAtmosphere`, which is not the Earth's
+but a model: one scale height, anchored at an altitude, so that the scale
+height can be changed without moving the layer. It is the family along which
+a thin-atmosphere limit is taken, and nothing else should be read into it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 import sympy as sp
 
 __all__ = [
+    "Atmosphere",
+    "ExponentialAtmosphere",
     "StandardAtmosphere",
     "StandardLayer",
     "standard_atmosphere",
     "us_standard_1976_layers",
 ]
+
+
+class Atmosphere(Protocol):
+    """What a field needs of an atmosphere: the density as an expression in the altitude."""
+
+    def density(self, altitude: Any) -> Any: ...
+
+
+@dataclass(frozen=True)
+class ExponentialAtmosphere:
+    r"""An isothermal model: :math:`\rho = \rho_\ast\,e^{-(h - h_\ast)/H_s}`.
+
+    The density is fixed at the reference altitude and falls by a factor of
+    :math:`e` for each scale height above it. Shrinking the scale height at a
+    fixed reference keeps the layer where it is and sharpens its edge.
+    """
+
+    reference_density: float
+    """kg/m^3, at the reference altitude."""
+    reference_altitude: float
+    """m."""
+    scale_height: float
+    """m."""
+
+    def density(self, altitude: Any) -> Any:
+        """kg/m^3 at a geometric altitude in metres."""
+        return self.reference_density * sp.exp(
+            -(altitude - self.reference_altitude) / self.scale_height
+        )
 
 #: The standard's defining constants (NASA-TM-X-74335), exactly as it gives them.
 _GAS_CONSTANT = sp.Rational(831432, 100)  # R*, J/(kmol K)
