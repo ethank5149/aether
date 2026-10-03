@@ -19,7 +19,7 @@ no per-replicate step adaptation, so the batch stays coherent.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -99,6 +99,29 @@ class EntryDispersionModel:
         states[:, 5] = v * np.sin(gamma)
         return states
 
+    @overload
+    def fly(
+        self,
+        n_replicates: int,
+        seed: int,
+        backend: Backend = ...,
+        dt: float = ...,
+        max_time: float = ...,
+        return_params: Literal[False] = ...,
+    ) -> _FloatArray: ...
+
+    @overload
+    def fly(
+        self,
+        n_replicates: int,
+        seed: int,
+        backend: Backend = ...,
+        dt: float = ...,
+        max_time: float = ...,
+        *,
+        return_params: Literal[True],
+    ) -> tuple[_FloatArray, dict[str, _FloatArray]]: ...
+
     def fly(
         self,
         n_replicates: int,
@@ -106,8 +129,17 @@ class EntryDispersionModel:
         backend: Backend = "numpy",
         dt: float = 0.05,
         max_time: float = 120.0,
-    ) -> _FloatArray:
+        return_params: bool = False,
+    ) -> _FloatArray | tuple[_FloatArray, dict[str, _FloatArray]]:
         """Propagate the batch to ground impact.
+
+        Parameters
+        ----------
+        return_params:
+            When ``True``, also return the sampled dispersion inputs that
+            produced these impacts, so inputs and impacts are guaranteed
+            to come from the same draw. Default ``False`` leaves the
+            return value unchanged.
 
         Returns
         -------
@@ -115,6 +147,10 @@ class EntryDispersionModel:
             Impact points ``(n_replicates, 2)`` — (downrange x,
             crossrange y) in the local tangent plane, on host memory
             regardless of backend.
+        dict, optional
+            Only when ``return_params`` is ``True``: the ``name ->
+            samples`` dispersion draw, identical to
+            ``sample_dispersions(self.specs(), n_replicates, seed)``.
         """
         if dt <= 0.0 or max_time <= dt:
             raise ValueError(f"need 0 < dt < max_time, got dt={dt}, max_time={max_time}")
@@ -172,4 +208,7 @@ class EntryDispersionModel:
         if not bool(xp.all(landed)):
             n_open = int(xp.sum(~landed))
             raise RuntimeError(f"{n_open} replicates airborne after {max_time} s; raise max_time")
-        return to_numpy(impact)
+        impacts = to_numpy(impact)
+        if return_params:
+            return impacts, params
+        return impacts

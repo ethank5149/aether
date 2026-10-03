@@ -132,6 +132,18 @@ class TestEntryModel:
         model = EntryDispersionModel()
         assert np.array_equal(model.fly(50, seed=9), model.fly(50, seed=9))
 
+    def test_return_params_matches_same_draw(self):
+        model = EntryDispersionModel()
+        impacts_default = model.fly(80, seed=4)
+        impacts, params = model.fly(80, seed=4, return_params=True)
+        # impacts unchanged by the flag
+        assert np.array_equal(impacts, impacts_default)
+        # params are exactly the draw that produced them
+        expected = sample_dispersions(model.specs(), 80, 4)
+        assert params.keys() == expected.keys()
+        for name, values in expected.items():
+            assert np.array_equal(params[name], values)
+
     def test_heavier_ballistic_coefficient_flies_farther(self):
         light = EntryDispersionModel(beta_nominal=3000.0)
         heavy = EntryDispersionModel(beta_nominal=20000.0)

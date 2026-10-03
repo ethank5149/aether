@@ -8,11 +8,26 @@ Impacts come from the generic entry-dispersion model (no vehicle data);
 the convergence measurement splits one large batch into disjoint
 sub-batches per sample size, so the empirical scatter of the CEP
 estimator is measured directly rather than assumed.
+
+Besides the verdict, the run writes the raw Monte Carlo draw to CSV for
+hand analysis (floats rounded to 6 significant figures):
+
+- ``v7-samples-inputs.csv`` — ``sample_id`` (1..32000) then one column per
+  dispersed input in spec order: ``beta``, ``speed``, ``flight_path_deg``,
+  ``azimuth_deg``, ``density_bias``, ``wind_x``, ``wind_y``.
+- ``v7-samples-impacts.csv`` — ``sample_id``, ``downrange_m``,
+  ``crossrange_m``, ``miss_m`` (distance from the batch mean impact
+  point), ``inside_r95`` (1/0 from the same R95 ellipse test the verdict
+  uses). Rows share the ``sample_id`` keys of the inputs file.
+- ``v7-dispersion-spec.csv`` — ``parameter``, ``nominal``, ``sigma``,
+  ``lower``, ``upper``, ``units`` (one row per dispersion spec; bounds
+  blank where infinite, units blank where the model states none).
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +45,78 @@ _SUB_SIZES = (250, 500, 1000, 2000, 4000)
 _SLOPE_BAND = (-0.75, -0.25)
 _RATIO_BAND = (0.5, 2.0)
 
+#: Units for each dispersion spec, read from EntryDispersionModel's
+#: docstrings; blank where the docstring states none (density bias is a
+#: dimensionless multiplier, the wind components carry no stated unit).
+_SPEC_UNITS = {
+    "beta": "kg/m²",
+    "speed": "m/s",
+    "flight_path_deg": "deg",
+    "azimuth_deg": "deg",
+    "density_bias": "",
+    "wind_x": "",
+    "wind_y": "",
+}
+
+
+def _sig6(value: float) -> float:
+    """Round to 6 significant figures (deterministic across runs)."""
+    x = float(value)
+    if x == 0.0 or not math.isfinite(x):
+        return 0.0 if x == 0.0 else x
+    digits = 5 - math.floor(math.log10(abs(x)))
+    return round(x, digits) + 0.0  # + 0.0 normalises any -0.0
+
+
+def _bound(value: float) -> object:
+    """Spec bound for CSV: 6 sig figs, or blank for an infinite bound."""
+    return _sig6(value) if math.isfinite(value) else ""
+
+
+def _write_sample_csvs(
+    output_dir: Path,
+    model: EntryDispersionModel,
+    params: dict[str, np.ndarray],
+    impacts: np.ndarray,
+    centered: np.ndarray,
+    inside_r95: np.ndarray,
+) -> None:
+    """Export the raw Monte Carlo draw for hand analysis.
+
+    Inputs and impacts share one ``sample_id`` (1-based) index, so a row
+    in each file refers to the same replicate of the single 32k draw.
+    """
+    specs = model.specs()
+    names = [s.name for s in specs]
+    sample_ids = range(1, len(impacts) + 1)
+    miss = np.linalg.norm(centered, axis=1)
+
+    write_csv(
+        output_dir,
+        "v7-samples-inputs",
+        ["sample_id", *names],
+        [[sid, *(_sig6(params[n][i]) for n in names)] for i, sid in enumerate(sample_ids)],
+    )
+    write_csv(
+        output_dir,
+        "v7-samples-impacts",
+        ["sample_id", "downrange_m", "crossrange_m", "miss_m", "inside_r95"],
+        [
+            [sid, _sig6(impacts[i, 0]), _sig6(impacts[i, 1]), _sig6(miss[i]), int(inside_r95[i])]
+            for i, sid in enumerate(sample_ids)
+        ],
+    )
+    write_csv(
+        output_dir,
+        "v7-dispersion-spec",
+        ["parameter", "nominal", "sigma", "lower", "upper", "units"],
+        [
+            [s.name, _sig6(s.nominal), _sig6(s.sigma), _bound(s.lower), _bound(s.upper),
+             _SPEC_UNITS.get(s.name, "")]
+            for s in specs
+        ],
+    )
+
 
 def run_v7(output_dir: Path) -> VerificationReport:
     report = VerificationReport(
@@ -39,19 +126,19 @@ def run_v7(output_dir: Path) -> VerificationReport:
         passed=True,
     )
     model = EntryDispersionModel()
-    impacts = model.fly(_N_TOTAL, seed=_SEED)
+    impacts, params = model.fly(_N_TOTAL, seed=_SEED, return_params=True)
 
     # --- full-batch summary ----------------------------------------------
     rep = summarize_dispersion(impacts, bootstrap_samples=2000, seed=1)
     centered = impacts - rep.mean
     proj = centered @ rep.axes
-    containment = float(
-        np.mean(
-            (proj[:, 0] / rep.r95_semi_axes[0]) ** 2
-            + (proj[:, 1] / rep.r95_semi_axes[1]) ** 2
-            <= 1.0
-        )
+    inside_r95 = (
+        (proj[:, 0] / rep.r95_semi_axes[0]) ** 2
+        + (proj[:, 1] / rep.r95_semi_axes[1]) ** 2
+        <= 1.0
     )
+    containment = float(np.mean(inside_r95))
+    _write_sample_csvs(output_dir, model, params, impacts, centered, inside_r95)
     report.add_table(
         f"Full-batch summary (N_MC = {_N_TOTAL:,}, generic entry model)",
         ["metric", "value", "95% bootstrap CI"],
