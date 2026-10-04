@@ -772,13 +772,19 @@ We write $\Phi = \Phi_g - \tfrac12\omega_E^2 r^2\cos^2\phi$ for the
 potential in the rotating frame, so that the energy of \cref{sec:loss} is
 $\mathcal{E} = \tfrac12 V^2 + \Phi$, and we write $s(t)$ for the length of
 the ground track up to time~$t$. Let $\mathcal{C}$ be a part of the
-corridor on which the potential takes its values in
-$[\Phi_{\min},\Phi_{\max}]$ and on which the drag satisfies
-$D/m \ge \rho_c V^2/(2\beta)$ for every selection of the interval field.
-Here $\rho_c > 0$ is a lower bound for the density on $\mathcal{C}$, and
-$\beta$ is an upper bound for the ballistic coefficient $m/(C_D S)$, where
-$C_D$ is the drag coefficient and $S$ the reference area. We set
-$\Delta\Phi = \Phi_{\max}-\Phi_{\min}$.
+corridor that lies below a ceiling, on which the potential is at most
+$\Phi_{\max}$ and the density satisfies
+\[
+  \rho \;\ge\; \rho_c\,
+  \exp\Bigl(\frac{\Phi_{\max}-\Phi}{g H}\Bigr) .
+\]
+That is, the air at the ceiling is at least as dense as $\rho_c$, and
+below the ceiling it thickens at least as fast as in an exponential
+atmosphere of scale height $H$, where $g$ is an upper bound for the
+acceleration of gravity. Let $\beta$ be an upper bound for the ballistic
+coefficient $m/(C_D S)$, where $C_D$ is the drag coefficient and $S$ the
+reference area, so that the drag satisfies $D/m \ge \rho V^2/(2\beta)$ for
+every selection of the interval field.
 
 \begin{prop}[Range bound]\label{prop:range-bound}
 Suppose that a trajectory of the inclusion stays in $\mathcal{C}$ on
@@ -786,7 +792,7 @@ $[0,T]$, with speed $V_0$ at time zero and speed at least $V_f > 0$
 throughout. Then the length of its ground track satisfies
 \begin{equation}\label{eq:range-bound}
   s(T) \;\le\; \frac{2\beta}{\rho_c}
-  \left[\,\ln\frac{V_0}{V_f} + \frac{\Delta\Phi}{V_f^{2}}\,\right].
+  \left[\,\ln\frac{V_0}{V_f} + \frac{g H}{V_f^{2}}\,\right].
 \end{equation}
 \end{prop}
 
@@ -795,85 +801,117 @@ The ground track advances no faster than the vehicle, so $\dot s \le V$.
 Since $\dot{\mathcal{E}} = -(D/m)\,V$ and the drag is positive, we have
 $\dot s \le -\dot{\mathcal{E}}\,/(D/m)$. We now bound the drag from below in
 terms of the energy alone. On $\mathcal{C}$ we have
-$V^2 = 2(\mathcal{E}-\Phi) \ge 2(\mathcal{E}-\Phi_{\max})$, and
-$V^2 \ge V_f^2$ by hypothesis. Consequently,
+$V^2 = 2(\mathcal{E}-\Phi)$, so
 \[
-  \frac{D}{m} \;\ge\; \frac{\rho_c}{2\beta}\,
-  \max\bigl\{\,2(\mathcal{E}-\Phi_{\max}),\; V_f^2\,\bigr\} .
+  \frac{D}{m} \;\ge\; \frac{\rho_c}{\beta}\,
+  \exp\Bigl(\frac{\Phi_{\max}-\Phi}{g H}\Bigr)\,(\mathcal{E}-\Phi) .
+\]
+At a fixed energy the right-hand side decreases as $\Phi$ increases, since
+both of its factors do. The potential is at most $\Phi_{\max}$, and it is at
+most $\mathcal{E}-\tfrac12 V_f^2$ because $V \ge V_f$. We set
+$\mathcal{E}^* = \Phi_{\max} + \tfrac12 V_f^2$. For
+$\mathcal{E}\ge\mathcal{E}^*$ the right-hand side is at least its value at
+$\Phi = \Phi_{\max}$, and for $\mathcal{E}\le\mathcal{E}^*$ it is at least
+its value at $\Phi = \mathcal{E}-\tfrac12 V_f^2$. Consequently,
+\[
+  \frac{D}{m} \;\ge\;
+  \begin{cases}
+    \dfrac{\rho_c}{\beta}\,(\mathcal{E}-\Phi_{\max}),
+      & \mathcal{E}\ge\mathcal{E}^*, \\[1.2ex]
+    \dfrac{\rho_c}{2\beta}\,V_f^2\,
+      \exp\Bigl(\dfrac{\mathcal{E}^*-\mathcal{E}}{g H}\Bigr),
+      & \mathcal{E}\le\mathcal{E}^* .
+  \end{cases}
 \]
 Since $\mathcal{E}$ decreases along the trajectory, we may take it as the
-variable of integration, and we obtain
+variable of integration, so that $s(T)$ is at most the integral of the
+reciprocal of this bound from $\mathcal{E}(T)$ to $\mathcal{E}(0)$. The
+integrand is positive and
+$\mathcal{E}(0) \le \Phi_{\max} + \tfrac12 V_0^2$, so the integral only
+increases if it is taken over all energies below
+$\Phi_{\max} + \tfrac12 V_0^2$. Above $\mathcal{E}^*$ it is
 \[
-  s(T) \;\le\; \frac{2\beta}{\rho_c}
-  \int_{\mathcal{E}(T)}^{\mathcal{E}(0)}
-  \frac{\dd\mathcal{E}}{\max\bigl\{2(\mathcal{E}-\Phi_{\max}),\,V_f^2\bigr\}} .
+  \frac{2\beta}{\rho_c}
+  \int_{\mathcal{E}^*}^{\Phi_{\max}+\frac12 V_0^2}
+  \frac{\dd\mathcal{E}}{2(\mathcal{E}-\Phi_{\max})}
+  \;=\; \frac{2\beta}{\rho_c}\,\ln\frac{V_0}{V_f},
 \]
-The integrand is positive, and
-$\mathcal{E}(0) \le \tfrac12 V_0^2 + \Phi_{\max}$ while
-$\mathcal{E}(T) \ge \tfrac12 V_f^2 + \Phi_{\min}$, so the integral only
-increases if it is taken between these two values instead. We split it at
-$\mathcal{E}^* = \Phi_{\max} + \tfrac12 V_f^2$. Below $\mathcal{E}^*$ the
-integrand equals $1/V_f^2$, on an interval of length $\Delta\Phi$. Above
-$\mathcal{E}^*$ it equals $1/[2(\mathcal{E}-\Phi_{\max})]$, and its integral
-up to $\Phi_{\max} + \tfrac12 V_0^2$ is $\ln(V_0/V_f)$. Adding the two
-contributions gives \cref{eq:range-bound}.
+and below $\mathcal{E}^*$ it is
+\[
+  \frac{2\beta}{\rho_c V_f^2}
+  \int_{-\infty}^{\mathcal{E}^*}
+  \exp\Bigl(-\frac{\mathcal{E}^*-\mathcal{E}}{g H}\Bigr)\dd\mathcal{E}
+  \;=\; \frac{2\beta}{\rho_c}\,\frac{g H}{V_f^2}.
+\]
+Adding the two contributions gives \cref{eq:range-bound}.
 \end{proof}
 
 The two terms have a simple meaning. The first is the distance in which
-drag alone slows the vehicle from $V_0$ to $V_f$ in level flight through
-air of density $\rho_c$. The second accounts for the potential energy,
-which the vehicle can spend against the drag at its lowest speed. No property of the control enters, because the lift does
-no work, so the bound holds for every bank history. Similarly, the interval
+drag alone slows the vehicle from $V_0$ to $V_f$ in level flight at the
+ceiling. The second accounts for the potential energy, which the vehicle
+can spend against the drag at its lowest speed; only the first scale height
+below the ceiling contributes appreciably, because the air thickens
+underneath. No property of the control enters, because the lift does no
+work, so the bound holds for every bank history. Similarly, the interval
 field enters only through $\rho_c$ and $\beta$.
 
 We evaluate \cref{eq:range-bound} on the example of \cref{fig:target}. In
-that simulation the vehicle descends through $50$\,km for the last time at
-$V_0 = 4.47$\,km/s, and we take $\mathcal{C}$ to be the states below that
+that simulation the vehicle descends through $40$\,km for the last time at
+$V_0 = 2.34$\,km/s, and we take $\mathcal{C}$ to be the states below that
 altitude, down to $V_f = 305$\,m/s. The model vehicle has
-$\beta = 281$\,kg/m$^2$. Since the density increases toward the ground, we
-take for $\rho_c$ the density of the standard
-atmosphere~\cite{noaa1976standard} at $50$\,km, reduced by fifteen percent
-to allow for a thinner atmosphere, that is,
-$\rho_c = 8.7\times 10^{-4}$\,kg/m$^3$. The potential is constant on the
-surface from which altitude is measured, so $\Delta\Phi \le g\,h_c$ with
-$h_c = 50$\,km and $g = 9.9$\,m/s$^2$. Then $2\beta/\rho_c = 643$\,km, and
+$\beta = 281$\,kg/m$^2$. For the air we take the standard
+atmosphere~\cite{noaa1976standard}, whose density below $40$\,km increases
+downward at least as fast as an exponential of scale height $H = 7.0$\,km,
+with $g = 9.9$\,m/s$^2$. For $\rho_c$ we take its density at $40$\,km
+reduced by fifteen percent, that is,
+$\rho_c = 3.4\times 10^{-3}$\,kg/m$^3$. The reduction covers the variation
+of the potential with latitude along the ceiling, and it leaves room for an
+atmosphere up to twelve percent thinner than the standard one. Then
+$2\beta/\rho_c = 165$\,km and $gH/V_f^2 = 0.75$, so that
 \[
-  s(T) \;\le\; 643\,\text{km}\times\bigl[\,2.68 + 5.33\,\bigr]
-  \;\approx\; 5{,}150\,\text{km}.
+  s(T) \;\le\; 165\,\text{km}\times\bigl[\,2.04 + 0.75\,\bigr]
+  \;\approx\; 460\,\text{km}.
 \]
-Every bank history that keeps the vehicle below $50$\,km therefore lands
+Every bank history that keeps the vehicle below $40$\,km therefore lands
 within this distance of the point over which it started
 (\cref{fig:range-bound}). For comparison, a sweep of bank histories
-simulated from the same state lands within $405$\,km.
-
-\begin{figure}[!b]
-  \centering
-  \includegraphics[width=\linewidth]{figures/range-bound.pdf}
-  \caption{The bound of \cref{prop:range-bound}, evaluated on the example.
-    The trajectory is the simulated skip entry of \cref{fig:target}, with
-    altitude drawn twelve times too large and a post marking each minute.
-    From the point at which the vehicle last descends through $50$\,km,
-    every bank history that keeps it below that altitude lands inside the
-    circle. The landing points of a sweep of simulated bank histories from
-    the same state are shown enlarged on the right; the simulated flight
-    ends at the open circle. The circle is proved, and the sweep is a
-    sample.}
-  \label{fig:range-bound}
-\end{figure}
+simulated from the same state, each of which stays below that altitude,
+lands within $113$\,km.
 
 The bound is certified and uniform over the family, and it is too large by
-a factor of about thirteen. The reason is instructive.
-\Cref{eq:range-bound} charges the whole descent at the density of the
-thinnest air in $\mathcal{C}$, whereas the vehicle loses most of its energy
-lower down, where the air is ten to a hundred times denser. More
-importantly, the bound is proportional to $1/\rho_c$. It therefore
-degenerates as the ceiling of $\mathcal{C}$ is raised, and it says nothing
-about a trajectory that leaves the atmosphere between two passes, for which
-there is no positive $\rho_c$. This is the difficulty of the thin-atmosphere
+a factor of about four. The reason is instructive. Nearly three quarters of
+\cref{eq:range-bound} is its first term, which lets the vehicle slow down
+at the ceiling, in the thinnest air of $\mathcal{C}$. No vehicle can hold
+that altitude as it slows, since its lift falls with the square of the
+speed, but the energy identity does not know this, because the lift does no
+work. The lift constrains the range only through the balance normal to the
+path, that is, through the glide. More importantly, the bound is
+proportional to $1/\rho_c$, so it degenerates as the ceiling of
+$\mathcal{C}$ is raised. Evaluated from the states at which the same flight
+descends through $45$\,km and through $50$\,km, it is $1{,}070$\,km and
+$2{,}280$\,km: it more than doubles with every five kilometres. It says
+nothing about a trajectory that leaves the atmosphere between two passes,
+for which there is no positive $\rho_c$. This is the difficulty of the
+thin-atmosphere
 limit in its simplest form: an estimate that treats the trajectory as a
 whole cannot be uniform. The remedy is to estimate each piece on its own
 scale, the arcs by gravity alone, each pass through its own map, and the
 glide through its balance, which is the decomposition of \cref{sec:profile}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/range-bound.pdf}
+  \caption{The bound of \cref{prop:range-bound}, evaluated on the example.
+    The view is that of \cref{fig:target}, enlarged about the end of the
+    entry; the trajectory is the same simulated skip entry, with altitude
+    drawn twelve times too large and a post marking each minute. From the
+    state at which the vehicle last descends through $40$\,km, every bank
+    history that keeps it below that altitude lands inside the solid
+    circle. The landing points of a sweep of simulated bank histories from
+    the same state lie inside the dashed circle. The solid circle is
+    proved, and the dashed one is a sample.}
+  \label{fig:range-bound}
+\end{figure}
 
 
 %==========================================================================

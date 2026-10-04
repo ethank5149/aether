@@ -97,10 +97,10 @@ enter only as data, so the bound sought is for hypersonic entry in general.
   \includegraphics[width=6.0in]{figures/range-bound.pdf}
   \caption{A first bound, on an example: a lunar-return skip entry
     simulated from a published entry state~\cite{rea2024orion}, with
-    altitude drawn twelve times too large and a post marking each minute.
-    The circle is proved, by the bound stated under \emph{A first bound};
-    the sweep is a sample of simulated bank histories from the same state.
-    The program is to close the gap between the two.}
+    altitude drawn twelve times too large. From the state marked, every
+    bank history that stays below $40$\,km lands inside the solid circle;
+    this is proved (see \emph{A first bound}). Simulated bank histories
+    land inside the dashed one. The program is to close the gap.}
 \end{figure}
 
 \head{The approach.}
@@ -178,18 +178,19 @@ not concentrate.
 
 \head{A first bound.}
 The first of these estimates can be carried out at once. Suppose that the
-vehicle stays in a part of the corridor where the density is at least
-$\rho_c$, the ballistic coefficient at most $\beta$, and the potential
-varies by at most $\Delta\Phi$. The ground track advances no faster than
-the vehicle, so integrating the energy identity while the speed falls from
-$V_0$ to $V_f$ bounds its length~$s$:
+vehicle stays below a ceiling where the density is at least $\rho_c$, that
+the air thickens below it at least as fast as an exponential atmosphere of
+scale height $H$ under gravity~$g$, and that the ballistic coefficient is
+at most $\beta$. The ground track advances no faster than the vehicle, so
+integrating the energy identity while the speed falls from $V_0$ to $V_f$
+bounds its length~$s$:
 \[
   s \;\le\; \frac{2\beta}{\rho_c}
-  \Bigl[\,\ln\frac{V_0}{V_f} + \frac{\Delta\Phi}{V_f^{2}}\,\Bigr]
+  \Bigl[\,\ln\frac{V_0}{V_f} + \frac{g H}{V_f^{2}}\,\Bigr]
 \]
 for every control and every admissible model of the aerodynamics; the proof
-is in the full proposal. In the example of Figure~1 this is $5{,}150$\,km, where simulated bank histories
-reach $405$\,km. The bound is elementary and far from sharp, and the way it
+is in the full proposal. In the example of Figure~1 this is $460$\,km,
+where simulated bank histories reach $113$\,km. The bound is elementary and far from sharp, and the way it
 fails is the point: it is proportional to $1/\rho_c$, so it says nothing
 about a trajectory that leaves the atmosphere between two passes. This is
 why each piece must be estimated on its own scale.

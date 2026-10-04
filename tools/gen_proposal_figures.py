@@ -25,13 +25,16 @@ dissipation: the integral of :math:`P` over the flight must equal the energy
 lost, which over a rotating planet is the Jacobi integral and is likewise an
 output of the field.
 
-**range-bound.pdf.** The one result the proposal claims, evaluated. From the
-example flight's last descent through 50 km: the circle that the closed-form
-range bound of the proposal puts around the vehicle, which no bank history
-that stays below that altitude can leave; and where a sweep of bank
-histories lands from the same state, on the globe and enlarged beside it.
-The radius is the formula, evaluated here in four lines of arithmetic; the
-sweep is a simulation and says so.
+**range-bound.pdf.** The one result the proposal claims, evaluated. The
+whole-Earth view of the next figure, enlarged about the end of the entry so
+that the globe runs out of the frame: the flight coming in, the limb across
+one side, and around the point below the vehicle two circles. The solid one
+is the range bound of the proposal, from the state at which the flight last
+descends through 40 km: no bank history that stays below that altitude lands
+outside it. The dashed one is how far a sweep of bank histories lands from
+the same state. The solid radius is the formula, evaluated here in a few
+lines of arithmetic, with its hypothesis on the air checked against the
+standard atmosphere; the dashed one is a simulation and is named as one.
 
 **reachable-set.pdf.** The statement the proposal aims at, drawn where a
 landing footprint is drawn. The same flight over the globe, in perspective
@@ -74,6 +77,7 @@ import matplotlib.path as mpath  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from examples.artemis1.entry import (  # noqa: E402
+    EARTH_WGS84,
     FT,
     NOSE_RADIUS,
     TARGET_PUBLISHED,
@@ -85,11 +89,14 @@ from examples.artemis1.entry import (  # noqa: E402
     orion_aerodynamics,
 )
 from matplotlib import font_manager  # noqa: E402
-from matplotlib.colors import to_rgba  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patches import PathPatch, Rectangle  # noqa: E402
 
-from aether.certification.rotating_field import EARTH  # noqa: E402
+from aether.certification.rotating_field import (  # noqa: E402
+    EARTH,
+    jacobi_energy,
+    surface_radius,
+)
 from aether.geodesy import GeodeticPosition  # noqa: E402
 from aether.guidance.entry_ocp import EntryPathLimits  # noqa: E402
 from aether.guidance.footprint import entry_footprint  # noqa: E402
@@ -126,10 +133,24 @@ _ANCHOR = 60.0e3
 #: steps, light for the thickest atmosphere (an ordinal ramp).
 _THINNING = ("#86b6ef", "#5598e7", "#256abf", "#104281")
 
-#: The corridor the range bound is evaluated on: its ceiling (m); how far
-#: below the standard the air may be; and gravity (m/s^2), rounded up, so
-#: that gravity times the ceiling bounds the potential's drop across it.
-_CEILING = 50.0e3
+#: The corridor the range bound is evaluated on: its ceiling (m), and a scale
+#: height (m) no less than the standard density's anywhere under that
+#: ceiling, so that the air thickens downward at least as fast as an
+#: exponential of that height. The bound grows like the reciprocal of the
+#: density at the ceiling, so the ceiling is where it is asked from: at 40 km
+#: it is a few hundred kilometres, and the two ceilings of ``_HIGHER`` are
+#: evaluated as well, to say how fast it grows.
+_CEILING = 40.0e3
+_SCALE_HEIGHT = 7.0e3
+_HIGHER = ((45.0e3, 7.3e3), (50.0e3, 8.1e3))
+#: The view the range bound is drawn in: the whole-Earth view enlarged this
+#: many times, with the point below the vehicle put here on the page (inches).
+#: The globe then runs out of the frame, and its limb crosses one corner.
+_ENLARGED = 2.3
+_VEHICLE_AT = (3.80, 1.85)
+#: How far below the standard the air may be; and gravity (m/s^2), rounded
+#: up, so that a drop in potential is a drop in altitude of at least that
+#: drop over gravity.
 _DENSITY_MARGIN = 0.85
 _GRAVITY = 9.9
 
@@ -693,9 +714,17 @@ class _Canvas:
             self.axes.plot(run[:, 0], run[:, 1], solid_capstyle="round", **style)
 
 
-def _globe(width: float, height: float, middle: tuple[float, float], radius: float) -> _Canvas:
-    """A figure of the given size in inches with the shaded globe on it."""
-    camera = _Camera.above(*_CAMERA)
+def _globe(
+    width: float, height: float, middle: tuple[float, float], radius: float,
+    camera: _Camera | None = None, every: int = 15,
+) -> _Canvas:
+    """A figure of the given size in inches with the shaded globe on it.
+
+    ``camera`` is the one of the whole-Earth view unless another is given, and
+    ``every`` is the spacing of the graticule in degrees.
+    """
+    if camera is None:
+        camera = _Camera.above(*_CAMERA)
     centre = np.array(middle)
     scale = radius / camera.limb_radius
     figure = plt.figure(figsize=(width, height))
@@ -724,8 +753,9 @@ def _globe(width: float, height: float, middle: tuple[float, float], radius: flo
     ))
     span = np.linspace(-180.0, 180.0, 721)
     lines = [np.column_stack([np.full(361, longitude), span[::2] / 2.0])
-             for longitude in range(-180, 180, 15)]
-    lines += [np.column_stack([span, np.full(721, latitude)]) for latitude in range(-75, 90, 15)]
+             for longitude in range(-180, 180, every)]
+    lines += [np.column_stack([span, np.full(721, latitude)])
+              for latitude in range(-90 + every, 90, every)]
     for line in lines:
         for run in camera.runs(_directions(line)):
             run = canvas.inches(run)
@@ -745,27 +775,38 @@ def _globe(width: float, height: float, middle: tuple[float, float], radius: flo
     return canvas
 
 
-def _draw_flight(canvas: _Canvas, profile: SkipProfile) -> tuple[np.ndarray, np.ndarray]:
+def _draw_flight(
+    canvas: _Canvas, profile: SkipProfile, exaggeration: float = _EXAGGERATION
+) -> tuple[np.ndarray, np.ndarray]:
     """The flight above the globe, its altitude exaggerated, with a post each minute.
 
-    Returns the ground track and the trajectory, in inches.
+    Only the stretch over the visible side of the globe is drawn. Returns the
+    ground track and the trajectory of every sample, in inches; those of a
+    sample that cannot be seen mean nothing.
     """
     axes = canvas.axes
     over = _directions(profile.track)
-    ground = canvas.ground(over)
-    flight = canvas.inches(canvas.camera.project(
-        (_GLOBE_RADIUS + _EXAGGERATION * profile.altitudes_km)[:, None] * over
-    ))
-    axes.fill(np.r_[ground[:, 0], flight[::-1, 0]], np.r_[ground[:, 1], flight[::-1, 1]],
+    seen = np.flatnonzero(canvas.camera.visible(over))
+    first, last = int(seen[0]), int(seen[-1]) + 1
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ground = canvas.ground(over)
+        flight = canvas.inches(canvas.camera.project(
+            (_GLOBE_RADIUS + exaggeration * profile.altitudes_km)[:, None] * over
+        ))
+    shown = slice(first, last)
+    axes.fill(np.r_[ground[shown, 0], flight[shown, 0][::-1]],
+              np.r_[ground[shown, 1], flight[shown, 1][::-1]],
               color=_INK, alpha=0.07, linewidth=0.0, zorder=7)
     for moment in np.arange(0.0, profile.times[-1], _POST_EVERY):
         k = int(np.searchsorted(profile.times, moment))
-        axes.plot([ground[k, 0], flight[k, 0]], [ground[k, 1], flight[k, 1]],
-                  color=_INK_SECONDARY, linewidth=0.3, zorder=8)
-    axes.plot(ground[:, 0], ground[:, 1], color=_INK_SECONDARY, linewidth=0.5, zorder=8)
-    axes.plot(flight[:, 0], flight[:, 1], color=_INK, linewidth=1.5, zorder=9,
+        if first <= k < last:
+            axes.plot([ground[k, 0], flight[k, 0]], [ground[k, 1], flight[k, 1]],
+                      color=_INK_SECONDARY, linewidth=0.3, zorder=8)
+    axes.plot(ground[shown, 0], ground[shown, 1], color=_INK_SECONDARY, linewidth=0.5, zorder=8)
+    axes.plot(flight[shown, 0], flight[shown, 1], color=_INK, linewidth=1.5, zorder=9,
               solid_capstyle="round")
-    axes.scatter([flight[0, 0]], [flight[0, 1]], s=16.0, color=_INK, zorder=10)
+    if first == 0:
+        axes.scatter([flight[0, 0]], [flight[0, 1]], s=16.0, color=_INK, zorder=10)
     return ground, flight
 
 
@@ -840,8 +881,12 @@ class RangeBound:
     ballistic_coefficient: float
     density: float
     """kg/m^3: the least the air is taken to be anywhere under the ceiling."""
-    potential: float
-    """J/kg: no less than the drop of the potential across the corridor."""
+    scale_height: float
+    """m: under the ceiling the air thickens at least as fast as an exponential of this height."""
+    gravity: float
+    """m/s^2, rounded up: with the scale height, the potential the air e-folds across."""
+    thinnest: float
+    """The fraction of the standard density at which the bound's hypothesis still holds."""
     bound_km: float
     """The formula: no ground track from there is longer."""
     hull: np.ndarray
@@ -857,11 +902,43 @@ class RangeBound:
     rejected: int
 
 
-def range_bound(ceiling: float = _CEILING) -> RangeBound:
-    """Evaluate the closed-form bound from the flight's last descent through ``ceiling``.
+def _least_density_the_bound_allows(
+    ceiling: float, density: float, scale_height: float
+) -> float:
+    """How thin, as a fraction of the standard, the air may be for the bound to hold.
 
-    The bound is arithmetic on five numbers. The sweep beside it is the
-    example's footprint from the same state: a simulation, for comparison.
+    The bound assumes that under the ceiling the density is at least
+    ``density`` times the exponential of the potential's drop below its
+    greatest value there, over gravity times the scale height. This holds the
+    standard atmosphere against that floor, with the potential of the field
+    the example is flown in, at every latitude and every altitude under the
+    ceiling, and returns the largest ratio of floor to standard.
+    """
+    atmosphere = standard_atmosphere()
+    latitudes = np.deg2rad(np.linspace(-90.0, 90.0, 181))
+    altitudes = np.concatenate([
+        np.linspace(0.0, ceiling - 4.0e3, 93), np.linspace(ceiling - 4.0e3, ceiling, 81)
+    ])
+    surface = surface_radius(latitudes, planet=EARTH_WGS84)
+
+    def potential(altitude: float) -> np.ndarray:
+        at_rest = [surface + altitude, 0.0, latitudes, 0.0, 0.0, 0.0]
+        return np.asarray(jacobi_energy(at_rest, planet=EARTH_WGS84))
+
+    highest = float(potential(ceiling).max())
+    fold = _GRAVITY * scale_height
+    worst = 0.0
+    for altitude in altitudes:
+        floor = density * np.exp((highest - potential(float(altitude))) / fold)
+        worst = max(worst, float(floor.max()) / float(atmosphere.density(float(altitude))))
+    return worst
+
+
+def _evaluate_bound(ceiling: float, scale_height: float) -> dict[str, float]:
+    """The closed-form bound from the flight's last descent through ``ceiling``.
+
+    Arithmetic on six numbers, after checking the hypothesis on the air
+    against the atmosphere and the potential the example is flown in.
     """
     aero, result = _flight()
     start = last_descent_through(result, ceiling)
@@ -869,8 +946,33 @@ def range_bound(ceiling: float = _CEILING) -> RangeBound:
     terminal = 1000.0 * FT
     beta = float(aero.ballistic_coefficient)
     density = _DENSITY_MARGIN * float(standard_atmosphere().density(float(ceiling)))
-    potential = _GRAVITY * ceiling
-    bound = (2.0 * beta / density) * (np.log(speed / terminal) + potential / terminal**2)
+    thinnest = _least_density_the_bound_allows(ceiling, density, scale_height)
+    if thinnest > 1.0:
+        raise RuntimeError(
+            f"under {ceiling / 1e3:.0f} km the standard density falls below the floor the "
+            f"bound assumes, by a factor of {thinnest:.3f} somewhere"
+        )
+    bound = (2.0 * beta / density) * (
+        np.log(speed / terminal) + _GRAVITY * scale_height / terminal**2
+    )
+    return {
+        "start": float(start), "speed": speed, "terminal": terminal, "beta": beta,
+        "density": density, "thinnest": thinnest, "bound_km": float(bound) / 1e3,
+    }
+
+
+def range_bound(ceiling: float = _CEILING, scale_height: float = _SCALE_HEIGHT) -> RangeBound:
+    """Evaluate the closed-form bound from the flight's last descent through ``ceiling``.
+
+    The bound is arithmetic on six numbers. The sweep beside it is the
+    example's footprint from the same state: a simulation, for comparison,
+    and every history in it is held to the bound's hypothesis, that it stays
+    under the ceiling.
+    """
+    aero, result = _flight()
+    numbers = _evaluate_bound(ceiling, scale_height)
+    start = int(numbers["start"])
+    terminal = numbers["terminal"]
 
     model = guidance_model(aero)
     # Assumed limits, the example's own: loose on heating, 10 g on load.
@@ -883,6 +985,22 @@ def range_bound(ceiling: float = _CEILING) -> RangeBound:
         n_constant=67, n_reversals=8,
     )
 
+    state = result.states[:, start]
+    highest = max(
+        float(flown.altitudes.max())
+        for flown in (
+            model.fly_schedule(state, schedule, terminal_speed=terminal, max_time=2000.0,
+                               step=10.0)
+            for schedule in footprint.schedules
+        )
+        if flown is not None
+    )
+    if highest > ceiling + 1.0:
+        raise RuntimeError(
+            f"a history of the sweep climbs to {highest / 1e3:.2f} km, over the ceiling the "
+            f"bound is conditional on"
+        )
+
     def degrees(points: tuple[GeodeticPosition, ...]) -> np.ndarray:
         return np.rad2deg([[point.longitude, point.latitude] for point in points])
 
@@ -890,15 +1008,16 @@ def range_bound(ceiling: float = _CEILING) -> RangeBound:
         return np.array([footprint.local(point) for point in points]) / 1e3
 
     site = GeodeticPosition(latitude=TARGET_PUBLISHED[1], longitude=TARGET_PUBLISHED[0])
-    flown = tuple(model.ground_point(state) for state in result.states[:, start:].T)
+    track = tuple(model.ground_point(sample) for sample in result.states[:, start:].T)
     target = local((site,))[0]
     return RangeBound(
-        start=start, ceiling_km=ceiling / 1e3, speed=speed, terminal_speed=terminal,
-        ballistic_coefficient=beta, density=density, potential=potential,
-        bound_km=float(bound) / 1e3,
+        start=start, ceiling_km=ceiling / 1e3, speed=numbers["speed"],
+        terminal_speed=terminal, ballistic_coefficient=numbers["beta"],
+        density=numbers["density"], scale_height=scale_height, gravity=_GRAVITY,
+        thinnest=numbers["thinnest"], bound_km=numbers["bound_km"],
         hull=degrees(footprint.boundary), samples=degrees(footprint.samples),
         hull_local=local(footprint.boundary), samples_local=local(footprint.samples),
-        track_local=local(flown), target_local=(float(target[0]), float(target[1])),
+        track_local=local(track), target_local=(float(target[0]), float(target[1])),
         reach_km=footprint.max_downrange_m / 1e3, rejected=footprint.rejected,
     )
 
@@ -906,90 +1025,69 @@ def range_bound(ceiling: float = _CEILING) -> RangeBound:
 def draw_range_bound(profile: SkipProfile, bound: RangeBound, path: Path) -> None:
     """What is proved against what is found, from one state of the example flight.
 
-    On the globe, the circle of the bound and, at its centre, the set the
-    sweep reaches, which at that scale is a speck; beside it the same set on
-    its own axes. One hue: dark for the bound, lighter for what is reached.
+    One picture: the whole-Earth view of the other figure, enlarged about the
+    end of the entry until the circle of the bound and the patch where the
+    sweep lands can both be seen, so that the globe runs out of the frame. The
+    flight comes in from below and the limb crosses a corner. Each thing is
+    named beside it; there is no key. One hue: dark for the bound, lighter for
+    what the sweep finds.
     """
-    canvas = _globe(6.5, 3.3, (2.72, 1.65), 1.6)
+    width, height = 6.5, 3.3
+    camera = _Camera.above(*_CAMERA)
+    over = _directions(profile.track)
+    here = over[bound.start]
+    radius = 1.6 * _ENLARGED
+    offset = (radius / camera.limb_radius) * camera.ground(here[None, :])[0]
+    canvas = _globe(width, height, (_VEHICLE_AT[0] - offset[0], _VEHICLE_AT[1] - offset[1]),
+                    radius, camera=camera)
     axes = canvas.axes
 
-    # -- on the ground: the circle of the bound, and the sweep inside it ----------
-    here = _directions(profile.track[bound.start : bound.start + 1])[0]
+    # -- on the ground: the circle of the bound, and inside it what the sweep finds ---
     east = np.cross([0.0, 0.0, 1.0], here)
     east /= np.linalg.norm(east)
     north = np.cross(here, east)
-    angle = bound.bound_km / _GLOBE_RADIUS
-    turn = np.linspace(0.0, 2.0 * np.pi, 721)
-    circle = np.cos(angle) * here + np.sin(angle) * (
-        np.outer(np.cos(turn), east) + np.outer(np.sin(turn), north)
-    )
-    canvas.fill(circle, color=_BAND, alpha=0.55, zorder=3)
-    canvas.stroke(circle, color=_BOUND, linewidth=1.6, zorder=6)
-    hull = _along_great_circles(_directions(bound.hull), 0.05, close=True)
-    canvas.fill(hull, color=_LIMIT, zorder=5)
+    turn = np.linspace(0.0, 2.0 * np.pi, 361)
 
-    _ground, flight = _draw_flight(canvas, profile)
-    axes.scatter([flight[bound.start, 0]], [flight[bound.start, 1]], s=16.0, color=_INK,
+    def ring(kilometres: float) -> np.ndarray:
+        angle = kilometres / _GLOBE_RADIUS
+        return np.cos(angle) * here + np.sin(angle) * (
+            np.outer(np.cos(turn), east) + np.outer(np.sin(turn), north)
+        )
+
+    proved, found = ring(bound.bound_km), ring(bound.reach_km)
+    canvas.fill(proved, color=_BAND, alpha=0.45, zorder=3)
+    canvas.stroke(proved, color=_BOUND, linewidth=1.8, zorder=6)
+    hull = _along_great_circles(_directions(bound.hull), 0.05, close=True)
+    canvas.fill(hull, color=_REACHED, zorder=5)
+    canvas.stroke(found, color=_LIMIT, linewidth=0.9, zorder=6, dashes=(3.0, 1.6))
+
+    ground, flight = _draw_flight(canvas, profile)
+    axes.scatter([flight[bound.start, 0]], [flight[bound.start, 1]], s=18.0, color=_INK,
                  zorder=10)
 
-    # -- words ----------------------------------------------------------------------
-    axes.annotate(
-        "entry interface", xy=(flight[0, 0], flight[0, 1]), xytext=(0.90, 0.30),
-        ha="right", va="center", arrowprops=_LEADER, **_WORDS,
+    # -- names: a term, and under it the quantity; each ruled to what it names -------
+    outer, inner = canvas.ground(proved), canvas.ground(found)
+    notes = (
+        ("Proved bound", f"radius {round(bound.bound_km, -1):,.0f} km",
+         outer[np.argmin(outer[:, 0] - 0.9 * outer[:, 1])], (0.16, 2.92)),
+        ("Vehicle", f"{bound.ceiling_km:.0f} km altitude, {bound.speed / 1e3:.2f} km/s",
+         flight[bound.start], (0.16, 2.08)),
+        ("Simulated landings",
+         f"{len(bound.samples)} bank histories,\nall within {bound.reach_km:,.0f} km",
+         inner[np.argmin(inner[:, 0] + 0.9 * inner[:, 1])], (0.16, 1.30)),
     )
-    axes.annotate(
-        f"the vehicle,\n{bound.ceiling_km:.0f} km up",
-        xy=(flight[bound.start, 0], flight[bound.start, 1]), xytext=(0.90, 2.30),
-        ha="right", va="center", arrowprops=_LEADER, **_WORDS,
-    )
-    left, top = 4.62, 3.02
-    axes.add_line(Line2D([left, left + 0.26], [top, top], color=_BOUND, linewidth=1.6))
-    axes.text(left + 0.36, top + 0.065,
-              f"proved: every bank history\nthat stays below {bound.ceiling_km:.0f} km"
-              f"\nlands inside this circle,\n{round(bound.bound_km, -1):,.0f} km in radius",
-              ha="left", va="top", **_WORDS)
-    lower = top - 0.92
-    axes.add_patch(Rectangle((left, lower - 0.055), 0.26, 0.11, linewidth=0.8,
-                             facecolor=to_rgba(_REACHED, 0.70), edgecolor=_LIMIT))
-    axes.text(left + 0.36, lower + 0.065,
-              f"found: a sweep of bank\nhistories lands within\n{bound.reach_km:,.0f} km "
-              "(enlarged below)",
-              ha="left", va="top", **_WORDS)
-
-    # -- the sweep on its own axes: downrange across, crossrange up -------------------
-    reach = 1.08 * max(float(bound.hull_local[:, 0].max()), bound.target_local[0])
-    half = 1.6 * float(np.abs(bound.hull_local[:, 1]).max())
-    wide = 6.5 - left - 0.10
-    inset = canvas.figure.add_axes((left / 6.5, 0.42 / 3.3, wide / 6.5,
-                                    wide * (2.0 * half) / reach / 3.3))
-    inset.set_xlim(-0.035 * reach, reach)
-    inset.set_ylim(-half, half)
-    inset.set_aspect("equal")
-    for side in ("top", "right", "left"):
-        inset.spines[side].set_visible(False)
-    inset.spines["bottom"].set_color(_AXIS)
-    inset.spines["bottom"].set_linewidth(0.6)
-    inset.tick_params(colors=_INK_SECONDARY, width=0.6, length=3.0)
-    inset.set_yticks([])
-    inset.set_xticks(np.arange(0.0, reach, 100.0))
-    inset.spines["bottom"].set_bounds(0.0, reach)
-    inset.set_xlabel("km downrange", color=_INK_SECONDARY, labelpad=1.0)
-    closed = np.vstack([bound.hull_local, bound.hull_local[:1]])
-    inset.fill(closed[:, 0], closed[:, 1], facecolor=to_rgba(_REACHED, 0.70), edgecolor=_LIMIT,
-               linewidth=0.8, zorder=2)
-    inset.scatter(bound.samples_local[:, 0], bound.samples_local[:, 1], s=4.0, color=_LIMIT,
-                  linewidths=0.0, zorder=3)
-    inset.text(0.22 * bound.target_local[0], 0.16 * half, "the flight", ha="center",
-               va="bottom", **_WORDS)
-    inset.plot(bound.track_local[:, 0], bound.track_local[:, 1], color=_INK, linewidth=1.1,
-               zorder=4)
-    inset.scatter([0.0], [0.0], s=12.0, color=_INK, zorder=5)
-    inset.scatter([bound.target_local[0]], [bound.target_local[1]], s=20.0, facecolor="white",
-                  edgecolor=_INK, linewidth=0.9, zorder=6)
-    # A rule from the speck on the globe to the axes that enlarge it.
-    speck = canvas.ground(hull.mean(axis=0, keepdims=True) / np.linalg.norm(hull.mean(axis=0)))[0]
-    axes.plot([speck[0], left - 0.06], [speck[1], 0.42 + 0.5 * wide * (2.0 * half) / reach],
-              color=_INK_SECONDARY, linewidth=0.5, zorder=13)
+    for term, quantity, target, (x, y) in notes:
+        axes.annotate(term, xy=(target[0], target[1]), xytext=(x, y), ha="left", va="center",
+                      color=_INK, zorder=20, arrowprops=_LEADER)
+        axes.text(x, y - 0.095, quantity, ha="left", va="top", fontsize=8.0, **_WORDS)
+    k = int(np.searchsorted(profile.times, profile.times[bound.start] - 170.0))
+    axes.text(ground[k, 0] + 0.13, ground[k, 1] + 0.08, "Entry trajectory", ha="left",
+              va="center", color=_INK, zorder=20)
+    axes.text(ground[k, 0] + 0.13, ground[k, 1] - 0.085,
+              f"altitude $\\times${_EXAGGERATION:.0f}", ha="left", va="center", fontsize=8.0,
+              **_WORDS)
+    axes.add_patch(Rectangle((0.0, 0.0), width, height, facecolor="none", edgecolor=_AXIS,
+                             linewidth=1.2, zorder=30))
 
     _save(canvas.figure, path)
 
@@ -1037,14 +1135,24 @@ def main() -> int:
     print(
         f"  from the last descent through {bound.ceiling_km:.0f} km, at {bound.speed:,.1f} m/s, "
         f"down to {bound.terminal_speed:.1f} m/s:\n"
-        f"  (2 beta / rho_c) [ln(V_0/V_f) + dPhi/V_f^2] = "
+        f"  (2 beta / rho_c) [ln(V_0/V_f) + g H/V_f^2] = "
         f"(2 x {bound.ballistic_coefficient:.1f} / {bound.density:.4e}) x "
         f"[{np.log(bound.speed / bound.terminal_speed):.3f} + "
-        f"{bound.potential / bound.terminal_speed**2:.3f}] = {bound.bound_km:,.0f} km\n"
+        f"{bound.gravity * bound.scale_height / bound.terminal_speed**2:.3f}] = "
+        f"{bound.bound_km:,.0f} km\n"
+        f"  its floor on the density holds for any atmosphere at least "
+        f"{bound.thinnest:.3f} of the standard\n"
         f"  the sweep lands within {bound.reach_km:,.0f} km ({len(bound.samples)} bank "
-        f"histories, {bound.rejected} over the load limit): "
+        f"histories, {bound.rejected} over the load limit, every one under the ceiling): "
         f"{bound.bound_km / bound.reach_km:.1f} times less"
     )
+    for ceiling, scale_height in _HIGHER:
+        higher = _evaluate_bound(ceiling, scale_height)
+        print(
+            f"  from {ceiling / 1e3:.0f} km instead, at {higher['speed']:,.1f} m/s, with "
+            f"H = {scale_height / 1e3:.1f} km: {higher['bound_km']:,.0f} km (floor holds to "
+            f"{higher['thinnest']:.3f} of the standard)"
+        )
     print(
         f"  the flight: energy lost {profile.energy_lost_mj:.2f} MJ/kg, and the drag power "
         f"integrates to it within {profile.energy_residual:.1e}; passes at "

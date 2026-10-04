@@ -1629,34 +1629,41 @@ def _a_bank_history_pumps_or_damps_the_oscillation() -> Any:
 
 
 def _the_range_is_bounded_by_the_energy_to_be_lost() -> Any:
-    r"""Under a density floor, :math:`s \le (2\beta/\rho_c)[\ln(V_0/V_f) + \Delta\Phi/V_f^2]`.
+    r"""Under an exponential density floor, :math:`s \le (2\beta/\rho_c)[\ln(V_0/V_f) + gH/V_f^2]`.
 
     The ground track advances no faster than the vehicle and the energy
     :math:`E = V^2/2 + \Phi` falls at the drag power (``energy-dissipation``),
     so :math:`\mathrm ds \le -\mathrm dE/(D/m)`. What is checked here is the
-    algebra between that inequality and the bound. With the drag at its
-    floor, :math:`D/m = \rho_c V^2/(2\beta) = (\rho_c/\beta)(E - \Phi)`, which
-    exceeds :math:`(\rho_c/\beta)(E - \Phi_{\max})` by a term that is not
-    negative. Integrated in the energy, the reciprocal of that floor gives
-    the logarithm above :math:`E^* = \Phi_{\max} + V_f^2/2`; below it the
-    floor :math:`\rho_c V_f^2/(2\beta)` gives the term in :math:`\Delta\Phi`.
-    The last entry says the logarithm is not slack: the path flown level at
-    the floor density, :math:`\mathrm dV/\mathrm ds = -\rho_c V/(2\beta)`, is that long.
+    algebra between that inequality and the bound. The air is at least
+    :math:`\rho_c` where the potential is :math:`\Phi_{\max}` and thickens
+    below at least as fast as :math:`e^{(\Phi_{\max}-\Phi)/(gH)}`, so the drag
+    is at least :math:`(\rho_c/\beta)\,e^{(\Phi_{\max}-\Phi)/(gH)}(E-\Phi)`.
+    At a given energy that floor falls as the potential rises (first entry),
+    so it is least at the largest potential the state can have: the ceiling
+    while :math:`E \ge E^* = \Phi_{\max} + V_f^2/2`, and below that the level
+    at which the speed is :math:`V_f` (second entry). Integrated in the
+    energy, the reciprocal of the floor gives the logarithm above
+    :math:`E^*` and :math:`gH/V_f^2` below it. The last entry says the
+    logarithm is not slack: the path flown level at the ceiling density,
+    :math:`\mathrm dV/\mathrm ds = -\rho_c V/(2\beta)`, is that long.
     """
-    energy, low, high = sp.symbols("E Phi_min Phi_max", real=True)
+    energy, top = sp.symbols("E Phi_max", real=True)
     potential = sp.Symbol("Phi", real=True)
     density, beta, first, last, speed = sp.symbols("rho_c beta V_0 V_f V", positive=True)
-    kinetic = sp.Symbol("u", positive=True)
-    drag = density * (2 * (energy - potential)) / (2 * beta)
-    bound = (2 * beta / density) * (sp.log(first / last) + (high - low) / last**2)
+    kinetic, fold = sp.symbols("u gH", positive=True)
+    floor = (density / beta) * sp.exp((top - potential) / fold) * (energy - potential)
+    threshold = top + last**2 / 2
+    slowest = floor.subs(potential, energy - last**2 / 2)
+    bound = (2 * beta / density) * (sp.log(first / last) + fold / last**2)
     above = sp.integrate(beta / (density * kinetic), (kinetic, last**2 / 2, first**2 / 2))
     below = sp.integrate(
-        2 * beta / (density * last**2), (energy, low + last**2 / 2, high + last**2 / 2)
+        (2 * beta / (density * last**2)) * sp.exp(-(threshold - energy) / fold),
+        (energy, -sp.oo, threshold),
     )
     level = (2 * beta / density) * sp.log(first / speed)
     return [
-        drag - (density / beta) * (energy - high) - (density / beta) * (high - potential),
-        sp.expand_log(above - (2 * beta / density) * sp.log(first / last), force=True),
+        sp.diff(floor, potential) + floor * (1 / fold + 1 / (energy - potential)),
+        slowest - (density / (2 * beta)) * last**2 * sp.exp((threshold - energy) / fold),
         sp.expand_log(above + below - bound, force=True),
         sp.diff(level, speed) + 2 * beta / (density * speed),
     ]
@@ -2074,9 +2081,9 @@ DERIVATIONS: tuple[Derivation, ...] = (
     ),
     Derivation(
         "range-bound",
-        "with the density at least rho_c the ground track is at most "
-        "(2 beta/rho_c)[ln(V_0/V_f) + (Phi_max - Phi_min)/V_f^2], and the path of level "
-        "flight at that density is the logarithm",
+        "with the density at least rho_c at the ceiling and at least exponential below it, "
+        "the ground track is at most (2 beta/rho_c)[ln(V_0/V_f) + g H/V_f^2], and the path of "
+        "level flight at the ceiling density is the logarithm",
         "sec:first-bound, prop:range-bound, eq:range-bound",
         _the_range_is_bounded_by_the_energy_to_be_lost,
     ),
